@@ -1,0 +1,229 @@
+# Environment for GitTally
+#
+# Save and source this output before starting the script, for example:
+#   gitTally --env > .gittally.env
+#   . .gittally.env
+
+# ================================================================================
+# Installation
+# --------------------------------------------------------------------------------
+
+# Target directory used by --install.
+# default GITTALLY_INSTALL_DIR=$HOME/bin
+export GITTALLY_INSTALL_DIR=$HOME/gitTally
+
+# ================================================================================
+# Build command
+# --------------------------------------------------------------------------------
+
+# Shell command executed for each build. The branch name is available as $branch.
+# default GITTALLY_BUILD_COMMAND='./gradlew --console=plain --no-daemon --no-build-cache --rerun-tasks test'
+export GITTALLY_BUILD_COMMAND='./gradlew --console=plain --no-daemon --no-build-cache --rerun-tasks migrationTest -x unitTest -x test -x check -x pitest -x dependencyCheckAnalyze'
+
+# Shell command executed before a non-Docker build and before preparing a Docker workspace.
+# default GITTALLY_BUILD_CLEAN_COMMAND='rm -rf build'
+export GITTALLY_BUILD_CLEAN_COMMAND='rm -rf build'
+
+# Report directories copied into artifacts. Separate multiple paths with ';'.
+# default GITTALLY_BUILD_ARTEFACT_DIRS='build/reports'
+export GITTALLY_BUILD_ARTEFACT_DIRS='build/reports;build/doc'
+
+# Artifact filename for captured build stdout.
+# default GITTALLY_BUILD_STDOUT_LOG='build.stdout.log'
+export GITTALLY_BUILD_STDOUT_LOG='build.stdout.log'
+
+# Artifact filename for captured build stderr.
+# default GITTALLY_BUILD_STDERR_LOG='build.stderr.log'
+export GITTALLY_BUILD_STDERR_LOG='build.stderr.log'
+
+# Maximum age for the latest commit on new origin branches. Use h/d suffix.
+# default GITTALLY_NEW_BRANCH_COMMIT_MAX_AGE='3d'
+# export GITTALLY_NEW_BRANCH_COMMIT_MAX_AGE='3d'
+
+# ================================================================================
+# Docker build runtime
+# --------------------------------------------------------------------------------
+
+# Docker image used when --docker is enabled.
+# default GITTALLY_BUILD_DOCKER_IMAGE='hsadmin-ng-build-env:latest'
+export GITTALLY_BUILD_DOCKER_IMAGE='hsadmin-ng-build-env:latest'
+
+# Dockerfile used to build the image when it does not exist locally.
+# default GITTALLY_BUILD_DOCKERFILE='Jenkins/jenkins-agent/Dockerfile'
+export GITTALLY_BUILD_DOCKERFILE='Jenkins/jenkins-agent/Dockerfile'
+
+# Docker build context used with GITTALLY_BUILD_DOCKERFILE.
+# default GITTALLY_BUILD_DOCKER_CONTEXT='Jenkins/jenkins-agent'
+export GITTALLY_BUILD_DOCKER_CONTEXT='Jenkins/jenkins-agent'
+
+# Docker network mode for build containers.
+# default GITTALLY_BUILD_DOCKER_NETWORK='host'
+export GITTALLY_BUILD_DOCKER_NETWORK='host'
+
+# Command run inside the build container to verify Docker access.
+# default GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND='docker version'
+export GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND='docker version'
+
+# Additional environment assignments passed to the build container, separated by spaces.
+# default GITTALLY_BUILD_DOCKER_ENV='TESTCONTAINERS_RYUK_DISABLED=true'
+export GITTALLY_BUILD_DOCKER_ENV='TESTCONTAINERS_RYUK_DISABLED=true'
+
+# Java tool options added for Docker and Testcontainers defaults.
+# default GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS='-Ddocker.client.strategy=org.testcontainers.dockerclient.UnixSocketClientProviderStrategy -Dtestcontainers.docker.socket.override=/var/run/docker.sock'
+export GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS='-Ddocker.client.strategy=org.testcontainers.dockerclient.UnixSocketClientProviderStrategy -Dtestcontainers.docker.socket.override=/var/run/docker.sock'
+
+# ================================================================================
+# Artifact server
+# --------------------------------------------------------------------------------
+
+# Preferred HTTP port for serving archived build artifacts.
+# default GITTALLY_ARTIFACT_SERVER_PORT='18080'
+export GITTALLY_ARTIFACT_SERVER_PORT='18080'
+
+# Bind address for the artifact HTTP server.
+# default GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS='0.0.0.0'
+export GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS='0.0.0.0'
+
+# Host name or address printed in local artifact server URLs.
+# default GITTALLY_ARTIFACT_SERVER_HOST=''
+export GITTALLY_ARTIFACT_SERVER_HOST=''
+
+# Public base URL used for artifact links and Gitea status target URLs.
+# default GITTALLY_ARTIFACT_PUBLIC_BASE_URL='https://ci.example.org/'
+export GITTALLY_ARTIFACT_PUBLIC_BASE_URL='https://vm2176.hostsharing.net/'
+
+# Retained builds per branch. Use a count, or h/d suffix for age based retention.
+# default GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH='3'
+export GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH='3'
+
+# ================================================================================
+# Nginx and certificates
+# --------------------------------------------------------------------------------
+
+# Public server name for the nginx and certificate setup.
+# default GITTALLY_ARTIFACT_NGINX_SERVER_NAME='ci.example.org'
+export GITTALLY_ARTIFACT_NGINX_SERVER_NAME='vm2176.hostsharing.net'
+
+# Host HTTP port published by the nginx container.
+# default GITTALLY_ARTIFACT_NGINX_HTTP_PORT='8080'
+export GITTALLY_ARTIFACT_NGINX_HTTP_PORT='8080'
+
+# Host HTTPS port published by the nginx container.
+# default GITTALLY_ARTIFACT_NGINX_HTTPS_PORT='8443'
+export GITTALLY_ARTIFACT_NGINX_HTTPS_PORT='8443'
+
+# Host name nginx uses to reach the artifact HTTP server.
+# default GITTALLY_ARTIFACT_NGINX_UPSTREAM_HOST='ci.example.org'
+export GITTALLY_ARTIFACT_NGINX_UPSTREAM_HOST='vm2176.hostsharing.net'
+
+# Docker container name for the nginx reverse proxy.
+# default GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME='gittally-nginx-example-repo'
+export GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME='gittally-nginx-hsadmin-ng'
+
+# Persistent state directory for nginx config, logs, and certificate data.
+# default GITTALLY_ARTIFACT_NGINX_STATE_DIR=${XDG_STATE_HOME:-$HOME/.local/state}/gittally/nginx/<repo-key>
+# export GITTALLY_ARTIFACT_NGINX_STATE_DIR=''
+
+# Email address used when registering Lets Encrypt certificates.
+# default GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL='admin@example.org'
+export GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL=''
+
+# Additional certbot arguments, for example --staging.
+# default GITTALLY_ARTIFACT_CERTBOT_ENV=''
+export GITTALLY_ARTIFACT_CERTBOT_ENV=''
+
+# ================================================================================
+# Artifact website Gitea login
+# --------------------------------------------------------------------------------
+
+# Frontend auth mode for --nginx. Use gitea-oauth2 to require a Gitea browser login.
+# default GITTALLY_ARTIFACT_AUTH_MODE=''
+export GITTALLY_ARTIFACT_AUTH_MODE=''
+
+# Gitea base URL used only for browser login to the artifact website.
+# default GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL='https://git.example.org'
+export GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL='https://dev.hostsharing.net'
+
+# OAuth2 client ID registered in Gitea for the artifact website.
+# default GITTALLY_ARTIFACT_AUTH_CLIENT_ID='gitea-oauth-client-id'
+export GITTALLY_ARTIFACT_AUTH_CLIENT_ID=''
+
+# OAuth2 client secret registered in Gitea for the artifact website.
+# default GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET='gitea-oauth-client-secret'
+export GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET=''
+
+# Random oauth2-proxy cookie secret used to protect browser sessions.
+# default GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET='generate-a-random-cookie-secret'
+export GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET=''
+
+# Optional cookie domain for browser sessions.
+# default GITTALLY_ARTIFACT_AUTH_COOKIE_DOMAIN='ci.example.org'
+export GITTALLY_ARTIFACT_AUTH_COOKIE_DOMAIN=''
+
+# OAuth2 proxy Docker image used for Gitea browser login.
+# default GITTALLY_ARTIFACT_AUTH_IMAGE='quay.io/oauth2-proxy/oauth2-proxy:v7.13.0'
+export GITTALLY_ARTIFACT_AUTH_IMAGE='quay.io/oauth2-proxy/oauth2-proxy:v7.13.0'
+
+# Docker container name for the artifact website auth proxy.
+# default GITTALLY_ARTIFACT_AUTH_CONTAINER_NAME='gittally-auth-example-repo'
+export GITTALLY_ARTIFACT_AUTH_CONTAINER_NAME='gittally-auth-hsadmin-ng'
+
+# Internal HTTP port used by the artifact website auth proxy.
+# default GITTALLY_ARTIFACT_AUTH_HTTP_PORT='4180'
+export GITTALLY_ARTIFACT_AUTH_HTTP_PORT='4180'
+
+# Allowed email domains for logged-in Gitea users. Use * to allow any Gitea login.
+# default GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS='*'
+export GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS='*'
+
+# ================================================================================
+# Legal
+# --------------------------------------------------------------------------------
+
+# URL for the Impressum (Legal Disclosure) link in the footer.
+# default GITTALLY_IMPRESSUM_URL='https://example.org/imprint.html'
+export GITTALLY_IMPRESSUM_URL='https://michael.hoennig.de/imprint.html'
+
+# ================================================================================
+# Auto builds
+# --------------------------------------------------------------------------------
+
+# Colon-separated list of branches to rebuild automatically. Leave empty to disable auto builds.
+# default GITTALLY_AUTO_BUILD_BRANCHES=''
+export GITTALLY_AUTO_BUILD_BRANCHES='master;main;mihoe/introduce-gitTally-ci'
+
+# Semicolon-separated list of UTC times (HH:MM) at which auto builds are triggered, e.g. 02:00:08:00:14:00:20:00.
+# default GITTALLY_AUTO_BUILD_TIMES='02:00'
+export GITTALLY_AUTO_BUILD_TIMES='03:30'
+
+# ================================================================================
+# Gitea
+# --------------------------------------------------------------------------------
+
+# Base URL of the Gitea instance.
+# default GITTALLY_GITEA_BASE_URL='https://git.example.org'
+export GITTALLY_GITEA_BASE_URL='https://dev.hostsharing.net'
+
+# Gitea repository owner.
+# default GITTALLY_GITEA_OWNER='example-owner'
+export GITTALLY_GITEA_OWNER='hostsharing'
+
+# Gitea repository name.
+# default GITTALLY_GITEA_REPO='example-repo'
+export GITTALLY_GITEA_REPO='hs.hsadmin.ng'
+
+# Required HTTPS git username used with the Gitea token.
+# default GITTALLY_GITEA_GIT_USERNAME='example-user'
+# export GITTALLY_GITEA_GIT_USERNAME='<put-your-gitea-username-here>'
+
+# Required token used for Gitea commit statuses and HTTPS git authentication.
+# default GITTALLY_GITEA_TOKEN='<the-users-token-goes-here>'
+# export GITTALLY_GITEA_TOKEN='<this-secret-will-be-set-in-the-target-environment>'
+
+# Gitea commit status context published by GitTally.
+# default GITTALLY_GITEA_STATUS_CONTEXT='GitTally'
+export GITTALLY_GITEA_STATUS_CONTEXT='GitTally'
+
+# Fixed status target URL. Leave empty to link to archived build artifacts.
+# default GITTALLY_GITEA_STATUS_TARGET_URL=''
+export GITTALLY_GITEA_STATUS_TARGET_URL=''
