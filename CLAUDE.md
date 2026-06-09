@@ -48,7 +48,7 @@ All production code lives under `de.hoennig.gittally`. Commands are in the `comm
 
 ## Testing Conventions
 
-Tests use **Kotest `FunSpec`** style. `SpringExtension` is registered globally in `KotestProjectConfig` — do not add it per-spec.
+Tests use **Kotest `FunSpec`** style. `SpringExtension` is registered globally in `io.kotest.provided.ProjectConfig` — do not add it per-spec.
 
 ```kotlin
 class MyTest : FunSpec() {
@@ -63,7 +63,21 @@ Use `shouldBe`, `shouldNotBe`, `shouldThrow` etc. from `io.kotest.matchers`.
 
 ### Mocking in Spring Slice Tests
 
-`springmockk` is not compatible with the target Spring Boot version (4.0). The `@MockkBean` annotation is unavailable. Use `@TestConfiguration` to register MockK mocks as Spring beans:
+Use `@MockkBean` from `springmockk` to inject MockK mocks into the Spring context:
+
+```kotlin
+@WebMvcTest(SomeController::class)
+class SomeControllerTest : FunSpec() {
+    @MockkBean
+    lateinit var someService: SomeService
+    init {
+        beforeEach { clearMocks(someService) }
+        // full MockK syntax: every { } / verify { }
+    }
+}
+```
+
+Alternatively, register mocks via `@TestConfiguration` without the springmockk dependency:
 
 ```kotlin
 @WebMvcTest(SomeController::class)
@@ -87,7 +101,5 @@ Pure unit tests (no Spring context) use MockK directly without any Spring wiring
 All major decisions are in `docs/adrs/`. Run `adr-status` (after `source .envrc`) for a one-line summary of each. Decisions in force:
 
 - **Test framework**: Kotest + MockK + WireMock + Testcontainers (ADR 0001)
-- **Gradle**: 8.14 target (currently 8.8; upgrade pending Spring Boot 4.0 migration) (ADR 0002)
-- **Spring Boot**: 4.0 target (currently 3.3.4 — pending upgrade; 3.3.x is EOL) (ADR 0003)
-
-The Spring Boot and Gradle upgrades are open work items documented in the ADRs. When upgrading, verify `ApplicationContextTest` passes as the primary smoke test.
+- **Gradle**: 8.14.5 (ADR 0002)
+- **Spring Boot**: 4.0.6 (ADR 0003)

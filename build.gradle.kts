@@ -1,11 +1,11 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("org.springframework.boot") version "3.3.4"
-    id("io.spring.dependency-management") version "1.1.6"
-    id("org.jlleitschuh.gradle.ktlint") version "12.1.1"
-    kotlin("jvm") version "1.9.25"
-    kotlin("plugin.spring") version "1.9.25"
+    id("org.springframework.boot") version "4.0.6"
+    id("io.spring.dependency-management") version "1.1.7"
+    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
+    kotlin("jvm") version "2.2.0"
+    kotlin("plugin.spring") version "2.2.0"
 }
 
 group = "de.hoennig"
@@ -29,26 +29,26 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 
     // Kotest
-    testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
-    testImplementation("io.kotest:kotest-assertions-core:5.9.1")
-    testImplementation("io.kotest.extensions:kotest-extensions-spring:1.3.0")
+    testImplementation("io.kotest:kotest-runner-junit5:6.1.5")
+    testImplementation("io.kotest:kotest-assertions-core:6.1.5")
+    testImplementation("io.kotest:kotest-extensions-spring:6.1.5")
 
     // MockK
     testImplementation("io.mockk:mockk:1.13.11")
-    testImplementation("com.ninja-squad:springmockk:4.0.2")
+    testImplementation("com.ninja-squad:springmockk:5.0.1")
 
     // WireMock
-    testImplementation("org.wiremock.integrations:wiremock-spring-boot:3.1.0")
+    testImplementation("org.wiremock.integrations:wiremock-spring-boot:4.2.1")
 
     // Testcontainers (versions managed by Spring Boot BOM)
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers")
 }
 
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs += "-Xjsr305=strict"
-        jvmTarget = "21"
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.addAll("-Xjsr305=strict")
+        jvmTarget = JvmTarget.JVM_21
     }
 }
 

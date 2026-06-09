@@ -15,7 +15,5 @@ import picocli.CommandLine.Command
     description = ["Lightweight, declarative CI/CD system"],
 )
 class GitTallyCommand : Runnable {
-    override fun run() {
-        throw CommandLine.ParameterException(CommandLine(this), "Specify a subcommand")
-    }
+    override fun run(): Unit = throw CommandLine.ParameterException(CommandLine(this), "Specify a subcommand")
 }

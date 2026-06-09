@@ -5,13 +5,15 @@ import io.kotest.matchers.shouldBe
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.utility.DockerImageName
 
-class TestcontainersSmokeTest : FunSpec({
+class TestcontainersSmokeTest :
+    FunSpec({
 
-    test("Testcontainers starts a container") {
-        val container = GenericContainer(DockerImageName.parse("alpine:3"))
-            .withCommand("sh", "-c", "sleep 30")
-        container.start()
-        container.isRunning shouldBe true
-        container.stop()
-    }
-})
+        test("Testcontainers starts a container") {
+            val container =
+                GenericContainer(DockerImageName.parse("alpine:3"))
+                    .withCommand("sh", "-c", "sleep 30")
+            container.start()
+            container.isRunning shouldBe true
+            container.stop()
+        }
+    })

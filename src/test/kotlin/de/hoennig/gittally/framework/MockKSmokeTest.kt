@@ -10,14 +10,15 @@ interface Greeter {
     fun greet(name: String): String
 }
 
-class MockKSmokeTest : FunSpec({
+class MockKSmokeTest :
+    FunSpec({
 
-    test("mockk stubs and verifies") {
-        val greeter = mockk<Greeter>()
-        every { greeter.greet("world") } returns "hello, world"
+        test("mockk stubs and verifies") {
+            val greeter = mockk<Greeter>()
+            every { greeter.greet("world") } returns "hello, world"
 
-        greeter.greet("world") shouldBe "hello, world"
+            greeter.greet("world") shouldBe "hello, world"
 
-        verify(exactly = 1) { greeter.greet("world") }
-    }
-})
+            verify(exactly = 1) { greeter.greet("world") }
+        }
+    })

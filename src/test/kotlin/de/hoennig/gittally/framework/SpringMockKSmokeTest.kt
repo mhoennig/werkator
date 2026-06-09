@@ -21,7 +21,6 @@ interface MessageService {
 @SpringBootTest
 @Import(SpringMockKSmokeTest.Mocks::class)
 class SpringMockKSmokeTest : FunSpec() {
-
     @TestConfiguration
     class Mocks {
         @Bean
@@ -47,7 +46,6 @@ class SpringMockKSmokeTest : FunSpec() {
 /** Verifies whether @MockkBean works with the current Spring Boot version (springmockk 4.0.2). */
 @SpringBootTest
 class MockkBeanSmokeTest : FunSpec() {
-
     @MockkBean
     lateinit var messageService: MessageService
 

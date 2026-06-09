@@ -17,7 +17,8 @@ class GitTallyApplication
 class CliRunner(
     private val factory: IFactory,
     private val rootCommand: GitTallyCommand,
-) : CommandLineRunner, ExitCodeGenerator {
+) : CommandLineRunner,
+    ExitCodeGenerator {
     private var exitCode = 0
 
     override fun run(vararg args: String) {
