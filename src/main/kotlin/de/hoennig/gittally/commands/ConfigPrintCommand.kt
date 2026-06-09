@@ -11,7 +11,6 @@ import picocli.CommandLine.Option
     mixinStandardHelpOptions = true,
 )
 class ConfigPrintCommand : Runnable {
-
     @Option(names = ["--full"], description = ["Include all defaults"])
     var full: Boolean = false
 
