@@ -59,21 +59,12 @@ default_gitea_base_url='https://git.example.org'
 default_gitea_owner='example-owner'
 default_gitea_repo='example-repo'
 default_gitea_git_username='example-user'
-default_artifact_auth_gitea_base_url='https://git.example.org'
-default_artifact_auth_image='quay.io/oauth2-proxy/oauth2-proxy:v7.13.0'
-default_artifact_auth_http_port='4180'
-default_artifact_auth_email_domains='*'
 default_artifact_public_base_url='https://ci.example.org/'
 default_impressum_url='https://example.org/imprint.html'
 default_artifact_nginx_server_name='ci.example.org'
 default_artifact_nginx_upstream_host='ci.example.org'
 default_artifact_nginx_container_name='gittally-nginx-example-repo'
 default_artifact_letsencrypt_email='admin@example.org'
-default_artifact_auth_client_id='gitea-oauth-client-id'
-default_artifact_auth_client_secret='gitea-oauth-client-secret'
-default_artifact_auth_cookie_secret='generate-a-random-cookie-secret'
-default_artifact_auth_cookie_domain='ci.example.org'
-default_artifact_auth_container_name='gittally-auth-example-repo'
 
 config_file_var() {
     local name="$1"
@@ -492,7 +483,6 @@ print_env() {
     local new_branch_commit_max_age
     local artifact_server_port
     local artifact_server_bind_address
-    local artifact_server_host
     local artifact_public_base_url
     local artifact_build_retention_per_branch
     local artifact_nginx_server_name
@@ -502,21 +492,9 @@ print_env() {
     local artifact_nginx_container_name
     local artifact_nginx_state_dir
     local artifact_letsencrypt_email
-    local artifact_certbot_env
-    local artifact_auth_mode
-    local artifact_auth_gitea_base_url
-    local artifact_auth_client_id
-    local artifact_auth_client_secret
-    local artifact_auth_cookie_secret
-    local artifact_auth_cookie_domain
-    local artifact_auth_image
-    local artifact_auth_container_name
-    local artifact_auth_http_port
-    local artifact_auth_email_domains
     local impressum_url
     local gitea_token
     local gitea_status_context
-    local gitea_status_target_url
     local default_artifact_nginx_state_dir
     local default_repository_key
     local default_repository_simple_name
@@ -540,10 +518,8 @@ print_env() {
 
     artifact_server_port=$(config_value GITTALLY_ARTIFACT_SERVER_PORT HSADMIN_NG_ARTIFACT_SERVER_PORT 18080)
     artifact_server_bind_address=$(config_value GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS HSADMIN_NG_ARTIFACT_SERVER_BIND_ADDRESS 0.0.0.0)
-    artifact_server_host=$(config_value GITTALLY_ARTIFACT_SERVER_HOST HSADMIN_NG_ARTIFACT_SERVER_HOST "")
     artifact_http_server_port="$artifact_server_port"
     artifact_http_server_bind_address="$artifact_server_bind_address"
-    artifact_http_server_host="$artifact_server_host"
     artifact_nginx_server_name=$(config_value GITTALLY_ARTIFACT_NGINX_SERVER_NAME HSADMIN_NG_ARTIFACT_NGINX_SERVER_NAME "")
     artifact_public_base_url=$(config_value GITTALLY_ARTIFACT_PUBLIC_BASE_URL HSADMIN_NG_ARTIFACT_PUBLIC_BASE_URL "")
     artifact_build_retention_per_branch=$(config_value GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH HSADMIN_NG_ARTIFACT_BUILD_RETENTION_PER_BRANCH 3)
@@ -553,24 +529,11 @@ print_env() {
     artifact_nginx_container_name=$(config_value GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME HSADMIN_NG_ARTIFACT_NGINX_CONTAINER_NAME "")
     artifact_nginx_state_dir=$(config_value GITTALLY_ARTIFACT_NGINX_STATE_DIR HSADMIN_NG_ARTIFACT_NGINX_STATE_DIR "")
     artifact_letsencrypt_email=$(config_value GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL HSADMIN_NG_ARTIFACT_LETSENCRYPT_EMAIL "")
-    artifact_certbot_env=$(config_value GITTALLY_ARTIFACT_CERTBOT_ENV HSADMIN_NG_ARTIFACT_CERTBOT_ENV "")
-    artifact_auth_mode=$(config_value GITTALLY_ARTIFACT_AUTH_MODE "" "")
-    artifact_auth_gitea_base_url=$(config_value GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL "" "")
-    artifact_auth_client_id=$(config_value GITTALLY_ARTIFACT_AUTH_CLIENT_ID "" "")
-    artifact_auth_client_secret=$(config_value GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET "" "")
-    artifact_auth_cookie_secret=$(config_value GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET "" "")
-    artifact_auth_cookie_domain=$(config_value GITTALLY_ARTIFACT_AUTH_COOKIE_DOMAIN "" "")
-    artifact_auth_image=$(config_value GITTALLY_ARTIFACT_AUTH_IMAGE "" "$default_artifact_auth_image")
-    artifact_auth_container_name=$(config_value GITTALLY_ARTIFACT_AUTH_CONTAINER_NAME "" "")
-    artifact_auth_http_port=$(config_value GITTALLY_ARTIFACT_AUTH_HTTP_PORT "" "$default_artifact_auth_http_port")
-    artifact_auth_email_domains=$(config_value GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS "" "$default_artifact_auth_email_domains")
     impressum_url=$(config_value GITTALLY_IMPRESSUM_URL "" "$default_impressum_url")
     if [ -n "$artifact_public_base_url" ]; then
         :
     elif [ -n "$artifact_nginx_server_name" ]; then
         artifact_public_base_url="https://$artifact_nginx_server_name/"
-    elif [ -n "$artifact_server_host" ]; then
-        artifact_public_base_url="http://$artifact_server_host:$artifact_server_port/"
     else
         artifact_public_base_url="http://$artifact_server_bind_address:$artifact_server_port/"
     fi
@@ -584,13 +547,9 @@ print_env() {
     gitea_git_username=$(config_value GITTALLY_GITEA_GIT_USERNAME HSADMIN_NG_GITEA_GIT_USERNAME "")
     gitea_token=$(config_value GITTALLY_GITEA_TOKEN HSADMIN_NG_GITEA_TOKEN "")
     gitea_status_context=$(config_value GITTALLY_GITEA_STATUS_CONTEXT HSADMIN_NG_GITEA_STATUS_CONTEXT "$default_gitea_status_context")
-    gitea_status_target_url=$(config_value GITTALLY_GITEA_STATUS_TARGET_URL HSADMIN_NG_GITEA_STATUS_TARGET_URL "")
     detect_gitea_repo_from_origin_url
     if [ -z "$gitea_git_username" ]; then
         gitea_git_username=$(detect_git_username_from_origin_url)
-    fi
-    if [ -z "$artifact_auth_gitea_base_url" ]; then
-        artifact_auth_gitea_base_url="${gitea_base_url:-$default_artifact_auth_gitea_base_url}"
     fi
     default_repository_key=$(printf '%s' "${repo_root:-$(git rev-parse --show-toplevel)}" | sed 's#[^[:alnum:]._-]#_#g')
     default_repository_simple_name=$(basename "${repo_root:-$(git rev-parse --show-toplevel)}")
@@ -603,9 +562,6 @@ print_env() {
     fi
     if [ -z "$artifact_nginx_state_dir" ]; then
         artifact_nginx_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/gittally/nginx/$default_repository_key"
-    fi
-    if [ -z "$artifact_auth_container_name" ]; then
-        artifact_auth_container_name="gittally-auth-$(printf '%s' "$default_repository_simple_name" | sed 's#[^[:alnum:]_.-]#-#g')"
     fi
 
     printf '# Environment for %s version %s\n' "$tool_name" "$script_version"
@@ -636,7 +592,6 @@ print_env() {
     print_env_section "Artifact server"
     print_env_var GITTALLY_ARTIFACT_SERVER_PORT "$artifact_server_port" 'Preferred HTTP port for serving archived build artifacts.' 18080
     print_env_var GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS "$artifact_server_bind_address" 'Bind address for the artifact HTTP server.' 0.0.0.0
-    print_env_var GITTALLY_ARTIFACT_SERVER_HOST "$artifact_server_host" 'Host name or address printed in local artifact server URLs.' ""
     print_env_var GITTALLY_ARTIFACT_PUBLIC_BASE_URL "$artifact_public_base_url" 'Public base URL used for artifact links and Gitea status target URLs.' "$default_artifact_public_base_url"
     print_env_var GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH "$artifact_build_retention_per_branch" 'Retained builds per branch. Use a count, or h/d suffix for age based retention.' 3
 
@@ -648,19 +603,6 @@ print_env() {
     print_env_var GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME "$artifact_nginx_container_name" 'Docker container name for the nginx reverse proxy.' "$default_artifact_nginx_container_name"
     print_env_optional_var GITTALLY_ARTIFACT_NGINX_STATE_DIR "$artifact_nginx_state_dir" 'Persistent state directory for nginx config, logs, and certificate data.' "$default_artifact_nginx_state_dir"
     print_env_var GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL "$artifact_letsencrypt_email" 'Email address used when registering Lets Encrypt certificates.' "$default_artifact_letsencrypt_email"
-    print_env_var GITTALLY_ARTIFACT_CERTBOT_ENV "$artifact_certbot_env" 'Additional certbot arguments, for example --staging.' ""
-
-    print_env_section "Artifact website Gitea login"
-    print_env_var GITTALLY_ARTIFACT_AUTH_MODE "$artifact_auth_mode" 'Frontend auth mode for --nginx. Use gitea-oauth2 to require a Gitea browser login.' ""
-    print_env_var GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL "$artifact_auth_gitea_base_url" 'Gitea base URL used only for browser login to the artifact website.' "$default_artifact_auth_gitea_base_url"
-    print_env_var GITTALLY_ARTIFACT_AUTH_CLIENT_ID "$artifact_auth_client_id" 'OAuth2 client ID registered in Gitea for the artifact website.' "$default_artifact_auth_client_id"
-    print_env_var GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET "$artifact_auth_client_secret" 'OAuth2 client secret registered in Gitea for the artifact website.' "$default_artifact_auth_client_secret"
-    print_env_var GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET "$artifact_auth_cookie_secret" 'Random oauth2-proxy cookie secret used to protect browser sessions.' "$default_artifact_auth_cookie_secret"
-    print_env_var GITTALLY_ARTIFACT_AUTH_COOKIE_DOMAIN "$artifact_auth_cookie_domain" 'Optional cookie domain for browser sessions.' "$default_artifact_auth_cookie_domain"
-    print_env_var GITTALLY_ARTIFACT_AUTH_IMAGE "$artifact_auth_image" 'OAuth2 proxy Docker image used for Gitea browser login.' "$default_artifact_auth_image"
-    print_env_var GITTALLY_ARTIFACT_AUTH_CONTAINER_NAME "$artifact_auth_container_name" 'Docker container name for the artifact website auth proxy.' "$default_artifact_auth_container_name"
-    print_env_var GITTALLY_ARTIFACT_AUTH_HTTP_PORT "$artifact_auth_http_port" 'Internal HTTP port used by the artifact website auth proxy.' "$default_artifact_auth_http_port"
-    print_env_var GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS "$artifact_auth_email_domains" 'Allowed email domains for logged-in Gitea users. Use * to allow any Gitea login.' "$default_artifact_auth_email_domains"
 
     print_env_section "Legal"
     print_env_var GITTALLY_IMPRESSUM_URL "$impressum_url" 'URL for the Impressum (Legal Disclosure) link in the footer.' "$default_impressum_url"
@@ -676,7 +618,6 @@ print_env() {
     print_env_var GITTALLY_GITEA_GIT_USERNAME "$gitea_git_username" 'HTTPS git username used with the Gitea token. (required)' "$default_gitea_git_username"
     print_env_var GITTALLY_GITEA_TOKEN "$gitea_token" 'Token used for Gitea commit statuses and HTTPS git authentication. (required)' ""
     print_env_var GITTALLY_GITEA_STATUS_CONTEXT "$gitea_status_context" 'Gitea commit status context published by GitTally.' "$default_gitea_status_context"
-    print_env_var GITTALLY_GITEA_STATUS_TARGET_URL "$gitea_status_target_url" 'Fixed status target URL. Leave empty to link to archived build artifacts.' ""
 }
 
 if [ "$1" = "--env" ]; then
@@ -735,9 +676,7 @@ active_build_pid=
 active_build_cancelled=false
 git_askpass_file=
 artifact_nginx_container_started=false
-artifact_auth_container_started=false
 artifact_nginx_container_id=
-artifact_auth_container_id=
 
 cleanup() {
     local ended_at
@@ -779,11 +718,6 @@ cleanup() {
         docker rm -f "$artifact_nginx_container_id" >/dev/null 2>&1 || true
         artifact_nginx_container_started=false
         artifact_nginx_container_id=
-    fi
-    if [ "${artifact_auth_container_started:-false}" = true ] && [ -n "${artifact_auth_container_id:-}" ]; then
-        docker rm -f "$artifact_auth_container_id" >/dev/null 2>&1 || true
-        artifact_auth_container_started=false
-        artifact_auth_container_id=
     fi
 }
 trap cleanup EXIT
@@ -831,7 +765,6 @@ bootstrap_docker_build_env="$docker_build_env"
 bootstrap_docker_build_java_tool_options="$docker_build_java_tool_options"
 artifact_http_server_port=$(config_value GITTALLY_ARTIFACT_SERVER_PORT HSADMIN_NG_ARTIFACT_SERVER_PORT 18080)
 artifact_http_server_bind_address=$(config_value GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS HSADMIN_NG_ARTIFACT_SERVER_BIND_ADDRESS 0.0.0.0)
-artifact_http_server_host=$(config_value GITTALLY_ARTIFACT_SERVER_HOST HSADMIN_NG_ARTIFACT_SERVER_HOST "")
 artifact_public_base_url=$(config_value GITTALLY_ARTIFACT_PUBLIC_BASE_URL HSADMIN_NG_ARTIFACT_PUBLIC_BASE_URL "")
 artifact_build_retention_per_branch=$(config_value GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH HSADMIN_NG_ARTIFACT_BUILD_RETENTION_PER_BRANCH 3)
 artifact_nginx_server_name=$(config_value GITTALLY_ARTIFACT_NGINX_SERVER_NAME HSADMIN_NG_ARTIFACT_NGINX_SERVER_NAME "")
@@ -841,17 +774,6 @@ artifact_nginx_upstream_host=$(config_value GITTALLY_ARTIFACT_NGINX_UPSTREAM_HOS
 artifact_nginx_container_name=$(config_value GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME HSADMIN_NG_ARTIFACT_NGINX_CONTAINER_NAME "")
 artifact_nginx_state_dir=$(config_value GITTALLY_ARTIFACT_NGINX_STATE_DIR HSADMIN_NG_ARTIFACT_NGINX_STATE_DIR "")
 artifact_letsencrypt_email=$(config_value GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL HSADMIN_NG_ARTIFACT_LETSENCRYPT_EMAIL "")
-artifact_certbot_env=$(config_value GITTALLY_ARTIFACT_CERTBOT_ENV HSADMIN_NG_ARTIFACT_CERTBOT_ENV "")
-artifact_auth_mode=$(config_value GITTALLY_ARTIFACT_AUTH_MODE "" "")
-artifact_auth_gitea_base_url=$(config_value GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL "" "")
-artifact_auth_client_id=$(config_value GITTALLY_ARTIFACT_AUTH_CLIENT_ID "" "")
-artifact_auth_client_secret=$(config_value GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET "" "")
-artifact_auth_cookie_secret=$(config_value GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET "" "")
-artifact_auth_cookie_domain=$(config_value GITTALLY_ARTIFACT_AUTH_COOKIE_DOMAIN "" "")
-artifact_auth_image=$(config_value GITTALLY_ARTIFACT_AUTH_IMAGE "" "$default_artifact_auth_image")
-artifact_auth_container_name=$(config_value GITTALLY_ARTIFACT_AUTH_CONTAINER_NAME "" "")
-artifact_auth_http_port=$(config_value GITTALLY_ARTIFACT_AUTH_HTTP_PORT "" "$default_artifact_auth_http_port")
-artifact_auth_email_domains=$(config_value GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS "" "$default_artifact_auth_email_domains")
 impressum_url=$(config_value GITTALLY_IMPRESSUM_URL "" "$default_impressum_url")
 artifact_http_server_pid=
 artifact_http_server_local_url=
@@ -862,7 +784,6 @@ gitea_repo=$(config_value GITTALLY_GITEA_REPO HSADMIN_NG_GITEA_REPO "")
 gitea_git_username=$(config_value GITTALLY_GITEA_GIT_USERNAME HSADMIN_NG_GITEA_GIT_USERNAME "")
 gitea_token=$(config_value GITTALLY_GITEA_TOKEN HSADMIN_NG_GITEA_TOKEN "")
 gitea_status_context=$(config_value GITTALLY_GITEA_STATUS_CONTEXT HSADMIN_NG_GITEA_STATUS_CONTEXT "$default_gitea_status_context")
-gitea_status_target_url=$(config_value GITTALLY_GITEA_STATUS_TARGET_URL HSADMIN_NG_GITEA_STATUS_TARGET_URL "")
 branches_to_build=()
 
 usage() {
@@ -910,7 +831,6 @@ usage() {
     echo
     echo "Set GITTALLY_ARTIFACT_SERVER_PORT to override the preferred artifact server port; default: 18080."
     echo "Set GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS to override the artifact server bind address; default: 0.0.0.0."
-    echo "Set GITTALLY_ARTIFACT_SERVER_HOST to override the host printed in artifact server URLs."
     echo "Set GITTALLY_ARTIFACT_PUBLIC_BASE_URL to override public artifact URLs, for example behind nginx."
     echo "Set GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH to override retained builds per branch;"
     echo "    use a number for count, or a value ending in h/d for age; default: 3."
@@ -920,18 +840,12 @@ usage() {
     echo "Set GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME to override the Docker container name."
     echo "Set GITTALLY_ARTIFACT_NGINX_STATE_DIR to override the persistent nginx/certbot state directory."
     echo "Set GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL to register the certificate with an email address."
-    echo "Set GITTALLY_ARTIFACT_CERTBOT_ENV for extra certbot args, for example --staging."
-    echo "Set GITTALLY_ARTIFACT_AUTH_MODE=gitea-oauth2 to require Gitea browser login for the nginx artifact website."
-    echo "Set GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL to choose the Gitea login base URL; default: detected Gitea URL or https://dev.hostsharing.net."
-    echo "Set GITTALLY_ARTIFACT_AUTH_CLIENT_ID, GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET, and GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET for OAuth2 login."
-    echo "Set GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS to restrict logged-in Gitea users by email domain; default: *."
     echo "Legacy HSADMIN_NG_ARTIFACT_* variables are still accepted as fallbacks."
     echo
     echo "Set GITTALLY_GITEA_TOKEN to publish/read build statuses and authenticate HTTPS git commands via Gitea; required for startup."
     echo "Set GITTALLY_GITEA_GIT_USERNAME to authenticate HTTPS git commands with GITTALLY_GITEA_TOKEN; required for startup."
     echo "Set GITTALLY_GITEA_BASE_URL, GITTALLY_GITEA_OWNER, and GITTALLY_GITEA_REPO to override origin-based detection."
     echo "Set GITTALLY_GITEA_STATUS_CONTEXT to override the status context; default: GitTally."
-    echo "Set GITTALLY_GITEA_STATUS_TARGET_URL to override the status target URL."
     echo "Legacy HSADMIN_NG_GITEA_* variables are still accepted as fallbacks."
     echo
     echo "Branch arguments may be full names or unique name parts matching local or origin branches."
@@ -1622,25 +1536,6 @@ artifact_nginx_default_state_dir() {
     echo "${XDG_STATE_HOME:-$HOME/.local/state}/gittally/nginx/$(repository_key)"
 }
 
-artifact_auth_enabled() {
-    [ "$artifact_auth_mode" = gitea-oauth2 ]
-}
-
-validate_artifact_auth_mode() {
-    case "$artifact_auth_mode" in
-        ""|none)
-            artifact_auth_mode=
-            ;;
-        gitea|gitea-oauth2)
-            artifact_auth_mode=gitea-oauth2
-            ;;
-        *)
-            echo "WARNING: invalid GITTALLY_ARTIFACT_AUTH_MODE: $artifact_auth_mode; artifact website auth disabled." >&2
-            artifact_auth_mode=
-            ;;
-    esac
-}
-
 configure_artifact_nginx_defaults() {
     local public_base_url_host
 
@@ -1654,8 +1549,6 @@ configure_artifact_nginx_defaults() {
         public_base_url_host=$(base_url_host "$artifact_public_base_url")
         if [ -n "$public_base_url_host" ]; then
             artifact_nginx_server_name="$public_base_url_host"
-        elif [ -n "$artifact_http_server_host" ]; then
-            artifact_nginx_server_name="$artifact_http_server_host"
         fi
     fi
 
@@ -1685,15 +1578,6 @@ configure_artifact_nginx_defaults() {
         artifact_nginx_state_dir=$(artifact_nginx_default_state_dir)
     fi
 
-    validate_artifact_auth_mode
-
-    if [ -z "$artifact_auth_gitea_base_url" ]; then
-        artifact_auth_gitea_base_url="${gitea_base_url:-$default_artifact_auth_gitea_base_url}"
-    fi
-
-    if [ -z "$artifact_auth_container_name" ]; then
-        artifact_auth_container_name="gittally-auth-$(safe_container_name_part "$(repository_simple_name)")"
-    fi
 }
 
 validate_artifact_build_retention_per_branch() {
@@ -1925,9 +1809,7 @@ gitea_status_target_url_for_branch() {
     local branch="$1"
     local artifact_key="${2:-}"
 
-    if [ -n "$gitea_status_target_url" ]; then
-        echo "$gitea_status_target_url"
-    elif [ -n "$artifact_http_server_url" ]; then
+    if [ -n "$artifact_http_server_url" ]; then
         if [ -z "$artifact_key" ]; then
             artifact_key=$(build_artifact_branch_key "$branch")
         fi
@@ -3488,11 +3370,6 @@ write_artifacts_root_index() {
 detect_artifact_http_server_host() {
     local host
 
-    if [ -n "$artifact_http_server_host" ]; then
-        echo "$artifact_http_server_host"
-        return 0
-    fi
-
     if [ "$artifact_http_server_bind_address" != "0.0.0.0" ]; then
         echo "$artifact_http_server_bind_address"
         return 0
@@ -4123,7 +4000,6 @@ EOF
 artifact_nginx_write_config() {
     local config_file="$1"
     local mode="$2"
-    local auth_proxy_url="http://$artifact_auth_container_name:$artifact_auth_http_port"
 
     if [ "$mode" = init ]; then
         cat >"$config_file" <<EOF
@@ -4177,43 +4053,10 @@ http {
             root /var/www/certbot;
         }
 EOF
-        if artifact_auth_enabled; then
-            cat <<EOF
-
-        location = /oauth2/auth {
-            internal;
-            proxy_pass $auth_proxy_url/oauth2/auth;
-            proxy_pass_request_body off;
-            proxy_set_header Content-Length "";
-            proxy_set_header Host \$host;
-            proxy_set_header X-Original-URI \$request_uri;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Scheme \$scheme;
-        }
-
-        location /oauth2/ {
-            proxy_pass $auth_proxy_url;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto \$scheme;
-        }
-EOF
-        fi
         cat <<EOF
 
         location / {
 EOF
-        if artifact_auth_enabled; then
-            cat <<'EOF'
-            auth_request /oauth2/auth;
-            error_page 401 = /oauth2/sign_in?rd=$scheme://$host$request_uri;
-            auth_request_set $auth_user $upstream_http_x_auth_request_user;
-            auth_request_set $auth_email $upstream_http_x_auth_request_email;
-            proxy_set_header X-Auth-Request-User $auth_user;
-            proxy_set_header X-Auth-Request-Email $auth_email;
-EOF
-        fi
         cat <<EOF
             proxy_pass http://$artifact_nginx_upstream_host:$artifact_http_server_port;
             proxy_set_header Host \$host;
@@ -4353,9 +4196,7 @@ wait_for_artifact_nginx_ports() {
 
 cleanup_stale_artifact_nginx_containers() {
     remove_docker_container_by_name "$artifact_nginx_container_name"
-    remove_docker_container_by_name "$artifact_auth_container_name"
     remove_gittally_containers_by_label nginx
-    remove_gittally_containers_by_label auth
     remove_gittally_port_containers "$artifact_nginx_http_port" "$artifact_nginx_https_port"
     wait_for_artifact_nginx_ports
 }
@@ -4384,95 +4225,9 @@ artifact_nginx_run_container() {
     mapfile -t docker_label_args < <(gittally_docker_label_args nginx)
     docker_args+=("${docker_label_args[@]}")
 
-    if artifact_auth_enabled; then
-        docker_args+=(--link "$artifact_auth_container_name:$artifact_auth_container_name")
-    fi
-
     container_id=$(docker "${docker_args[@]}" nginx) || return 1
     artifact_nginx_container_id="$container_id"
     artifact_nginx_container_started=true
-}
-
-start_artifact_auth_proxy() {
-    local public_base_url
-    local redirect_url
-    local gitea_base_url
-    local container_id
-    local -a docker_args
-    local -a docker_label_args
-    local -a email_domain_args=()
-    local -a email_domains=()
-    local -a cookie_domain_args=()
-    local email_domain
-
-    if ! artifact_auth_enabled; then
-        return 0
-    fi
-
-    if [ -z "$artifact_auth_client_id" ] ||
-        [ -z "$artifact_auth_client_secret" ] ||
-        [ -z "$artifact_auth_cookie_secret" ]; then
-        echo "WARNING: cannot enable artifact website Gitea login because OAuth2 client id, client secret, or cookie secret is empty." >&2
-        return 1
-    fi
-
-    if ! [[ "$artifact_auth_http_port" =~ ^[0-9]+$ ]] ||
-        [ "$artifact_auth_http_port" -lt 1 ] ||
-        [ "$artifact_auth_http_port" -gt 65535 ]; then
-        echo "WARNING: invalid GITTALLY_ARTIFACT_AUTH_HTTP_PORT: $artifact_auth_http_port" >&2
-        return 1
-    fi
-
-    public_base_url=$(normalize_base_url "${artifact_public_base_url:-https://$artifact_nginx_server_name/}")
-    redirect_url="${public_base_url}oauth2/callback"
-    gitea_base_url="${artifact_auth_gitea_base_url%/}"
-
-    IFS=',' read -r -a email_domains <<<"$artifact_auth_email_domains"
-    for email_domain in "${email_domains[@]}"; do
-        if [ -n "$email_domain" ]; then
-            email_domain_args+=(--email-domain "$email_domain")
-        fi
-    done
-    if [ "${#email_domain_args[@]}" -eq 0 ]; then
-        email_domain_args=(--email-domain '*')
-    fi
-
-    if [ -n "$artifact_auth_cookie_domain" ]; then
-        cookie_domain_args=(--cookie-domain "$artifact_auth_cookie_domain")
-    fi
-
-    remove_docker_container_by_name "$artifact_auth_container_name"
-    artifact_auth_container_started=false
-    artifact_auth_container_id=
-    docker_args=(run -d --name "$artifact_auth_container_name" --network bridge)
-    mapfile -t docker_label_args < <(gittally_docker_label_args auth)
-    docker_args+=("${docker_label_args[@]}" "$artifact_auth_image"
-        --http-address=0.0.0.0:"$artifact_auth_http_port"
-        --provider=github
-        --provider-display-name=Gitea
-        --client-id="$artifact_auth_client_id"
-        --client-secret="$artifact_auth_client_secret"
-        --cookie-secret="$artifact_auth_cookie_secret"
-        --cookie-secure=true
-        --redirect-url="$redirect_url"
-        --login-url="$gitea_base_url/login/oauth/authorize"
-        --redeem-url="$gitea_base_url/login/oauth/access_token"
-        --validate-url="$gitea_base_url/api/v1/user/emails"
-        --reverse-proxy=true
-        --set-xauthrequest=true
-        --skip-provider-button=true
-        "${email_domain_args[@]}"
-        "${cookie_domain_args[@]}")
-
-    if ! container_id=$(docker "${docker_args[@]}"); then
-        echo "WARNING: could not start artifact website Gitea auth proxy $artifact_auth_container_name." >&2
-        return 1
-    fi
-    artifact_auth_container_id="$container_id"
-    artifact_auth_container_started=true
-
-    echo "Artifact website auth: Gitea login via $gitea_base_url"
-    echo "Artifact website auth callback: $redirect_url"
 }
 
 artifact_nginx_obtain_or_renew_certificate() {
@@ -4480,12 +4235,7 @@ artifact_nginx_obtain_or_renew_certificate() {
     local certbot_www="$2"
     local certbot_log="$3"
     local cert_file="$certbot_conf/live/$artifact_nginx_server_name/fullchain.pem"
-    local -a certbot_extra_args=()
     local -a email_args=()
-
-    if [ -n "$artifact_certbot_env" ]; then
-        read -r -a certbot_extra_args <<<"$artifact_certbot_env"
-    fi
 
     if [ -n "$artifact_letsencrypt_email" ]; then
         email_args=(--email "$artifact_letsencrypt_email")
@@ -4498,7 +4248,7 @@ artifact_nginx_obtain_or_renew_certificate() {
             -v "$certbot_conf:/etc/letsencrypt" \
             -v "$certbot_www:/var/www/certbot" \
             -v "$certbot_log:/var/log/letsencrypt" \
-            certbot/certbot renew -q "${certbot_extra_args[@]}"
+            certbot/certbot renew -q
         return $?
     fi
 
@@ -4509,7 +4259,7 @@ artifact_nginx_obtain_or_renew_certificate() {
         certbot/certbot \
         certonly --webroot --webroot-path /var/www/certbot --cert-name "$artifact_nginx_server_name" \
         -d "$artifact_nginx_server_name" --rsa-key-size 4096 \
-        --non-interactive --agree-tos "${email_args[@]}" "${certbot_extra_args[@]}"
+        --non-interactive --agree-tos "${email_args[@]}"
 }
 
 start_artifact_nginx() {
@@ -4571,10 +4321,6 @@ start_artifact_nginx() {
     }
 
     if [ -f "$cert_file" ]; then
-        if ! start_artifact_auth_proxy; then
-            echo "WARNING: artifact nginx HTTPS proxy was not started because artifact website auth setup failed." >&2
-            return 0
-        fi
         artifact_nginx_write_config "$config_file" full || return 0
     else
         artifact_nginx_write_config "$config_file" init || return 0
@@ -4587,11 +4333,6 @@ start_artifact_nginx() {
 
     if ! artifact_nginx_obtain_or_renew_certificate "$certbot_conf" "$certbot_www" "$certbot_log"; then
         echo "WARNING: artifact nginx is running, but Let's Encrypt certificate setup failed." >&2
-        return 0
-    fi
-
-    if ! start_artifact_auth_proxy; then
-        echo "WARNING: artifact nginx HTTPS proxy was not started because artifact website auth setup failed." >&2
         return 0
     fi
 

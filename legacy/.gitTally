@@ -84,9 +84,6 @@ export GITTALLY_ARTIFACT_SERVER_PORT='18080'
 # default GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS='0.0.0.0'
 export GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS='0.0.0.0'
 
-# Host name or address printed in local artifact server URLs.
-# default GITTALLY_ARTIFACT_SERVER_HOST=''
-export GITTALLY_ARTIFACT_SERVER_HOST=''
 
 # Public base URL used for artifact links and Gitea status target URLs.
 # default GITTALLY_ARTIFACT_PUBLIC_BASE_URL='https://ci.example.org/'
@@ -128,53 +125,6 @@ export GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME='gittally-nginx-hsadmin-ng'
 # default GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL='admin@example.org'
 export GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL=''
 
-# Additional certbot arguments, for example --staging.
-# default GITTALLY_ARTIFACT_CERTBOT_ENV=''
-export GITTALLY_ARTIFACT_CERTBOT_ENV=''
-
-# ================================================================================
-# Artifact website Gitea login
-# --------------------------------------------------------------------------------
-
-# Frontend auth mode for --nginx. Use gitea-oauth2 to require a Gitea browser login.
-# default GITTALLY_ARTIFACT_AUTH_MODE=''
-export GITTALLY_ARTIFACT_AUTH_MODE=''
-
-# Gitea base URL used only for browser login to the artifact website.
-# default GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL='https://git.example.org'
-export GITTALLY_ARTIFACT_AUTH_GITEA_BASE_URL='https://dev.hostsharing.net'
-
-# OAuth2 client ID registered in Gitea for the artifact website.
-# default GITTALLY_ARTIFACT_AUTH_CLIENT_ID='gitea-oauth-client-id'
-export GITTALLY_ARTIFACT_AUTH_CLIENT_ID=''
-
-# OAuth2 client secret registered in Gitea for the artifact website.
-# default GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET='gitea-oauth-client-secret'
-export GITTALLY_ARTIFACT_AUTH_CLIENT_SECRET=''
-
-# Random oauth2-proxy cookie secret used to protect browser sessions.
-# default GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET='generate-a-random-cookie-secret'
-export GITTALLY_ARTIFACT_AUTH_COOKIE_SECRET=''
-
-# Optional cookie domain for browser sessions.
-# default GITTALLY_ARTIFACT_AUTH_COOKIE_DOMAIN='ci.example.org'
-export GITTALLY_ARTIFACT_AUTH_COOKIE_DOMAIN=''
-
-# OAuth2 proxy Docker image used for Gitea browser login.
-# default GITTALLY_ARTIFACT_AUTH_IMAGE='quay.io/oauth2-proxy/oauth2-proxy:v7.13.0'
-export GITTALLY_ARTIFACT_AUTH_IMAGE='quay.io/oauth2-proxy/oauth2-proxy:v7.13.0'
-
-# Docker container name for the artifact website auth proxy.
-# default GITTALLY_ARTIFACT_AUTH_CONTAINER_NAME='gittally-auth-example-repo'
-export GITTALLY_ARTIFACT_AUTH_CONTAINER_NAME='gittally-auth-hsadmin-ng'
-
-# Internal HTTP port used by the artifact website auth proxy.
-# default GITTALLY_ARTIFACT_AUTH_HTTP_PORT='4180'
-export GITTALLY_ARTIFACT_AUTH_HTTP_PORT='4180'
-
-# Allowed email domains for logged-in Gitea users. Use * to allow any Gitea login.
-# default GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS='*'
-export GITTALLY_ARTIFACT_AUTH_EMAIL_DOMAINS='*'
 
 # ================================================================================
 # Legal
@@ -224,6 +174,3 @@ export GITTALLY_GITEA_REPO='hs.hsadmin.ng'
 # default GITTALLY_GITEA_STATUS_CONTEXT='GitTally'
 export GITTALLY_GITEA_STATUS_CONTEXT='GitTally'
 
-# Fixed status target URL. Leave empty to link to archived build artifacts.
-# default GITTALLY_GITEA_STATUS_TARGET_URL=''
-export GITTALLY_GITEA_STATUS_TARGET_URL=''
