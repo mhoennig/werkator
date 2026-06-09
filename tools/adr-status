@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "Not in a git repo"; exit 1; }
+grep -F '**Decision ' "$root"/docs/adrs/* \
+    | sed "s|$root/docs/adrs/||; s/:/\t/; s/\*\*Decision //; s/:\*\*//" \
+    | column -t -s $'\t'
