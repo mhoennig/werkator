@@ -7,15 +7,15 @@ GitTally is configured via YAML files. Settings are merged from two sources in o
 | Layer                    | Path                       | Committed to Git | Purpose                                      |
 |--------------------------|----------------------------|------------------|----------------------------------------------|
 | Project config           | `.gittally.yml`            | Yes              | Shared team settings                         |
-| Repo installation config | `.git/gittally/config.yml` | No               | Machine- or user-specific overrides, secrets |
+| Repo installation config | `.git/gittally/.gittally.yml` | No               | Machine- or user-specific overrides, secrets |
 
-The repo install config (`.git/gittally/config.yml`) wins on any key present in both files. Typically used to set `gitea.token` without committing it.
+The repo install config (`.git/gittally/.gittally.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
 
 ## Inspect the Effective Config
 
 ```bash
-java -jar gittally.jar config:print         # only explicitly set values
-java -jar gittally.jar config:print --full  # all values including defaults
+java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print         # only explicitly set values
+java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print --full  # all values including defaults
 ```
 
 ## `.gittally.yml`
@@ -30,7 +30,7 @@ server:
 # Gitea integration for fetching commits and posting build statuses.
 gitea:
   baseUrl: https://git.example.org   # base URL of the Gitea instance
-  owner: my-org                      # repository owner (user or organisation)
+  owner: my-org                      # repository owner (user or organisation) for Gitea API (e.g. status checks)
   repo: my-repo                      # repository name
   statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
 
@@ -79,11 +79,11 @@ branches:
         - "04:00"
 ```
 
-## `.git/gittally/config.yml` (not committed)
+## `.git/gittally/.gittally.yml` (not committed)
 
 ```yaml
-# Machine- or user-specific overrides. Keys here win over .gittally.yml.
-gitea:
-  gitUsername: my-user              # git username for HTTPS authentication
+# Machine- or user-specific overrides and secrets. Keys here win over .gittally.yml.
+git:
+  account: my-user              # technical username for git HTTPS authentication
   token: glpat-xxxxxxxxxxxxxxxxxxxx # Gitea API token — never commit this
 ```

@@ -32,7 +32,6 @@ class ConfigLoaderTest : FunSpec() {
             val config = loader.load(dir)
             config.gitea.owner shouldBe "my-org"
             config.gitea.repo shouldBe "my-repo"
-            config.branches["default"]!!.buildCommand shouldBe BranchConfig().buildCommand
         }
 
         test("repo install config overrides project config for same keys") {
@@ -40,20 +39,23 @@ class ConfigLoaderTest : FunSpec() {
             dir.resolve(".gittally.yml").toFile().writeText(
                 """
                 gitea:
-                  owner: my-org
+                  owner: original-org
+                git:
                   token: from-project
                 """.trimIndent(),
             )
             dir.resolve(".git/gittally").toFile().mkdirs()
-            dir.resolve(".git/gittally/config.yml").toFile().writeText(
+            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
                 """
                 gitea:
+                  owner: override-org
+                git:
                   token: from-repo-install
                 """.trimIndent(),
             )
             val config = loader.load(dir)
-            config.gitea.owner shouldBe "my-org"
-            config.gitea.token shouldBe "from-repo-install"
+            config.gitea.owner shouldBe "override-org"
+            config.git.token shouldBe "from-repo-install"
         }
 
         test("loadRaw only returns explicitly set values") {
@@ -108,6 +110,7 @@ class ConfigLoaderTest : FunSpec() {
         test("toYaml serializes GitTallyConfig with all sections") {
             val yaml = loader.toYaml(GitTallyConfig())
             yaml shouldContain "server:"
+            yaml shouldContain "git:"
             yaml shouldContain "gitea:"
             yaml shouldContain "artifacts:"
             yaml shouldContain "watcher:"

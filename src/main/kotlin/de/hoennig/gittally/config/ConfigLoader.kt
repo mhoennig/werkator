@@ -29,7 +29,7 @@ class ConfigLoader {
     }
 
     fun loadRaw(workingDir: Path = Paths.get(".")): Map<String, Any?> {
-        val repoInstall = loadFile(workingDir.resolve(".git/gittally/config.yml").toFile())
+        val repoInstall = loadFile(workingDir.resolve(".git/gittally/.gittally.yml").toFile())
         val project = loadFile(workingDir.resolve(".gittally.yml").toFile())
         return deepMerge(project, repoInstall)
     }

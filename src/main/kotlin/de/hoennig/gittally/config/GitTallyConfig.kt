@@ -2,6 +2,7 @@ package de.hoennig.gittally.config
 
 data class GitTallyConfig(
     val server: ServerConfig = ServerConfig(),
+    val git: GitConfig = GitConfig(),
     val gitea: GiteaConfig = GiteaConfig(),
     val artifacts: ArtifactsConfig = ArtifactsConfig(),
     val watcher: WatcherConfig = WatcherConfig(),
@@ -12,12 +13,15 @@ data class ServerConfig(
     val publicBaseUrl: String = "",
 )
 
+data class GitConfig(
+    val account: String = "",
+    val token: String = "",
+)
+
 data class GiteaConfig(
     val baseUrl: String = "",
     val owner: String = "",
     val repo: String = "",
-    val gitUsername: String = "",
-    val token: String = "",
     val statusContext: String = "GitTally",
 )
 

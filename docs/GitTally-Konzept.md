@@ -127,7 +127,7 @@ Jeder Build erhält einen eigenen temporären Worktree.
 
 1. Eingebaute Defaults
 2. Globale Server-Konfiguration
-3. Repository-Installation (.git/gittally/config.yml)
+3. Repository-Installation (.git/gittally/.gittally.yml)
 4. Projektkonfiguration (.gittally.yml)
 5. Branchprofile
 
@@ -143,20 +143,20 @@ Jeder Build erhält einen eigenen temporären Worktree.
 ### Initialisierung
 
 ```bash
-java -jar gittally.jar init
+java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar init
 ```
 
 ### Serverstart
 
 ```bash
-java -jar gittally.jar server
+java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar server
 ```
 
 ### Konfigurationsanzeige
 
 ```bash
-java -jar gittally.jar config:print
-java -jar gittally.jar config:print --full
+java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print
+java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print --full
 ```
 
 ## Erweiterungen
