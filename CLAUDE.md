@@ -96,6 +96,14 @@ class SomeControllerTest : FunSpec() {
 
 Pure unit tests (no Spring context) use MockK directly without any Spring wiring.
 
+## File-Formatting
+
+### Markdown
+
+Write documentation in English in Markdown files.
+In Markdown, use a single line per sentence.
+Keep sentences short.
+
 ## Key Architectural Decisions
 
 All major decisions are in `docs/adrs/`. Run `adr-status` (after `source .envrc`) for a one-line summary of each. Decisions in force:
