@@ -28,8 +28,9 @@ if [ ! -d "$INSTALL_DIR/repo/.git" ]; then
 fi
 cd "$INSTALL_DIR/repo"
 
-# 3. Generate the config templates; existing files are kept, Gitea URL/owner/repo
-#    are detected from the origin URL.
+# 3. Generate the config templates; existing files are kept. The clone already
+#    carries the committed .gittally.yml, so this only creates the machine config
+#    (.git/gittally/.gittally.yml).
 java -jar "$INSTALL_DIR/gittally.jar" init
 
 # 4. Machine-specific overrides and secrets (.git/gittally/ is never committed;
@@ -43,7 +44,7 @@ server:
 EOF
 chmod 600 .git/gittally/.gittally.yml
 
-# The generated defaults already build GitTally itself:
+# The committed .gittally.yml already builds GitTally itself:
 #   buildCommand: ./gradlew --console=plain --no-daemon test
 #   artifactDirs: [build/reports]
 
@@ -52,6 +53,8 @@ chmod 600 .git/gittally/.gittally.yml
 #    Builds never move this ref or touch this checkout, so lagging is harmless.
 git reset --hard --quiet HEAD~1 || true
 
-# 6. Run it (Ctrl-C stops it cleanly; wrap this in a systemd unit for a permanent setup).
+# 6. Run it (Ctrl-C stops it cleanly). For a permanent setup, run
+#    `java -jar "$INSTALL_DIR/gittally.jar" init --systemd` here instead and follow
+#    docs/deployment.md — the generated unit points at this jar and repo.
 echo "GitTally self-host: http://localhost:$SERVER_PORT/ — watching $ORIGIN_URL"
 exec java -jar "$INSTALL_DIR/gittally.jar" server
