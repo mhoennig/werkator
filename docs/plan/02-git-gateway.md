@@ -43,3 +43,21 @@ Parse the `newBranchMaxAge` duration format (`5d`, `12h`) in a small dedicated p
 
 - `./gradlew ktlintFormat` then `./gradlew build` is green.
 - No temp askpass files leak (created per invocation or cleaned via try/finally; legacy leaked them).
+
+## Execution Notes (done 2026-07-07)
+
+Implemented as specified; build green, 34 new tests
+(`GitCommandRunnerTest`, `GitAskPassTest`, `DurationParserTest`, `GitServiceTest` with fixture repos).
+Deviations and details:
+
+- `resetHardToOrigin(branch)` only runs `git reset --hard origin/<branch>`.
+  The fetch half of legacy `pull_branch_if_possible` is the separate `fetchBranch(branch)`; the watcher/builder composes both.
+- `GitService` gained a `ConfigLoader` constructor dependency to resolve `git.account`/`git.token` for the askpass bridge.
+  Config is loaded from the repo top level, so fetches work from subdirectories too.
+- The askpass script (`GitAskPass`) contains no secrets; credentials are passed via environment variables.
+  The script file is created per invocation with owner-only permissions and deleted in `finally`.
+- `GIT_TERMINAL_PROMPT=0` is set on all fetches, including unauthenticated ones, so a fetch can never hang on a credential prompt (legacy only disabled prompts when a token was configured).
+- `fetchOrigin()` uses `fetch --prune origin`, matching the legacy main-loop fetch (line 4969).
+- The duration parser lives at `config/DurationParser.kt` since it parses the `watcher.newBranchMaxAge` config format.
+  Lowercase `d`/`h` only, like legacy.
+- `GitService` methods take the target repo as a trailing `workingDir: Path = Paths.get(".")` parameter, keeping the pre-existing convention.

@@ -56,7 +56,7 @@ Three places must stay in sync when config keys change: the `GitTallyConfig` dat
 
 ### Git Access
 
-`GitService` shells out to the `git` CLI via `ProcessBuilder` (no JGit). Commands that need repo information take it as a constructor dependency so tests can mock it.
+`GitService` shells out to the `git` CLI via `GitCommandRunner` (a thin `ProcessBuilder` wrapper; no JGit). Commands that need repo information take it as a constructor dependency so tests can mock it. HTTPS fetches authenticate via a temporary, secret-free `GIT_ASKPASS` script (`GitAskPass`) with credentials from config passed through environment variables.
 
 ### Package Structure
 

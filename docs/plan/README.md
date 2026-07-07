@@ -40,7 +40,7 @@ Revisit them in an ADR if a step uncovers problems.
 Foundation:
 
 - [x] `01-build-state-domain.md` — build result domain model and persistent repository
-- [ ] `02-git-gateway.md` — full git access layer (fetch, branches, commits, checkout)
+- [x] `02-git-gateway.md` — full git access layer (fetch, branches, commits, checkout)
 - [ ] `03-gitea-client.md` — Gitea API client for commit statuses
 
 Core engine:
