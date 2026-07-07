@@ -125,6 +125,7 @@ Keep sentences short.
 - `docs/GitTally-Konzept.md` — product concept and target architecture (in German): git-centric CI, builds in Docker, one instance per repository, status reported back to Gitea.
 - `docs/configuration.md` — configuration reference; keep in sync with `GitTallyConfig` and the `init` templates.
 - `docs/bootstrapping.md` — how `init` prepares a repository.
+- `docs/plan/` — the step-by-step rewrite plan; `docs/plan/README.md` explains how to execute a step, `docs/plan/00-legacy-analysis.md` summarizes the legacy bash script.
 
 ## Key Architectural Decisions
 

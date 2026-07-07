@@ -1,0 +1,67 @@
+# GitTally Rewrite Plan
+
+This directory contains the step-by-step plan for rewriting `legacy/gitTally` (bash) as the Kotlin/Spring application in this repository.
+Each step file is self-contained and sized for one focused Claude Code session.
+
+## How to Execute a Step
+
+Start a fresh Claude Code session and prompt, for example: "Execute docs/plan/01-build-state-domain.md".
+The executing session should:
+
+1. Read this file, `00-legacy-analysis.md`, and the step file.
+2. Read the referenced parts of `legacy/gitTally` only if the step file says so.
+3. Implement with tests, following `CLAUDE.md` conventions.
+4. Run `./gradlew ktlintFormat` and then `./gradlew build` until green.
+5. Update the step's checkbox below and note deviations inside the step file.
+
+## Guiding Principles
+
+- The legacy script defines intended behavior, but it is buggy — treat it as a reference, not a spec.
+- Fix the two known legacy defects by design, not by patching:
+  - Build status must be observable while a build runs (event-driven status transitions, async build execution).
+  - The web UI must never get stuck loading (JSON status endpoints with explicit error states instead of regex-rewritten HTML).
+- Do not port orphaned or half-implemented legacy config options (see `00-legacy-analysis.md`).
+- Every step leaves the build green and the application runnable.
+- Config keys added by a step must be updated in three places: `GitTallyConfig`, the `InitCommand` templates, and `docs/configuration.md`.
+
+## Proposed Architecture Decisions
+
+These are proposals baked into the steps.
+Revisit them in an ADR if a step uncovers problems.
+
+- Build results are persisted as a JSON file under `.git/gittally/`, behind a `BuildResultRepository` interface (no database, but replaceable).
+- Artifacts stay on the filesystem, served by the Spring server.
+- The web UI is server-rendered HTML plus small JavaScript polling JSON endpoints (no SPA framework).
+- The watcher is a Spring-managed scheduled component, decoupled from the build executor via the result repository and events.
+- nginx/Let's Encrypt container management is NOT ported; deployment behind an existing reverse proxy is documented instead.
+
+## Steps
+
+Foundation:
+
+- [ ] `01-build-state-domain.md` — build result domain model and persistent repository
+- [ ] `02-git-gateway.md` — full git access layer (fetch, branches, commits, checkout)
+- [ ] `03-gitea-client.md` — Gitea API client for commit statuses
+
+Core engine:
+
+- [ ] `04-build-executor.md` — async build execution with logs, cancellation, status transitions
+- [ ] `05-artifact-store.md` — artifact persistence, naming, retention
+- [ ] `06-watcher.md` — branch watching, scheduling, auto-builds
+
+Server and UI:
+
+- [ ] `07-server-mode.md` — `server` subcommand, REST/JSON endpoints, artifact serving
+- [ ] `08-web-ui.md` — HTML views with robust live updates
+- [ ] `09-system-metrics.md` — system resource monitoring page
+
+Completion:
+
+- [ ] `10-cli-commands.md` — CLI build/status commands
+- [ ] `11-docker-build-runtime.md` — optional Docker build execution
+- [ ] `12-deployment.md` — systemd service, migration from legacy, docs
+
+Steps 01–03 are independent of each other.
+Steps 04–06 depend on 01–03.
+Steps 07–09 depend on 04–06.
+Steps 11 and 12 are optional/deferrable; 10 only needs 04–06.
