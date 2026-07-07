@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Example: start a GitTally test server watching a scratch repository with a fake build.
 # This is the setup used for the manual UI/API smoke tests during development:
-# a local bare origin, a slow fake build with live log output and a demo report
-# artifact, and a fast poll interval — no Gitea, no credentials, no Docker.
+# a local bare origin (with a second branch for the Branches view), a slow fake
+# build with live log output and a demo report artifact, and a fast poll
+# interval — no Gitea, no credentials, no Docker.
 #
 # Usage:
 #   ./docs/examples/setup-gittally-testserver.sh
@@ -71,6 +72,15 @@ EOF
     git -C "$INSTALL_DIR/work" commit --quiet -m "fake build setup"
     git -C "$INSTALL_DIR/work" commit --quiet --allow-empty -m "kick-start build"
     git -C "$INSTALL_DIR/work" push --quiet origin main
+fi
+
+# A second branch on origin, so the Branches view shows more than just main.
+# Guarded separately so existing installs gain it on a re-run.
+if ! git -C "$INSTALL_DIR/origin.git" show-ref --quiet refs/heads/feature/demo; then
+    git -C "$INSTALL_DIR/work" switch --quiet -c feature/demo main
+    git -C "$INSTALL_DIR/work" commit --quiet --allow-empty -m "demo branch for the branches view"
+    git -C "$INSTALL_DIR/work" push --quiet -u origin feature/demo
+    git -C "$INSTALL_DIR/work" switch --quiet main
 fi
 
 # 3. The watched clone; the server runs here. No `init` needed: the project config

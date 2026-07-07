@@ -132,6 +132,7 @@ Until then, a Java runtime must be available on the host.
 
 [examples/setup-gittally-testserver.sh](examples/setup-gittally-testserver.sh) starts a GitTally server against a scratch repository with a fake build — the setup used for the manual UI/API smoke tests during development.
 It creates a local bare origin plus a `work` clone, commits a slow fake build script (live log output, demo report artifact) with a `pollInterval: 5s` config, and starts the server on port 18980.
+The origin gets a second branch (`feature/demo`), so the Branches view shows more than one entry.
 No Gitea, no credentials, no Docker; `INSTALL_DIR`, `SERVER_PORT`, and `BUILD_SECONDS` can be overridden via environment variables.
 While the server runs, push empty commits from the `work` clone to trigger builds; a commit message containing `[fail]` makes the build fail, and pushing a new branch exercises the new-origin-branch path.
 
