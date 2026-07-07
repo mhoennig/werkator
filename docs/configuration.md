@@ -26,6 +26,10 @@ Values shown are the defaults.
 server:
   # Public base URL of this GitTally installation — used for all links posted to Gitea.
   publicBaseUrl: https://ci.example.org/
+  # HTTP port of the `server` subcommand (default 18080, like legacy)
+  port: 18080
+  # bind address of the `server` subcommand
+  bindAddress: 0.0.0.0
 
 # Gitea integration for fetching commits and posting build statuses.
 gitea:

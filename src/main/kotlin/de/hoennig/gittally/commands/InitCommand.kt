@@ -104,6 +104,10 @@ class InitCommand(
             server:
               # Public base URL of this GitTally installation — used for all links posted to Gitea.
               publicBaseUrl: ""
+              # HTTP port of the `server` subcommand
+              port: 18080
+              # bind address of the `server` subcommand
+              bindAddress: 0.0.0.0
 
             # Gitea integration for fetching commits and posting build statuses.
             gitea:

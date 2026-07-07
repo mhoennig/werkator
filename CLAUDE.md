@@ -23,7 +23,7 @@ java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar init
 ## Architecture
 
 GitTally is a lightweight, declarative CI/CD build system.
-It is a dual-mode application: **CLI** (interactive, status, config) and **Server** (HTTP, persistent). It is currently CLI-only; the server mode is not yet implemented.
+It is a dual-mode application: **CLI** (interactive, status, config) and **Server** (HTTP, persistent).
 
 ### Entry Point and CLI Wiring
 
@@ -41,7 +41,7 @@ commands/
   ConfigPrintCommand  ← "config:print [--full]"
 ```
 
-The web application type is set to `none` in `application.yml`. The `server` subcommand will need to restart the context with a web type when implemented.
+The web application type is set to `none` in `application.yml`, so plain CLI runs never start a web server. The `server` subcommand launches a **second** `SpringApplication` with `WebApplicationType.SERVLET` and the `server` profile, then blocks until shutdown. `application-server.yml` switches the web type (`spring.main.*` properties beat programmatic builder settings), `CliRunner` is `@Profile("!server")` so the second context does not run picocli again, and the watcher poll loop starts only in the `server` profile (`ServerWatcherLifecycle`). The JSON API and artifact serving live in the `server` package; mutating endpoints are guarded by a generated control token under `.git/gittally/control-token`.
 
 ### Configuration System
 
@@ -68,7 +68,7 @@ Three places must stay in sync when config keys change: the `GitTallyConfig` dat
 
 ### Package Structure
 
-All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), `build` (build execution, results, workspaces), `artifacts` (filesystem artifact store), and `watcher` (branch polling, auto-builds, startup recovery). Tests mirror this structure under `src/test/kotlin`.
+All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), `build` (build execution, results, workspaces), `artifacts` (filesystem artifact store), `watcher` (branch polling, auto-builds, startup recovery), and `server` (JSON API controllers, artifact serving, control token, watcher lifecycle). Tests mirror this structure under `src/test/kotlin`.
 
 ## Testing Conventions
 

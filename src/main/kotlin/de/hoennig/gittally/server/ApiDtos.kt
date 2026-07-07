@@ -1,0 +1,65 @@
+package de.hoennig.gittally.server
+
+import de.hoennig.gittally.build.BuildResult
+import de.hoennig.gittally.build.BuildStatus
+import java.time.Instant
+
+/** JSON statuses are lowercase like the legacy TSV/HTML statuses. */
+val BuildStatus.jsonName: String
+    get() = name.lowercase()
+
+data class BuildResultDto(
+    val branch: String,
+    val commit: String,
+    val status: String,
+    val startedAt: Instant,
+    val durationSeconds: Long?,
+    val artifactKey: String,
+) {
+    companion object {
+        fun from(result: BuildResult) =
+            BuildResultDto(
+                branch = result.branch,
+                commit = result.commit,
+                status = result.status.jsonName,
+                startedAt = result.startedAt,
+                durationSeconds = result.duration?.seconds,
+                artifactKey = result.artifactKey,
+            )
+    }
+}
+
+/** One entry of `GET /api/builds/current`; the log grows while the build runs. */
+data class CurrentBuildDto(
+    val branch: String,
+    val commit: String,
+    val artifactKey: String,
+    val status: String,
+    val startedAt: Instant,
+    val logSize: Long,
+)
+
+/** Incremental live-log chunk; poll again with `offset = nextOffset`. */
+data class LogTailDto(
+    val artifactKey: String,
+    val offset: Long,
+    val nextOffset: Long,
+    val content: String,
+)
+
+/**
+ * Effective status of a commit: the Gitea status when available, otherwise the
+ * local repository status, otherwise `unknown`. A Gitea failure is an explicit
+ * [giteaError] value — the request answers HTTP 200 and never hangs.
+ */
+data class CommitStatusDto(
+    val commit: String,
+    val status: String,
+    val localStatus: String?,
+    val giteaStatus: String?,
+    val giteaError: String?,
+) {
+    companion object {
+        const val UNKNOWN_STATUS = "unknown"
+    }
+}

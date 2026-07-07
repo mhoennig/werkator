@@ -1,0 +1,10 @@
+# Active only in server mode (the `server` subcommand and the server-profile tests).
+# `spring.main.*` properties override programmatic SpringApplicationBuilder settings,
+# so the web type switch must happen here, not only in ServerCommand.
+spring:
+  main:
+    web-application-type: servlet
+
+logging:
+  level:
+    de.hoennig.gittally: INFO

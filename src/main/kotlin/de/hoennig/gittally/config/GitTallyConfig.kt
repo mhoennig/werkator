@@ -12,6 +12,9 @@ data class GitTallyConfig(
 
 data class ServerConfig(
     val publicBaseUrl: String = "",
+    /** HTTP port of the `server` subcommand; 18080 like the legacy artifact server. */
+    val port: Int = 18080,
+    val bindAddress: String = "0.0.0.0",
 )
 
 data class GitConfig(

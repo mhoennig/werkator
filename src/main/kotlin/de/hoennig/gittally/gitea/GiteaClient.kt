@@ -10,11 +10,14 @@ import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.GitTallyConfig
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
+import java.net.http.HttpClient
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
 
 /** Outcome of [GiteaClient.readStatus]; errors are values, never exceptions. */
 sealed interface GiteaStatusResult {
@@ -167,9 +170,16 @@ class GiteaClient(
             config.gitea.repo.isNotBlank() &&
             config.git.token.isNotBlank()
 
+    /** Timeouts like the legacy status proxy: callers (e.g. `/api/status`) must never hang. */
+    private val requestFactory =
+        JdkClientHttpRequestFactory(
+            HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build(),
+        ).apply { setReadTimeout(REQUEST_TIMEOUT) }
+
     private fun restClient(config: GitTallyConfig): RestClient =
         RestClient
             .builder()
+            .requestFactory(requestFactory)
             .baseUrl(config.gitea.baseUrl.trimEnd('/'))
             .defaultHeader("Authorization", "token ${config.git.token}")
             .build()
@@ -178,4 +188,8 @@ class GiteaClient(
         val context: String? = null,
         val state: String? = null,
     )
+
+    companion object {
+        private val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(10)
+    }
 }

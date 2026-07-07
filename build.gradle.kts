@@ -23,6 +23,7 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework:spring-web")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("info.picocli:picocli-spring-boot-starter:4.7.6")
@@ -31,6 +32,8 @@ dependencies {
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // @WebMvcTest lives in its own module since Spring Boot 4
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 
     // Kotest
     testImplementation("io.kotest:kotest-runner-junit5:6.1.5")
