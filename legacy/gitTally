@@ -31,11 +31,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-script_version="0.7.6"
+script_version="0.7.8"
 script_path=$(realpath "${BASH_SOURCE[0]}")
 script_name=$(basename "${BASH_SOURCE[0]}")
 tool_name="GitTally"
 installed_script_path=
+
+# Ensure consistent output from system tools (e.g., date, df, awk, sort) across different environments.
+export LC_ALL=C
 repo_root=
 systemd_unit_name="gitTally.service"
 monitor_generation=$(date +%s)
@@ -3000,11 +3003,18 @@ keys = [
     "cpu_idle", "cpu_idle_min", "cpu_idle_max", "cpu_idle_avg",
     "ram_used_gib", "ram_used_gib_min", "ram_used_gib_max", "ram_used_gib_avg",
     "ram_free_gib", "ram_free_gib_min", "ram_free_gib_max", "ram_free_gib_avg",
+    "disk_used_gib", "disk_used_gib_min", "disk_used_gib_max", "disk_used_gib_avg",
+    "disk_free_gib", "disk_free_gib_min", "disk_free_gib_max", "disk_free_gib_avg",
+    "repo_size_gib", "repo_size_gib_min", "repo_size_gib_max", "repo_size_gib_avg",
 ]
 
 def fmt(value):
-    if isinstance(value, (int, float)) and math.isfinite(value):
-        return f"{value:.2f}"
+    try:
+        val = float(value)
+        if math.isfinite(val):
+            return f"{val:.2f}"
+    except (ValueError, TypeError):
+        pass
     return placeholder
 
 try:
@@ -3015,8 +3025,11 @@ except Exception:
 
 values = [fmt(data.get(key)) for key in keys]
 cpu_count = data.get("cpu_count")
-values.append(f"{cpu_count} cores" if isinstance(cpu_count, int) else placeholder)
-values.append(fmt(data.get("ram_total_gib")) + " GiB" if isinstance(data.get("ram_total_gib"), (int, float)) else placeholder)
+values.append(f"{int(cpu_count)} cores" if cpu_count is not None and str(cpu_count).isdigit() else placeholder)
+ram_total = data.get("ram_total_gib")
+values.append(fmt(ram_total) + " GiB" if ram_total is not None else placeholder)
+disk_total = data.get("disk_total_gib")
+values.append(fmt(disk_total) + " GiB" if disk_total is not None else placeholder)
 timestamp = data.get("timestamp")
 if isinstance(timestamp, str) and timestamp:
     try:
@@ -3037,19 +3050,26 @@ write_system_page() {
     local cpu_idle cpu_idle_min cpu_idle_max cpu_idle_avg
     local ram_used ram_used_min ram_used_max ram_used_avg
     local ram_free ram_free_min ram_free_max ram_free_avg
-    local cpu_count ram_total updated
+    local disk_used disk_used_min disk_used_max disk_used_avg
+    local disk_free disk_free_min disk_free_max disk_free_avg
+    local repo_size repo_size_min repo_size_max repo_size_avg
+    local cpu_count ram_total disk_total updated
 
     artifacts_root=$(build_artifacts_root)
     write_html_favicon "$artifacts_root" || return 1
     index_file="$artifacts_root/system.html"
     page_title="GitTally [$(repository_simple_name)] - System"
+    reload_action_html=$(printf '<form class="reload-form" method="get" action="%s"><button class="reload-button" type="submit" title="Reload view" aria-label="Reload view">⟳</button></form>' "$(basename "$index_file")")
     mkdir -p "$artifacts_root" || return 1
     IFS=$'\t' read -r \
         cpu_used cpu_used_min cpu_used_max cpu_used_avg \
         cpu_idle cpu_idle_min cpu_idle_max cpu_idle_avg \
         ram_used ram_used_min ram_used_max ram_used_avg \
         ram_free ram_free_min ram_free_max ram_free_avg \
-        cpu_count ram_total updated < <(system_page_snapshot "$artifacts_root/system.json")
+        disk_used disk_used_min disk_used_max disk_used_avg \
+        disk_free disk_free_min disk_free_max disk_free_avg \
+        repo_size repo_size_min repo_size_max repo_size_avg \
+        cpu_count ram_total disk_total updated < <(system_page_snapshot "$artifacts_root/system.json")
 
     {
         printf '<!doctype html>\n'
@@ -3081,6 +3101,9 @@ write_system_page() {
         printf '        .view-toggle span { background: var(--link); color: white; }\n'
         printf '        .view-toggle a { color: var(--link); }\n'
         printf '        .view-toggle a:hover { background: color-mix(in srgb, var(--link) 8%%, transparent); text-decoration: none; }\n'
+        printf '        .reload-form { margin: 0; }\n'
+        printf '        .reload-button { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--link); font: 21px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }\n'
+        printf '        .reload-button:hover { background: color-mix(in srgb, var(--link) 8%%, transparent); }\n'
         printf '        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); box-shadow: 0 12px 28px rgb(15 23 42 / 0.08); }\n'
         printf '        table { width: 100%%; border-collapse: collapse; }\n'
         printf '        th, td { padding: 12px 14px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--border); }\n'
@@ -3113,7 +3136,7 @@ write_system_page() {
         printf '    <main>\n'
         printf '        <h1><a class="title-home" href="index.html" aria-label="Open latest builds"><img src="favicon.svg" alt="" aria-hidden="true"></a>%s</h1>\n' "$(printf '%s' "$page_title" | html_escape)"
     } >>"$index_file"
-    write_build_artifact_view_toggle "$index_file" System
+    write_build_artifact_view_toggle "$index_file" System "$reload_action_html"
     {
         printf '        <div class="table-wrap">\n'
         printf '            <table>\n'
@@ -3127,20 +3150,29 @@ write_system_page() {
             "$(printf '%s' "$ram_used" | html_escape)" "$(printf '%s' "$ram_used_min" | html_escape)" "$(printf '%s' "$ram_used_max" | html_escape)" "$(printf '%s' "$ram_used_avg" | html_escape)"
         printf '                    <tr><td>RAM free (GiB)</td><td id="cur-ram-avail" class="num" data-label="Current">%s</td><td id="min-ram-avail" class="num" data-label="Min">%s</td><td id="max-ram-avail" class="num" data-label="Max">%s</td><td id="avg-ram-avail" class="num" data-label="Avg">%s</td></tr>\n' \
             "$(printf '%s' "$ram_free" | html_escape)" "$(printf '%s' "$ram_free_min" | html_escape)" "$(printf '%s' "$ram_free_max" | html_escape)" "$(printf '%s' "$ram_free_avg" | html_escape)"
+        printf '                    <tr><td>Disk used (GiB)</td><td id="cur-disk-used" class="num" data-label="Current">%s</td><td id="min-disk-used" class="num" data-label="Min">%s</td><td id="max-disk-used" class="num" data-label="Max">%s</td><td id="avg-disk-used" class="num" data-label="Avg">%s</td></tr>\n' \
+            "$(printf '%s' "$disk_used" | html_escape)" "$(printf '%s' "$disk_used_min" | html_escape)" "$(printf '%s' "$disk_used_max" | html_escape)" "$(printf '%s' "$disk_used_avg" | html_escape)"
+        printf '                    <tr><td>Disk free (GiB)</td><td id="cur-disk-avail" class="num" data-label="Current">%s</td><td id="min-disk-avail" class="num" data-label="Min">%s</td><td id="max-disk-avail" class="num" data-label="Max">%s</td><td id="avg-disk-avail" class="num" data-label="Avg">%s</td></tr>\n' \
+            "$(printf '%s' "$disk_free" | html_escape)" "$(printf '%s' "$disk_free_min" | html_escape)" "$(printf '%s' "$disk_free_max" | html_escape)" "$(printf '%s' "$disk_free_avg" | html_escape)"
+        printf '                    <tr><td>Repo size (GiB)</td><td id="cur-repo-size" class="num" data-label="Current">%s</td><td id="min-repo-size" class="num" data-label="Min">%s</td><td id="max-repo-size" class="num" data-label="Max">%s</td><td id="avg-repo-size" class="num" data-label="Avg">%s</td></tr>\n' \
+            "$(printf '%s' "$repo_size" | html_escape)" "$(printf '%s' "$repo_size_min" | html_escape)" "$(printf '%s' "$repo_size_max" | html_escape)" "$(printf '%s' "$repo_size_avg" | html_escape)"
         printf '                </tbody>\n'
         printf '            </table>\n'
         printf '        </div>\n'
-        printf '        <p class="meta"><span>CPU total:&nbsp;<strong id="info-cpu-count">%s</strong>&nbsp;&nbsp;·&nbsp;&nbsp;RAM total:&nbsp;<strong id="info-ram-total">%s</strong>&nbsp;&nbsp;·&nbsp;&nbsp;Updated:&nbsp;<span id="info-updated">%s</span></span><span>(*: min/max/avg since script start)</span></p>\n' \
-            "$(printf '%s' "$cpu_count" | html_escape)" "$(printf '%s' "$ram_total" | html_escape)" "$(printf '%s' "$updated" | html_escape)"
+        printf '        <p class="meta"><span>CPU total:&nbsp;<strong id="info-cpu-count">%s</strong>&nbsp;&nbsp;·&nbsp;&nbsp;RAM total:&nbsp;<strong id="info-ram-total">%s</strong>&nbsp;&nbsp;·&nbsp;&nbsp;Disk total:&nbsp;<strong id="info-disk-total">%s</strong>&nbsp;&nbsp;·&nbsp;&nbsp;Updated:&nbsp;<span id="info-updated">%s</span>&nbsp;(updated every 60s)</span><span>(*: min/max/avg since script start)</span></p>\n' \
+            "$(printf '%s' "$cpu_count" | html_escape)" "$(printf '%s' "$ram_total" | html_escape)" "$(printf '%s' "$disk_total" | html_escape)" "$(printf '%s' "$updated" | html_escape)"
         printf '    </main>\n'
         printf '    <script>\n'
-        printf '        function fmt(v) { return (typeof v === "number" && isFinite(v)) ? v.toFixed(2) : "—"; }\n'
+        printf '        function fmt(v) { const n = parseFloat(v); return (!isNaN(n) && isFinite(n)) ? n.toFixed(2) : "—"; }\n'
         printf '        function set(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }\n'
         printf '        const rows = [\n'
         printf '            { cur: "cpu_used",     min: "cpu_used_min",     max: "cpu_used_max",     avg: "cpu_used_avg",     curId: "cur-cpu-used",  minId: "min-cpu-used",  maxId: "max-cpu-used",  avgId: "avg-cpu-used"  },\n'
         printf '            { cur: "cpu_idle",     min: "cpu_idle_min",     max: "cpu_idle_max",     avg: "cpu_idle_avg",     curId: "cur-cpu-idle",  minId: "min-cpu-idle",  maxId: "max-cpu-idle",  avgId: "avg-cpu-idle"  },\n'
         printf '            { cur: "ram_used_gib", min: "ram_used_gib_min", max: "ram_used_gib_max", avg: "ram_used_gib_avg", curId: "cur-ram-used",  minId: "min-ram-used",  maxId: "max-ram-used",  avgId: "avg-ram-used"  },\n'
         printf '            { cur: "ram_free_gib", min: "ram_free_gib_min", max: "ram_free_gib_max", avg: "ram_free_gib_avg", curId: "cur-ram-avail", minId: "min-ram-avail", maxId: "max-ram-avail", avgId: "avg-ram-avail" },\n'
+        printf '            { cur: "disk_used_gib", min: "disk_used_gib_min", max: "disk_used_gib_max", avg: "disk_used_gib_avg", curId: "cur-disk-used",  minId: "min-disk-used",  maxId: "max-disk-used",  avgId: "avg-disk-used"  },\n'
+        printf '            { cur: "disk_free_gib", min: "disk_free_gib_min", max: "disk_free_gib_max", avg: "disk_free_gib_avg", curId: "cur-disk-avail", minId: "min-disk-avail", maxId: "max-disk-avail", avgId: "avg-disk-avail" },\n'
+        printf '            { cur: "repo_size_gib", min: "repo_size_gib_min", max: "repo_size_gib_max", avg: "repo_size_gib_avg", curId: "cur-repo-size",  minId: "min-repo-size",  maxId: "max-repo-size",  avgId: "avg-repo-size"  }\n'
         printf '        ];\n'
         printf '        async function refresh() {\n'
         printf '            try {\n'
@@ -3156,12 +3188,19 @@ write_system_page() {
         printf '                }\n'
         printf '                if (d.cpu_count != null) set("info-cpu-count", d.cpu_count + " cores");\n'
         printf '                if (d.ram_total_gib != null) set("info-ram-total", fmt(d.ram_total_gib) + " GiB");\n'
-        printf '                set("info-updated", d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : "—");\n'
+        printf '                if (d.disk_total_gib != null) set("info-disk-total", fmt(d.disk_total_gib) + " GiB");\n'
+        printf '                if (d.timestamp) {\n'
+        printf '                    const dt = new Date(d.timestamp);\n'
+        printf '                    const pad = (n) => n.toString().padStart(2, "0");\n'
+        printf '                    set("info-updated", pad(dt.getHours()) + ":" + pad(dt.getMinutes()) + ":" + pad(dt.getSeconds()));\n'
+        printf '                } else {\n'
+        printf '                    set("info-updated", "—");\n'
+        printf '                }\n'
         printf '            } catch (e) { /* ignore network errors */ }\n'
         printf '        }\n'
         printf '        let refreshTimer = null;\n'
         printf '        function startAutoRefresh() {\n'
-        printf '            if (refreshTimer === null) refreshTimer = window.setInterval(refresh, 5000);\n'
+        printf '            if (refreshTimer === null) refreshTimer = window.setInterval(refresh, 60000);\n'
         printf '        }\n'
         printf '        function stopAutoRefresh() {\n'
         printf '            if (refreshTimer !== null) window.clearInterval(refreshTimer);\n'
@@ -3280,23 +3319,29 @@ start_resource_monitor() {
             awk '/^cpu / {idle=$5; total=0; for(i=2;i<=NF;i++) total+=$i; print total, idle; exit}' /proc/stat
         )
         while true; do
-            sleep 5
             local total idle total_diff idle_diff cpu_used cpu_idle
             local ram_total_gib ram_used_gib ram_free_gib timestamp
+            local disk_total_gib disk_used_gib disk_free_gib
             local artifacts_root system_file state_file
             read -r total idle < <(
                 awk '/^cpu / {idle=$5; total=0; for(i=2;i<=NF;i++) total+=$i; print total, idle; exit}' /proc/stat
             )
             read -r ram_total_gib ram_used_gib ram_free_gib < <(
                 LC_ALL=C awk '/^MemTotal:/ {total=$2} /^MemAvailable:/ {avail=$2}
-                     END { used=total-avail; printf "%.2f %.2f %.2f\n", total/1024/1024, used/1024/1024, avail/1024/1024 }' \
+                     END { used=total-avail; printf "%.2f %.2f %.2f\n", total/1048576, used/1048576, avail/1048576 }' \
                      /proc/meminfo
+            )
+            read -r disk_total_gib disk_used_gib disk_free_gib < <(
+                LC_ALL=C df -Pk . | awk 'NR > 1 { t += $(NF-4); u += $(NF-3); a += $(NF-2) } END { printf "%.2f %.2f %.2f\n", t/1048576, u/1048576, a/1048576 }'
+            )
+            read -r repo_size_gib < <(
+                du -sk . | awk '{printf "%.4f\n", $1/1048576}'
             )
             total_diff=$((total - prev_total))
             idle_diff=$((idle - prev_idle))
             if [ "$total_diff" -gt 0 ]; then
-                cpu_used=$(LC_ALL=C awk "BEGIN {printf \"%.2f\", $cpu_count * ($total_diff - $idle_diff) / $total_diff}")
-                cpu_idle=$(LC_ALL=C awk "BEGIN {printf \"%.2f\", $cpu_count - $cpu_used}")
+                cpu_used=$(awk "BEGIN {printf \"%.2f\", $cpu_count * ($total_diff - $idle_diff) / $total_diff}")
+                cpu_idle=$(awk "BEGIN {printf \"%.2f\", $cpu_count - $cpu_used}")
             else
                 cpu_used="0.00"
                 cpu_idle=$(printf "%.2f" "$cpu_count")
@@ -3310,16 +3355,29 @@ start_resource_monitor() {
             timestamp=$(date -Iseconds)
             LC_ALL=C awk -v ts="$timestamp" -v gen="$monitor_generation" -v cc="$cpu_count" -v rtg="$ram_total_gib" \
                 -v cu="$cpu_used" -v ci="$cpu_idle" -v ru="$ram_used_gib" -v rf="$ram_free_gib" \
-                -v sf="$state_file" \
+                -v dtg="$disk_total_gib" -v du="$disk_used_gib" -v df="$disk_free_gib" \
+                -v rs="$repo_size_gib" -v sf="$state_file" \
             'BEGIN {
                 n = 0
                 cu_min = cu; cu_max = cu; cu_sum = 0
                 ci_min = ci; ci_max = ci; ci_sum = 0
                 ru_min = ru; ru_max = ru; ru_sum = 0
                 rf_min = rf; rf_max = rf; rf_sum = 0
-                while ((getline line < sf) > 0) {
+                du_min = du; du_max = du; du_sum = 0
+                df_min = df; df_max = df; df_sum = 0
+                rs_min = rs; rs_max = rs; rs_sum = 0
+                if ((getline line < sf) > 0) {
                     nf = split(line, f, " ")
-                    if (nf >= 13) {
+                    if (nf >= 22) {
+                        n = f[1]+0
+                        cu_min = f[2]+0; cu_max = f[3]+0; cu_sum = f[4]+0
+                        ci_min = f[5]+0; ci_max = f[6]+0; ci_sum = f[7]+0
+                        ru_min = f[8]+0; ru_max = f[9]+0; ru_sum = f[10]+0
+                        rf_min = f[11]+0; rf_max = f[12]+0; rf_sum = f[13]+0
+                        du_min = f[14]+0; du_max = f[15]+0; du_sum = f[16]+0
+                        df_min = f[17]+0; df_max = f[18]+0; df_sum = f[19]+0
+                        rs_min = f[20]+0; rs_max = f[21]+0; rs_sum = f[22]+0
+                    } else if (nf >= 19) {
                         n = f[1]+0
                         cu_min = f[2]+0; cu_max = f[3]+0; cu_sum = f[4]+0
                         ci_min = f[5]+0; ci_max = f[6]+0; ci_sum = f[7]+0
@@ -3341,17 +3399,33 @@ start_resource_monitor() {
                 if (n == 1 || rf < rf_min) rf_min = rf
                 if (n == 1 || rf > rf_max) rf_max = rf
                 rf_sum += rf
-                printf "%d %.4f %.4f %.4f  %.4f %.4f %.4f  %.4f %.4f %.4f  %.4f %.4f %.4f\n",
+                if (n == 1 || du < du_min) du_min = du
+                if (n == 1 || du > du_max) du_max = du
+                du_sum += du
+                if (n == 1 || df < df_min) df_min = df
+                if (n == 1 || df > df_max) df_max = df
+                df_sum += df
+                if (n == 1 || rs < rs_min) rs_min = rs
+                if (n == 1 || rs > rs_max) rs_max = rs
+                rs_sum += rs
+                printf "%d %.4f %.4f %.4f  %.4f %.4f %.4f  %.4f %.4f %.4f  %.4f %.4f %.4f  %.4f %.4f %.4f  %.4f %.4f %.4f  %.4f %.4f %.4f\n",
                     n, cu_min, cu_max, cu_sum, ci_min, ci_max, ci_sum,
-                    ru_min, ru_max, ru_sum, rf_min, rf_max, rf_sum > sf
+                    ru_min, ru_max, ru_sum, rf_min, rf_max, rf_sum,
+                    du_min, du_max, du_sum, df_min, df_max, df_sum,
+                    rs_min, rs_max, rs_sum > sf
                 close(sf)
                 printf "{\"timestamp\":\"%s\",\"generation\":\"%s\",\"cpu_count\":%d,\"sample_count\":%d,", ts, gen, cc, n
                 printf "\"cpu_used\":%.2f,\"cpu_used_min\":%.2f,\"cpu_used_max\":%.2f,\"cpu_used_avg\":%.2f,", cu, cu_min, cu_max, cu_sum/n
                 printf "\"cpu_idle\":%.2f,\"cpu_idle_min\":%.2f,\"cpu_idle_max\":%.2f,\"cpu_idle_avg\":%.2f,", ci, ci_min, ci_max, ci_sum/n
                 printf "\"ram_total_gib\":%.2f,", rtg
                 printf "\"ram_used_gib\":%.2f,\"ram_used_gib_min\":%.2f,\"ram_used_gib_max\":%.2f,\"ram_used_gib_avg\":%.2f,", ru, ru_min, ru_max, ru_sum/n
-                printf "\"ram_free_gib\":%.2f,\"ram_free_gib_min\":%.2f,\"ram_free_gib_max\":%.2f,\"ram_free_gib_avg\":%.2f}\n", rf, rf_min, rf_max, rf_sum/n
+                printf "\"ram_free_gib\":%.2f,\"ram_free_gib_min\":%.2f,\"ram_free_gib_max\":%.2f,\"ram_free_gib_avg\":%.2f,", rf, rf_min, rf_max, rf_sum/n
+                printf "\"disk_total_gib\":%.2f,", dtg
+                printf "\"disk_used_gib\":%.2f,\"disk_used_gib_min\":%.2f,\"disk_used_gib_max\":%.2f,\"disk_used_gib_avg\":%.2f,", du, du_min, du_max, du_sum/n
+                printf "\"disk_free_gib\":%.2f,\"disk_free_gib_min\":%.2f,\"disk_free_gib_max\":%.2f,\"disk_free_gib_avg\":%.2f,", df, df_min, df_max, df_sum/n
+                printf "\"repo_size_gib\":%.2f,\"repo_size_gib_min\":%.2f,\"repo_size_gib_max\":%.2f,\"repo_size_gib_avg\":%.2f}\n", rs, rs_min, rs_max, rs_sum/n
             }' > "${system_file}.tmp" && mv "${system_file}.tmp" "${system_file}" && write_system_page || true
+            sleep 60
         done
     ) &
     echo $! > "$pid_file"
