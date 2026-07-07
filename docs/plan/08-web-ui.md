@@ -80,3 +80,7 @@ Deviation: the listing enumerates origin branches instead of legacy's local bran
 
 Addendum (2026-07-07): the legacy per-page reload button (`⟳`, top right) was also re-added on request, next to the live indicator.
 On polling pages it triggers an immediate data refresh via the page's poller; pages without a poller (artifact index) reload fully.
+
+Addendum (2026-07-07): all links that leave the GitTally UI open in a new tab (`target="_blank" rel="noopener noreferrer"`).
+This already held for Gitea branch/commit links and the footer; it was added for the artifact page's log and report links, whose targets have no navigation.
+Links between GitTally pages (nav, artifact index) stay in the same tab.

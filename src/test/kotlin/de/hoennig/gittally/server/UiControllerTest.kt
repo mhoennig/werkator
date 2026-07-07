@@ -210,10 +210,11 @@ class UiControllerTest : FunSpec() {
                 .perform(get("/builds/main-abc123-key"))
                 .andExpect(status().isOk)
                 .andExpect(content().string(containsString("./gradlew --console=plain --no-daemon test")))
-                .andExpect(content().string(containsString("/artifacts/main-abc123-key/build.stdout.log")))
+                .andExpect(content().string(containsString("""/artifacts/main-abc123-key/build.stdout.log" target="_blank"""")))
                 .andExpect(content().string(containsString("/artifacts/main-abc123-key/build.stderr.log")))
-                .andExpect(content().string(containsString("reports/tests/test/index.html")))
-                .andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
+                .andExpect(
+                    content().string(containsString("""/artifacts/main-abc123-key/reports/tests/test/index.html" target="_blank"""")),
+                ).andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
         }
 
         test("artifact index of a pruned build explains the missing artifacts") {

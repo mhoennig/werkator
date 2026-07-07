@@ -45,7 +45,8 @@
         <h2>Logs</h2>
         <ul th:if="${!#lists.isEmpty(logs)}">
             <li th:each="log : ${logs}">
-                <a th:href="'/artifacts/' + ${artifactKey} + '/' + ${log}" th:text="${log}">build.log</a>
+                <a th:href="'/artifacts/' + ${artifactKey} + '/' + ${log}" target="_blank"
+                   rel="noopener noreferrer" th:text="${log}">build.log</a>
             </li>
         </ul>
         <p th:if="${#lists.isEmpty(logs)}" class="muted">
@@ -56,8 +57,8 @@
         <h2>Build Artifacts</h2>
         <ul th:if="${!#lists.isEmpty(reportIndexes)}">
             <li th:each="report : ${reportIndexes}">
-                <a th:href="'/artifacts/' + ${artifactKey} + '/reports/' + ${report}"
-                   th:text="'reports/' + ${report}">reports/tests/index.html</a>
+                <a th:href="'/artifacts/' + ${artifactKey} + '/reports/' + ${report}" target="_blank"
+                   rel="noopener noreferrer" th:text="'reports/' + ${report}">reports/tests/index.html</a>
             </li>
         </ul>
         <p th:if="${#lists.isEmpty(reportIndexes)}" class="muted">
