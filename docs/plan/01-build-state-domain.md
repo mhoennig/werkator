@@ -49,3 +49,13 @@ Kotest `FunSpec`, no Spring context needed.
 
 - `./gradlew ktlintFormat` then `./gradlew build` is green.
 - New code has no dependency on picocli or web classes.
+
+## Execution Notes (done 2026-07-07)
+
+Implemented as specified in `de.hoennig.gittally.build`; build green, 19 new tests.
+Deviations and details:
+
+- Added `jackson-datatype-jsr310` to `build.gradle.kts` for `Instant`/`Duration` JSON support (ISO-8601 strings).
+- `FileBuildResultRepository` is a plain class, not a Spring bean; the file path depends on the runtime repo location, so wiring happens in step 04/06 via a factory or configuration.
+- `prune(...)` and `markStaleRunningAsInterrupted()` return the removed/changed entries so step 05 can prune artifact directories and callers can log.
+- Timestamp ties in `updateLatest`/`latestFor` resolve to the later appended entry.

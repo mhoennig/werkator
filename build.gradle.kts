@@ -27,6 +27,7 @@ dependencies {
     implementation("info.picocli:picocli-spring-boot-starter:4.7.6")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 
