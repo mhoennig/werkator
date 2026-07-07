@@ -58,6 +58,22 @@ data class BranchConfig(
     val stdoutLog: String = "build.stdout.log",
     val stderrLog: String = "build.stderr.log",
     val autoBuild: AutoBuildConfig = AutoBuildConfig(),
+    val docker: DockerConfig = DockerConfig(),
+)
+
+data class DockerConfig(
+    /** Run the clean and build commands in a Docker container instead of natively. */
+    val enabled: Boolean = false,
+    /** Image for the build container; required when [enabled]. */
+    val image: String = "",
+    /** Dockerfile to build [image] from when it is missing or stale; empty uses [image] as-is (pulled on demand). */
+    val dockerfile: String = "",
+    /** Docker build context used with [dockerfile]. */
+    val context: String = ".",
+    /** Docker network mode for the build container; empty uses Docker's default network. */
+    val network: String = "",
+    /** Additional environment variables set inside the build container. */
+    val env: Map<String, String> = emptyMap(),
 )
 
 data class AutoBuildConfig(

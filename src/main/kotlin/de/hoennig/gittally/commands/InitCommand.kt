@@ -153,6 +153,13 @@ class InitCommand(
                 autoBuild:
                   enabled: false        # whether to rebuild on schedule
                   times: ["01:00"]      # UTC times HH:MM for scheduled builds
+                docker:
+                  enabled: false        # run clean/build commands in a Docker container instead of natively
+                  image: ""             # image for the build container; required when enabled
+                  dockerfile: ""        # Dockerfile to (re)build the image from when missing or stale; empty pulls the image as-is
+                  context: "."          # Docker build context used with dockerfile
+                  network: ""           # Docker network mode for the build container; empty = Docker default
+                  env: {}               # additional environment variables set inside the build container
             """.trimIndent()
         file.toFile().writeText(content + "\n")
         println("created ${file.toFile().relativeTo(normalizedWorkingDir.toFile())}")

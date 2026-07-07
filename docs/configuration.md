@@ -83,6 +83,21 @@ branches:
     autoBuild:
       enabled: false        # whether to rebuild on schedule
       times: ["01:00"]      # UTC times HH:MM for scheduled builds
+    # Optional Docker build runtime; when enabled, the clean and build commands
+    # run inside a container instead of natively (see notes below).
+    docker:
+      # run clean/build commands in a Docker container
+      enabled: false
+      # image for the build container; required when enabled
+      image: ""
+      # Dockerfile to (re)build the image from when it is missing or stale; empty pulls the image as-is
+      dockerfile: ""
+      # Docker build context used with dockerfile
+      context: "."
+      # Docker network mode for the build container; empty = Docker default
+      network: ""
+      # additional environment variables set inside the build container
+      env: {}
 
   main:
     autoBuild:
@@ -99,6 +114,16 @@ branches:
       times:
         - "04:00"
 ```
+
+### Notes on `branches.<name>.docker`
+
+With `docker.enabled`, GitTally shells out to the `docker` CLI; the `docker` command must be on the `PATH`.
+When `dockerfile` is set, the image is (re)built whenever the Dockerfile content, its path, or the context path changed.
+Staleness is tracked via the image label `org.gittally.build-inputs-sha256`.
+A Gradle cache volume `gittally-gradle-<repo-key>` is created per repository and mounted as `GRADLE_USER_HOME`.
+The build worktree is bind-mounted into the container; after each command the ownership of `build/` and `.gradle/` is repaired to the host user.
+The Docker socket is mounted into the container and `DOCKER_HOST`/`TESTCONTAINERS_*` variables are set, so Testcontainers-based builds work inside the container.
+All GitTally containers carry `org.hoennig.gittally` labels; stale build containers of the repository are removed before the first Docker build after a restart.
 
 ## `.git/gittally/.gittally.yml` (not committed)
 

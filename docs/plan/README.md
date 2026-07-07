@@ -61,7 +61,7 @@ Server and UI:
 Completion:
 
 - [x] `10-cli-commands.md` — CLI build/status commands
-- [ ] `11-docker-build-runtime.md` — optional Docker build execution
+- [x] `11-docker-build-runtime.md` — optional Docker build execution
 - [ ] `12-deployment.md` — systemd service, migration from legacy, docs
 
 Steps 01–03 are independent of each other.

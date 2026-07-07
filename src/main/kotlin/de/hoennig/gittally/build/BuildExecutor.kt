@@ -185,7 +185,8 @@ class BuildExecutor(
                 Files.newOutputStream(build.runningBuild.liveLogFile).use { liveLog ->
                     writeLiveLogHeader(liveLog, build.runningBuild, branchConfig, workspace)
                     if (branchConfig.cleanCommand.isNotBlank()) {
-                        val cleanExitCode = runCommand(build, branchConfig.cleanCommand, workspace, stdoutLog, stderrLog, liveLog)
+                        val cleanExitCode =
+                            runCommand(build, branchConfig, branchConfig.cleanCommand, workspace, stdoutLog, stderrLog, liveLog)
                         if (cleanExitCode != 0) {
                             return cleanExitCode
                         }
@@ -193,7 +194,7 @@ class BuildExecutor(
                     if (build.cancelled.get()) {
                         return CANCELLED_EXIT_CODE
                     }
-                    return runCommand(build, branchConfig.buildCommand, workspace, stdoutLog, stderrLog, liveLog)
+                    return runCommand(build, branchConfig, branchConfig.buildCommand, workspace, stdoutLog, stderrLog, liveLog)
                 }
             }
         }
@@ -201,13 +202,21 @@ class BuildExecutor(
 
     private fun runCommand(
         build: ActiveBuild,
+        branchConfig: BranchConfig,
         command: String,
         workspace: Path,
         stdoutLog: OutputStream,
         stderrLog: OutputStream,
         liveLog: OutputStream,
     ): Int {
-        val process = buildRunner.start(command, workspace, mapOf("branch" to build.runningBuild.branch))
+        val process =
+            buildRunner.start(
+                command = command,
+                workingDir = workspace,
+                environment = mapOf("branch" to build.runningBuild.branch),
+                repoDir = build.workingDir,
+                branchConfig = branchConfig,
+            )
         build.process = process
         if (build.cancelled.get()) {
             destroyProcessTree(process)
