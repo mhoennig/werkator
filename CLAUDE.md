@@ -38,8 +38,15 @@ GitTallyCommand       ← root @Command, delegates to subcommands
 commands/
   InitCommand         ← "init"
   ServerCommand       ← "server"
+  StatusCommand       ← "status [--history]"
+  BuildCommand        ← "build [<branch>]"
+  RetryCommand        ← "retry"
   ConfigPrintCommand  ← "config:print [--full]"
 ```
+
+`status`, `build`, and `retry` implement `Callable<Int>` for their exit codes (0 success, 1 build failure, 2 usage/config errors).
+`build` and `retry` run builds through the async `BuildExecutor` but block until completion via `ConsoleBuildRunner`, which streams the live log to stdout and waits for the artifact persist before the JVM exits.
+Branch arguments resolve legacy-style name fragments (`BranchNameResolution`); the CLI reuses `UiFormats` so console and web UI display the same formats.
 
 The web application type is set to `none` in `application.yml`, so plain CLI runs never start a web server. The `server` subcommand launches a **second** `SpringApplication` with `WebApplicationType.SERVLET` and the `server` profile, then blocks until shutdown. `application-server.yml` switches the web type (`spring.main.*` properties beat programmatic builder settings), `CliRunner` is `@Profile("!server")` so the second context does not run picocli again, and the watcher poll loop starts only in the `server` profile (`ServerWatcherLifecycle`). The JSON API, artifact serving, and the web UI live in the `server` package; mutating endpoints are guarded by a generated control token under `.git/gittally/control-token`.
 

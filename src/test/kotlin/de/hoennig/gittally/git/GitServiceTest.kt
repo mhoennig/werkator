@@ -217,6 +217,13 @@ class GitServiceTest : FunSpec() {
             service.headCommit(fixture.work) shouldMatch Regex("[0-9a-f]{40}")
         }
 
+        test("localHeadCommit returns the local branch head, or null for an unknown branch") {
+            val fixture = Fixture()
+
+            service.localHeadCommit("main", fixture.work) shouldBe service.headCommit(fixture.work)
+            service.localHeadCommit("no-such-branch", fixture.work).shouldBeNull()
+        }
+
         test("originHeadCommit returns the origin branch head, or null for an unknown branch") {
             val fixture = Fixture()
 
