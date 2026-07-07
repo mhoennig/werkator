@@ -162,3 +162,4 @@ All major decisions are in `docs/adrs/`. Run `adr-status` (after `source .envrc`
 - **Gradle**: 8.14.5 (ADR 0002)
 - **Spring Boot**: 4.0.6 (ADR 0003)
 - **Rewrite architecture**: JSON-file persistence behind a repository interface, server-rendered UI with JSON polling, no managed nginx — systemd unit behind the host's reverse proxy (ADR 0004)
+- **Managed nginx/TLS**: revises ADR 0004 — an opt-in nginx+certbot container for hosts without a reverse proxy (e.g. Hostsharing), planned as `docs/plan/13-nginx-tls.md` (ADR 0005)

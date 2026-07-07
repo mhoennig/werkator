@@ -121,4 +121,5 @@ Obtain and renew the certificate with the host's existing certbot, e.g.:
 sudo certbot --nginx -d ci.example.org
 ```
 
-This replaces the legacy script's managed nginx/Let's Encrypt Docker container, which was intentionally not ported (see [migration-from-legacy.md](migration-from-legacy.md)).
+This replaces the legacy script's managed nginx/Let's Encrypt Docker container for hosts that have their own web server.
+For hosts without a usable reverse proxy (e.g. Hostsharing managed containers), an opt-in managed nginx/TLS container is planned (see `docs/plan/13-nginx-tls.md`, ADR 0005).

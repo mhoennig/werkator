@@ -37,6 +37,7 @@ Revisit them in an ADR if a step uncovers problems.
 - The web UI is server-rendered HTML plus small JavaScript polling JSON endpoints (no SPA framework).
 - The watcher is a Spring-managed scheduled component, decoupled from the build executor via the result repository and events.
 - nginx/Let's Encrypt container management is NOT ported; deployment behind an existing reverse proxy is documented instead.
+  Revised after step 12 (ADR 0005): an opt-in managed nginx/TLS container is required for Hostsharing container hosts — see step 13.
 
 ## Steps
 
@@ -64,7 +65,12 @@ Completion:
 - [x] `11-docker-build-runtime.md` — optional Docker build execution
 - [x] `12-deployment.md` — systemd service, migration from legacy, docs
 
+Added after the initial plan (ADR 0005):
+
+- [ ] `13-nginx-tls.md` — opt-in managed nginx/TLS container for hosts without a reverse proxy
+
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.
 Steps 07–09 depend on 04–06.
 Steps 11 and 12 are optional/deferrable; 10 only needs 04–06.
+Step 13 depends on 07, 11, and 12.

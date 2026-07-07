@@ -42,7 +42,8 @@ New keys without a legacy counterpart: `builds.maxConcurrent`, `artifacts.rootDi
 
 ## Intentionally Not Ported
 
-- Managed nginx/Let's Encrypt container (`GITTALLY_ARTIFACT_NGINX_*`, `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL`) — use the host's reverse proxy, see [deployment.md](deployment.md).
+- Managed nginx/Let's Encrypt container (`GITTALLY_ARTIFACT_NGINX_*`, `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL`) — not ported yet, but planned as an opt-in feature for hosts without a reverse proxy (see `docs/plan/13-nginx-tls.md`).
+  Until then, use the host's reverse proxy, see [deployment.md](deployment.md).
 - Self-install and self-update (`--install`, `--pull`, `GITTALLY_INSTALL_DIR`) — replaced by jar deployment plus `init --systemd`.
 - `GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND` and `GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — hsadmin-ng-specific; use `branches.<name>.docker.env` if needed.
 - `HSADMIN_NG_*` environment-variable fallbacks.

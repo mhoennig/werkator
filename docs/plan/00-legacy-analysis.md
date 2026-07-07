@@ -79,6 +79,7 @@ No status changes observable during a build (control loop):
 ## Not Ported (decided)
 
 - nginx + certbot/Let's Encrypt container management — replaced by deployment documentation (step 12).
+  Revised by ADR 0005: it IS needed for Hostsharing container hosts and returns as an opt-in feature (step 13).
 - Self-install (`--install`), self-update script generation — replaced by jar deployment plus systemd docs (step 12).
 - Legacy `HSADMIN_NG_*` environment fallbacks and env-file config — replaced by YAML config (done).
 - Regex-based in-place HTML patching — replaced by server-rendered pages/JSON endpoints.
@@ -90,6 +91,6 @@ No status changes observable during a build (control loop):
 Verify need before porting any of these:
 
 - `GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND`, `GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — highly hsadmin-ng-specific defaults.
-- `GITTALLY_ARTIFACT_NGINX_*`, `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management.
+- `GITTALLY_ARTIFACT_NGINX_*`, `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management; revived as `server.nginx.*` by step 13 (ADR 0005).
 - `GITTALLY_IMPRESSUM_URL` — keep as optional simple footer link if wanted.
 - `GITTALLY_INSTALL_DIR` — dropped with self-install.
