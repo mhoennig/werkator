@@ -1,7 +1,8 @@
 # GitTally Bootstrapping
 
 Bootstrapping prepares a git repository for use with GitTally.
-It creates the config files described in [configuration.md](configuration.md) and optionally installs GitTally as a system service.
+It creates the config files described in [configuration.md](configuration.md).
+With `init --systemd` it also generates a systemd user unit for running the server permanently, see [deployment.md](deployment.md).
 
 Run `init` once per repository, from within a checked-out working tree.
 
@@ -125,6 +126,7 @@ Until then, a Java runtime must be available on the host.
    ```bash
    java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar server
    ```
+5. For permanent operation, install the systemd user service described in [deployment.md](deployment.md).
 
 ## Example: Self-Hosting GitTally
 

@@ -9,7 +9,7 @@ Ziel ist es, die Komplexität klassischer CI-Systeme wie Jenkins erheblich zu re
 ## Grundprinzipien
 
 - Git wird immer verwendet.
-- Builds laufen in Docker.
+- Builds laufen nativ oder optional in Docker (pro Branch konfigurierbar).
 - Die Konfiguration erfolgt primär über YAML-Dateien.
 - Eine Instanz verwaltet zunächst genau ein Repository.
 - Build-Status werden an das Git-System zurückgemeldet.
@@ -20,6 +20,7 @@ Ziel ist es, die Komplexität klassischer CI-Systeme wie Jenkins erheblich zu re
 
 - Interaktive Nutzung
 - Status anzeigen
+- Builds starten und wiederholen
 - Konfiguration anzeigen
 - Initialisierung durchführen
 
@@ -110,6 +111,7 @@ flowchart LR
 ### CLIFrontend
 
 - Status anzeigen
+- Builds starten und wiederholen
 - Konfiguration anzeigen
 - Initialisierung durchführen
 
@@ -168,6 +170,8 @@ java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar init
 java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar server
 ```
 
+Für den Dauerbetrieb als systemd-User-Service siehe [deployment.md](deployment.md) (`init --systemd`).
+
 ### Konfigurationsanzeige
 
 ```bash
@@ -177,7 +181,7 @@ java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print --full
 
 ## Erweiterungen
 
-- Deployment / CD
+- Continuous Delivery (CD; das Deployment von GitTally selbst ist in [deployment.md](deployment.md) beschrieben)
 - SQLite statt Dateisystem
 - Mehrere BuildWorker
 - Multi-Repository-Verwaltung

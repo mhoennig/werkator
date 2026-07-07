@@ -3,6 +3,7 @@ package de.hoennig.gittally.commands
 import de.hoennig.gittally.git.GitService
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
+import picocli.CommandLine.Option
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -16,6 +17,18 @@ class InitCommand(
     private val gitService: GitService,
 ) : Runnable {
     var workingDir: Path = Paths.get(".")
+
+    @Option(
+        names = ["--systemd"],
+        description = ["also generate a systemd user unit that runs `gittally server` for this repository"],
+    )
+    var systemd: Boolean = false
+
+    /** Replaceable for tests: the jar this JVM was started from, or null when not run via `java -jar`. */
+    internal var jarPathResolver: () -> Path? = { runningJarPath() }
+
+    /** Replaceable for tests: the `java` binary of the current JVM. */
+    internal var javaExecutableResolver: () -> Path = { Paths.get(System.getProperty("java.home"), "bin", "java") }
 
     override fun run() {
         val normalizedWorkingDir = workingDir.toAbsolutePath().normalize()
@@ -32,6 +45,9 @@ class InitCommand(
 
         createRepoInstallConfig(root, detected, normalizedWorkingDir)
         createProjectConfig(root, detected, normalizedWorkingDir)
+        if (systemd) {
+            createSystemdFiles(root, normalizedWorkingDir)
+        }
     }
 
     private fun detectFromUrl(url: String?): DetectedValues {
@@ -165,10 +181,70 @@ class InitCommand(
         println("created ${file.toFile().relativeTo(normalizedWorkingDir.toFile())}")
     }
 
+    private fun createSystemdFiles(
+        root: Path,
+        normalizedWorkingDir: Path,
+    ) {
+        val jarPath = jarPathResolver()
+        if (jarPath == null) {
+            println("Error: cannot determine the GitTally jar path — run `init --systemd` via `java -jar <path-to>/gittally.jar`")
+            return
+        }
+        val gittallyDir = root.resolve(".git/gittally")
+        gittallyDir.toFile().mkdirs()
+        val unitName = SystemdServiceFiles.unitName(root)
+        val unitFile = gittallyDir.resolve(unitName)
+        val envFile = gittallyDir.resolve(SystemdServiceFiles.ENV_FILE_NAME)
+
+        unitFile.toFile().writeText(
+            SystemdServiceFiles.unitFileContent(
+                repoRoot = root,
+                javaExecutable = javaExecutableResolver(),
+                jarPath = jarPath,
+                envFile = envFile,
+            ),
+        )
+        println("created ${unitFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
+
+        if (envFile.toFile().exists()) {
+            println("${envFile.toFile().relativeTo(normalizedWorkingDir.toFile())} already exists — not overwritten")
+        } else {
+            envFile.toFile().writeText(SystemdServiceFiles.envFileContent())
+            println("created ${envFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
+        }
+
+        println("install and start the service with:")
+        println("  ln -sf $unitFile ~/.config/systemd/user/$unitName")
+        println("  systemctl --user daemon-reload")
+        println("  systemctl --user enable --now $unitName")
+    }
+
     private data class DetectedValues(
         val baseUrl: String = "",
         val owner: String = "",
         val repo: String = "",
         val account: String = "",
     )
+
+    companion object {
+        /**
+         * The jar this JVM was started from. With `java -jar` the launch command starts with the
+         * jar path; as a fallback (e.g. custom launchers) the Spring Boot loader's nested code
+         * source URL contains it. Null when running from classes (IDE, Gradle, tests).
+         */
+        private fun runningJarPath(): Path? {
+            val launchCommand = System.getProperty("sun.java.command").orEmpty().substringBefore(' ')
+            if (launchCommand.endsWith(".jar")) {
+                return Paths.get(launchCommand).toAbsolutePath().normalize()
+            }
+            val codeSource =
+                InitCommand::class.java.protectionDomain.codeSource
+                    ?.location
+                    ?.toString()
+                    .orEmpty()
+            return Regex("""(/[^!]*?\.jar)""")
+                .find(codeSource)
+                ?.let { Paths.get(it.groupValues[1]) }
+        }
+    }
 }

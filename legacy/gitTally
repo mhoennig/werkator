@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# DEPRECATED: This script has been replaced by the Kotlin/Spring application in this repository.
+# See docs/migration-from-legacy.md for the migration guide; the script is kept only as a behavioral reference.
+#
 # A small and opinionated continuous integration tool for projects that do not have the hardware budget or operational staff for large CI/CD systems.
 # Made to run locally or in Designed for Hostsharing Container Server environments with Docker (Podman not tested yet).
 #

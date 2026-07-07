@@ -36,7 +36,7 @@ GitTallyApplication   ← @SpringBootApplication
 CliRunner             ← CommandLineRunner + ExitCodeGenerator
 GitTallyCommand       ← root @Command, delegates to subcommands
 commands/
-  InitCommand         ← "init"
+  InitCommand         ← "init [--systemd]"
   ServerCommand       ← "server"
   StatusCommand       ← "status [--history]"
   BuildCommand        ← "build [<branch>]"
@@ -150,6 +150,8 @@ Keep sentences short.
 - `docs/GitTally-Konzept.md` — product concept and target architecture (in German): git-centric CI, builds in Docker, one instance per repository, status reported back to Gitea.
 - `docs/configuration.md` — configuration reference; keep in sync with `GitTallyConfig` and the `init` templates.
 - `docs/bootstrapping.md` — how `init` prepares a repository.
+- `docs/deployment.md` — running GitTally as a systemd user service behind an existing reverse proxy (`init --systemd` generates the unit).
+- `docs/migration-from-legacy.md` — legacy env vars → YAML keys mapping and the manual migration steps; `legacy/gitTally` is deprecated.
 - `docs/plan/` — the step-by-step rewrite plan; `docs/plan/README.md` explains how to execute a step, `docs/plan/00-legacy-analysis.md` summarizes the legacy bash script.
 
 ## Key Architectural Decisions
@@ -159,3 +161,4 @@ All major decisions are in `docs/adrs/`. Run `adr-status` (after `source .envrc`
 - **Test framework**: Kotest + MockK + WireMock + Testcontainers (ADR 0001)
 - **Gradle**: 8.14.5 (ADR 0002)
 - **Spring Boot**: 4.0.6 (ADR 0003)
+- **Rewrite architecture**: JSON-file persistence behind a repository interface, server-rendered UI with JSON polling, no managed nginx — systemd unit behind the host's reverse proxy (ADR 0004)

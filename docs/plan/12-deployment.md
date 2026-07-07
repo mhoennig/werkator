@@ -34,3 +34,28 @@ Housekeeping:
 
 - `./gradlew ktlintFormat` then `./gradlew build` is green.
 - A fresh clone can follow `docs/deployment.md` to a running service (manual walkthrough; document the result in this file).
+
+## Implementation Notes (2026-07-07)
+
+Implemented as designed: `init --systemd` (an option on `init`, not a separate subcommand) generates the unit and its `EnvironmentFile` under `.git/gittally/`, prints the install commands, and never touches `~/.config/systemd` itself (no self-install).
+`SystemdServiceFiles` builds the file contents and is unit-tested by content assertions, including the legacy `%` escaping and `ExecStart` quoting.
+`docs/deployment.md` and `docs/migration-from-legacy.md` were written; `README.md`, `docs/bootstrapping.md`, `docs/GitTally-Konzept.md`, and `CLAUDE.md` were updated to reference them.
+
+Deviations and decisions:
+
+- The unit is named per repository (`gittally-<repo-name>.service`) instead of the global legacy `gitTally.service`, because one instance serves one repository and several repositories can share a host.
+- `ExecStart` uses the `java` binary and the jar path of the JVM that ran `init --systemd`, so the unit points at the jar in place (legacy copied the script to an install dir); systemd expands `$JAVA_OPTS` from the `EnvironmentFile` into the command line.
+  When not started via `java -jar` (e.g. from Gradle), `init --systemd` prints an error instead of generating a broken unit.
+- The `EnvironmentFile` only tunes the JVM (`JAVA_OPTS`); the legacy env file carried username/token, which now live in `.git/gittally/.gittally.yml`.
+  An existing `gittally.env` is kept; the unit file is regenerated on every run (same as legacy).
+- The legacy `--nginx --docker` `ExecStart` flags were dropped (runtime selection is per-branch config now); the `After=… docker.service` ordering was kept.
+- Legacy build history (`build-results.tsv`) is not imported — decided and documented in `docs/migration-from-legacy.md` (formats differ substantially; retention would prune imported rows quickly).
+- ADR 0004 records the rewrite architecture decisions (JSON-file persistence behind a repository interface, polling UI, no managed nginx).
+- `docs/GitTally-Konzept.md` review: only one real deviation found — "Builds laufen in Docker" became "nativ oder optional in Docker (pro Branch konfigurierbar)"; CLI capability lists gained build/retry; deployment links added.
+
+Manual walkthrough (2026-07-07, fresh clone under `~/.cache`):
+
+- Followed `docs/deployment.md` end to end: built the jar, copied it to a stable path, cloned the repository freshly, ran `init` and `init --systemd`, linked the generated unit, `daemon-reload`, started the service.
+- The clone already contained the committed `.gittally.yml`, so only the machine config was created; `server.port` was overridden to a free port via `.git/gittally/.gittally.yml` to avoid clashing with a locally running instance.
+- Result: unit `active (running)`, `GET /` returned 200, `/api/watcher` showed a successful poll, `journalctl --user -u …` showed the startup log, `restart` and `stop` worked; the unit link and the scratch clone were removed afterwards.
+- Not machine-verified: `systemctl --user enable` and `loginctl enable-linger` (the walkthrough used a transient `start` to leave no persistent service behind) and the nginx/certbot section (no public host available); those commands were reviewed against the systemd/certbot documentation instead.

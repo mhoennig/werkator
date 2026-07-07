@@ -82,6 +82,62 @@ class InitCommandTest : FunSpec() {
             projectConfig.toFile().readText() shouldBe "existing: content"
         }
 
+        test("--systemd generates unit and environment file with install instructions") {
+            val tempDir = Files.createTempDirectory("gittally-init-test")
+            initCommand.workingDir = tempDir
+            initCommand.systemd = true
+            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/gittally.jar") }
+            initCommand.javaExecutableResolver = { Paths.get("/usr/bin/java") }
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            val unitName = SystemdServiceFiles.unitName(tempDir)
+            val unitFile = tempDir.resolve(".git/gittally/$unitName")
+            unitFile.toFile().shouldExist()
+            val unitContent = unitFile.toFile().readText()
+            unitContent shouldContain "WorkingDirectory=$tempDir"
+            unitContent shouldContain """ExecStart="/usr/bin/java" ${'$'}JAVA_OPTS -jar "/home/ci/bin/gittally.jar" server"""
+
+            tempDir.resolve(".git/gittally/gittally.env").toFile().shouldExist()
+        }
+
+        test("--systemd keeps an existing environment file") {
+            val tempDir = Files.createTempDirectory("gittally-init-test")
+            initCommand.workingDir = tempDir
+            initCommand.systemd = true
+            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/gittally.jar") }
+            initCommand.javaExecutableResolver = { Paths.get("/usr/bin/java") }
+
+            val envFile = tempDir.resolve(".git/gittally/gittally.env")
+            Files.createDirectories(envFile.parent)
+            envFile.toFile().writeText("JAVA_OPTS=-Xmx1g\n")
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            envFile.toFile().readText() shouldBe "JAVA_OPTS=-Xmx1g\n"
+        }
+
+        test("--systemd without a resolvable jar path generates no unit file") {
+            val tempDir = Files.createTempDirectory("gittally-init-test")
+            initCommand.workingDir = tempDir
+            initCommand.systemd = true
+            initCommand.jarPathResolver = { null }
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            val unitFile = tempDir.resolve(".git/gittally/${SystemdServiceFiles.unitName(tempDir)}")
+            unitFile.toFile().exists() shouldBe false
+        }
+
         test("reproduces path root mismatch issue") {
             val tempDir = Files.createTempDirectory("gittally-init-test").toAbsolutePath().normalize()
             initCommand.workingDir = Paths.get(".") // Set to relative path as in real app
