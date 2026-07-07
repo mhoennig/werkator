@@ -23,6 +23,7 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework:spring-web")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("info.picocli:picocli-spring-boot-starter:4.7.6")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
