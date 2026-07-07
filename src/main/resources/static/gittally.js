@@ -34,6 +34,20 @@ function abbrevCommit(commit) {
     return (commit || "").slice(0, 12);
 }
 
+/** Two-decimal metric value like `UiFormats.metric`; "n/a" when the source is unavailable. */
+function formatMetric(value) {
+    return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "n/a";
+}
+
+function formatTimeOfDay(iso) {
+    const date = new Date(iso);
+    if (!iso || Number.isNaN(date.getTime())) {
+        return "n/a";
+    }
+    const two = (n) => String(n).padStart(2, "0");
+    return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`;
+}
+
 const KNOWN_STATUSES = new Set(
     ["success", "failed", "running", "pending", "interrupted", "cancelled", "unknown", "error", "finished"],
 );
@@ -47,6 +61,7 @@ function statusCssClass(status) {
 const FETCH_TIMEOUT_MS = 8000;
 const TABLE_POLL_MS = 10000;
 const CURRENT_POLL_MS = 3000;
+const SYSTEM_POLL_MS = 60000;
 
 function metaContent(name) {
     const element = document.querySelector(`meta[name="${name}"]`);
@@ -376,6 +391,39 @@ function initCurrentBuilds() {
     startPolling(refresh, CURRENT_POLL_MS);
 }
 
+// ---- system metrics ----------------------------------------------------------
+
+/** The metric rows are fixed, so only the cell texts are updated — never rebuilt. */
+function initSystemTable() {
+    const table = document.getElementById("system-table");
+    if (!table) {
+        return;
+    }
+
+    function setText(id, text) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = text;
+        }
+    }
+
+    async function refresh() {
+        const metrics = await fetchJson(table.dataset.api);
+        table.querySelectorAll("tbody tr[data-metric]").forEach((row) => {
+            const aggregate = metrics[row.dataset.metric];
+            row.querySelectorAll("[data-field]").forEach((cell) => {
+                cell.textContent = formatMetric(aggregate ? aggregate[cell.dataset.field] : null);
+            });
+        });
+        setText("info-cpu-count", metrics.cpuCount != null ? metrics.cpuCount + " cores" : "n/a");
+        setText("info-ram-total", metrics.ramTotalGib != null ? formatMetric(metrics.ramTotalGib) + " GiB" : "n/a");
+        setText("info-disk-total", metrics.diskTotalGib != null ? formatMetric(metrics.diskTotalGib) + " GiB" : "n/a");
+        setText("info-updated", formatTimeOfDay(metrics.timestamp));
+    }
+
+    startPolling(refresh, SYSTEM_POLL_MS);
+}
+
 // ---- running-duration ticking ------------------------------------------------
 
 function tickRunningDurations() {
@@ -438,5 +486,6 @@ document.addEventListener("click", async (event) => {
 
 initBuildsTable();
 initCurrentBuilds();
+initSystemTable();
 setInterval(tickRunningDurations, 1000);
 tickRunningDurations();

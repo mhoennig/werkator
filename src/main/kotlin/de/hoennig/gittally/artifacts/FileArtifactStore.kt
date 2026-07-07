@@ -102,7 +102,7 @@ class FileArtifactStore(
 
     private fun branchesDir(): Path = rootDir().resolve("branches")
 
-    private fun rootDir(): Path {
+    override fun rootDir(): Path {
         val configured =
             configLoader
                 .load(workingDir)

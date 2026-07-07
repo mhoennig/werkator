@@ -28,4 +28,11 @@ interface ArtifactStore {
 
     /** The stored artifact directory for [artifactKey], or null if none exists. */
     fun artifactDir(artifactKey: String): Path?
+
+    /**
+     * The artifact root directory (which need not exist yet). Besides the stored
+     * builds it hosts sibling state like the system-metrics aggregation — legacy
+     * kept its `system_state.dat` in the artifact root, too.
+     */
+    fun rootDir(): Path
 }

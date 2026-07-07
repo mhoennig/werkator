@@ -5,6 +5,7 @@ import de.hoennig.gittally.build.BuildExecutor
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.gittally.metrics.SystemMetricsCollector
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
 import org.springframework.http.HttpStatus
@@ -32,6 +33,7 @@ class UiController(
     private val artifactStore: ArtifactStore,
     private val controlTokens: ControlTokenService,
     private val configLoader: ConfigLoader,
+    private val metricsCollector: SystemMetricsCollector,
     private val buildProperties: ObjectProvider<BuildProperties>,
 ) {
     var workingDir: Path = Paths.get(".")
@@ -78,6 +80,13 @@ class UiController(
             }
         model.addAttribute("currentBuilds", currentBuilds)
         return "current"
+    }
+
+    @GetMapping("/system")
+    fun system(model: Model): String {
+        baseModel(model, view = "system", pageTitle = "System Metrics")
+        model.addAttribute("metrics", SystemMetricsView.from(metricsCollector.snapshot()))
+        return "system"
     }
 
     /** Artifact index rendered from the artifact store — legacy pre-generated this page as static HTML. */

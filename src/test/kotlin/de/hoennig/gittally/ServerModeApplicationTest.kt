@@ -1,6 +1,7 @@
 package de.hoennig.gittally
 
 import com.ninjasquad.springmockk.MockkBean
+import de.hoennig.gittally.metrics.SystemMetricsCollector
 import de.hoennig.gittally.watcher.Watcher
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -12,14 +13,18 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.web.client.RestClient
 
 /**
- * Proves the `server` profile boots a real web server and starts the watcher.
- * The watcher is mocked so the test never fetches origin or enqueues builds.
+ * Proves the `server` profile boots a real web server and starts the watcher and
+ * the metrics collector. Both are mocked so the test never fetches origin,
+ * enqueues builds, or walks the repository for its size.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("server")
 class ServerModeApplicationTest : FunSpec() {
     @MockkBean(relaxUnitFun = true)
     lateinit var watcher: Watcher
+
+    @MockkBean(relaxUnitFun = true)
+    lateinit var metricsCollector: SystemMetricsCollector
 
     @LocalServerPort
     var port: Int = 0
@@ -40,6 +45,7 @@ class ServerModeApplicationTest : FunSpec() {
                 .shouldBeTrue()
 
             verify { watcher.start(any()) }
+            verify { metricsCollector.start() }
         }
     }
 }

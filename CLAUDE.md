@@ -70,9 +70,13 @@ Three places must stay in sync when config keys change: the `GitTallyConfig` dat
 
 `Watcher` replaces the legacy blocking main loop with a non-blocking fixed-delay poll cycle: fetch origin, enqueue due branches (changed local, recent new origin, due auto-build slots) via `BuildExecutor`, then prune results, artifacts, and stale worktrees. Nothing is scheduled until `Watcher.start()` is called explicitly (server/watch mode) — CLI commands and tests never start the loop. "Already built" is tracked via the result repository, not by moving local branch refs. Auto-build slot state lives in `.git/gittally/auto-builds.json`; watcher health is exposed via `Watcher.state()`.
 
+### System Metrics
+
+`SystemMetricsCollector` samples CPU (`/proc/stat` deltas), RAM (`/proc/meminfo`), disk, and repository size every 60s, but only after `ServerMetricsLifecycle` (server profile) calls `start()` — like the watcher, nothing is scheduled in CLI runs or tests. Min/max/avg aggregation state persists as JSON in the artifact root (`ArtifactStore.rootDir()`), so restarts continue the series. Unavailable sources (e.g. no `/proc` outside Linux) yield null metrics served as HTTP 200 by `GET /api/system` — the `/system` page shows `n/a`, never an error.
+
 ### Package Structure
 
-All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), `build` (build execution, results, workspaces), `artifacts` (filesystem artifact store), `watcher` (branch polling, auto-builds, startup recovery), and `server` (JSON API controllers, Thymeleaf UI, artifact serving, control token, watcher lifecycle). Tests mirror this structure under `src/test/kotlin`.
+All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), `build` (build execution, results, workspaces), `artifacts` (filesystem artifact store), `watcher` (branch polling, auto-builds, startup recovery), `metrics` (system resource sampling and aggregation), and `server` (JSON API controllers, Thymeleaf UI, artifact serving, control token, watcher and metrics lifecycles). Tests mirror this structure under `src/test/kotlin`.
 
 ## Testing Conventions
 

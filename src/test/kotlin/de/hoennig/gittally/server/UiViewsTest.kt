@@ -14,6 +14,14 @@ class UiViewsTest : FunSpec() {
             UiFormats.duration(Duration.ofSeconds(3600 + 62)) shouldBe "1:01:02"
         }
 
+        test("metric values format with two decimals and a dot, n/a when unavailable") {
+            UiFormats.metric(null) shouldBe "n/a"
+            UiFormats.metric(Double.NaN) shouldBe "n/a"
+            UiFormats.metric(0.0) shouldBe "0.00"
+            UiFormats.metric(1.234) shouldBe "1.23"
+            UiFormats.metric(31.288) shouldBe "31.29"
+        }
+
         test("Gitea web links escape branch segments but keep slashes") {
             val links =
                 GiteaWebLinks(GiteaConfig(baseUrl = "https://git.example.org/", owner = "acme", repo = "widget"))

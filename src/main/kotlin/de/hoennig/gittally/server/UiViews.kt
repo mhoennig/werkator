@@ -2,12 +2,15 @@ package de.hoennig.gittally.server
 
 import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.config.GiteaConfig
+import de.hoennig.gittally.metrics.MetricAggregate
+import de.hoennig.gittally.metrics.SystemMetrics
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** Links into the Gitea web UI, like legacy `gitea_branch_web_url`; null when Gitea is not configured. */
 class GiteaWebLinks(
@@ -33,6 +36,8 @@ class GiteaWebLinks(
 object UiFormats {
     private val timestampFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
+    private val timeOfDayFormat = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
+
     fun timestamp(instant: Instant): String = timestampFormat.format(instant)
 
     /** `m:ss`, or `h:mm:ss` from one hour — like the legacy `MM:SS` duration column. */
@@ -50,6 +55,16 @@ object UiFormats {
             "%d:%02d".format(minutes, rest)
         }
     }
+
+    /** Two-decimal metric value with a dot like JS `toFixed(2)`; `n/a` when the source is unavailable. */
+    fun metric(value: Double?): String =
+        if (value == null || !value.isFinite()) {
+            "n/a"
+        } else {
+            String.format(Locale.ROOT, "%.2f", value)
+        }
+
+    fun timeOfDay(instant: Instant): String = timeOfDayFormat.format(instant)
 }
 
 /** One row of the latest/history build tables. */
@@ -96,3 +111,60 @@ data class CurrentBuildView(
     val branchUrl: String?,
     val commitUrl: String?,
 )
+
+/**
+ * One row of the system-metrics table. The [key] matches the JSON field of
+ * `GET /api/system`, so `gittally.js` can update the cells in place.
+ */
+data class MetricRowView(
+    val key: String,
+    val label: String,
+    val current: String,
+    val min: String,
+    val max: String,
+    val avg: String,
+) {
+    companion object {
+        fun from(
+            key: String,
+            label: String,
+            aggregate: MetricAggregate?,
+        ) = MetricRowView(
+            key = key,
+            label = label,
+            current = UiFormats.metric(aggregate?.current),
+            min = UiFormats.metric(aggregate?.min),
+            max = UiFormats.metric(aggregate?.max),
+            avg = UiFormats.metric(aggregate?.avg),
+        )
+    }
+}
+
+/** The system view: the metric rows plus the totals/updated info line, like the legacy system page. */
+data class SystemMetricsView(
+    val rows: List<MetricRowView>,
+    val cpuCount: String,
+    val ramTotal: String,
+    val diskTotal: String,
+    val updated: String,
+) {
+    companion object {
+        fun from(metrics: SystemMetrics) =
+            SystemMetricsView(
+                rows =
+                    listOf(
+                        MetricRowView.from("cpuUsed", "CPU used (cores)", metrics.cpuUsed),
+                        MetricRowView.from("cpuIdle", "CPU idle (cores)", metrics.cpuIdle),
+                        MetricRowView.from("ramUsedGib", "RAM used (GiB)", metrics.ramUsedGib),
+                        MetricRowView.from("ramFreeGib", "RAM free (GiB)", metrics.ramFreeGib),
+                        MetricRowView.from("diskUsedGib", "Disk used (GiB)", metrics.diskUsedGib),
+                        MetricRowView.from("diskFreeGib", "Disk free (GiB)", metrics.diskFreeGib),
+                        MetricRowView.from("repoSizeGib", "Repo size (GiB)", metrics.repoSizeGib),
+                    ),
+                cpuCount = "${metrics.cpuCount} cores",
+                ramTotal = metrics.ramTotalGib?.let { "${UiFormats.metric(it)} GiB" } ?: "n/a",
+                diskTotal = metrics.diskTotalGib?.let { "${UiFormats.metric(it)} GiB" } ?: "n/a",
+                updated = metrics.timestamp?.let { UiFormats.timeOfDay(it) } ?: "n/a",
+            )
+    }
+}

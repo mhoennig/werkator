@@ -11,6 +11,9 @@ import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.GitTallyConfig
 import de.hoennig.gittally.config.GiteaConfig
 import de.hoennig.gittally.config.ServerConfig
+import de.hoennig.gittally.metrics.MetricAggregate
+import de.hoennig.gittally.metrics.SystemMetrics
+import de.hoennig.gittally.metrics.SystemMetricsCollector
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -49,7 +52,26 @@ class UiControllerTest : FunSpec() {
     @MockkBean
     lateinit var configLoader: ConfigLoader
 
+    @MockkBean
+    lateinit var metricsCollector: SystemMetricsCollector
+
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
+
+    private val emptySystemMetrics =
+        SystemMetrics(
+            timestamp = null,
+            sampleCount = 0,
+            cpuCount = 8,
+            ramTotalGib = null,
+            diskTotalGib = null,
+            cpuUsed = null,
+            cpuIdle = null,
+            ramUsedGib = null,
+            ramFreeGib = null,
+            diskUsedGib = null,
+            diskFreeGib = null,
+            repoSizeGib = null,
+        )
 
     private val successResult =
         BuildResult(
@@ -63,7 +85,7 @@ class UiControllerTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(repository, buildExecutor, artifactStore, controlTokens, configLoader)
+            clearMocks(repository, buildExecutor, artifactStore, controlTokens, configLoader, metricsCollector)
             every { configLoader.load(any()) } returns
                 GitTallyConfig(
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),
@@ -189,6 +211,36 @@ class UiControllerTest : FunSpec() {
             mockMvc
                 .perform(get("/builds/no-such-key"))
                 .andExpect(status().isNotFound)
+        }
+
+        test("system view renders metric rows, totals, and the polling hook") {
+            every { metricsCollector.snapshot() } returns
+                emptySystemMetrics.copy(
+                    timestamp = Instant.parse("2026-07-07T10:00:00Z"),
+                    sampleCount = 5,
+                    ramTotalGib = 32.0,
+                    cpuUsed = MetricAggregate(current = 1.0, min = 0.5, max = 2.0, avg = 1.25),
+                )
+
+            mockMvc
+                .perform(get("/system"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("""data-api="/api/system"""")))
+                .andExpect(content().string(containsString("""data-metric="cpuUsed"""")))
+                .andExpect(content().string(containsString("CPU used (cores)")))
+                .andExpect(content().string(containsString("1.25")))
+                .andExpect(content().string(containsString("8 cores")))
+                .andExpect(content().string(containsString("32.00 GiB")))
+        }
+
+        test("system view renders n/a for unavailable metrics") {
+            every { metricsCollector.snapshot() } returns emptySystemMetrics
+
+            mockMvc
+                .perform(get("/system"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("Repo size (GiB)")))
+                .andExpect(content().string(containsString("n/a")))
         }
 
         test("branch names with HTML metacharacters render escaped") {
