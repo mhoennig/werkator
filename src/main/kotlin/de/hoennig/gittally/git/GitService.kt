@@ -151,6 +151,15 @@ class GitService(
             .trim()
             .ifEmpty { null }
 
+    /** The commit `refs/remotes/origin/[branch]` points at, or null when the branch is not on origin. */
+    fun originHeadCommit(
+        branch: String,
+        workingDir: Path = Paths.get("."),
+    ): String? {
+        val result = runner.run(listOf("git", "rev-parse", "--verify", "refs/remotes/origin/$branch"), workingDir)
+        return if (result.isSuccess) result.stdout.trim() else null
+    }
+
     fun headCommit(workingDir: Path = Paths.get(".")): String =
         runner
             .runOrThrow(listOf("git", "rev-parse", "HEAD"), workingDir)

@@ -16,6 +16,14 @@ class DurationParserTest : FunSpec() {
             DurationParser.parse("12h") shouldBe Duration.ofHours(12)
         }
 
+        test("parses minutes") {
+            DurationParser.parse("10m") shouldBe Duration.ofMinutes(10)
+        }
+
+        test("parses seconds") {
+            DurationParser.parse("30s") shouldBe Duration.ofSeconds(30)
+        }
+
         test("parses multi-digit amounts") {
             DurationParser.parse("120h") shouldBe Duration.ofHours(120)
         }

@@ -41,6 +41,8 @@ data class ArtifactsConfig(
 )
 
 data class WatcherConfig(
+    /** Delay between poll cycles, e.g. `10s` or `1m`. */
+    val pollInterval: String = "10s",
     val newBranchMaxAge: String = "5d",
 )
 

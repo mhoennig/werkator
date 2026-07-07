@@ -62,9 +62,13 @@ Three places must stay in sync when config keys change: the `GitTallyConfig` dat
 
 `BuildExecutor` runs builds asynchronously: up to `builds.maxConcurrent` branches concurrently (default 1), but never more than one build per branch at a time. Each branch builds in its own reusable git worktree at `.git/gittally/worktrees/<branchKey>` (`BranchWorkspaces`), checked out detached at the requested commit — the primary checkout is never used for builds. Status transitions are persisted via `BuildResultRepository` (JSON file under `.git/gittally/`), published to Gitea non-fatally, and emitted as `BuildStatusChangedEvent`s. Cancellation addresses a build by artifact key and terminates the whole process tree. Future code (watcher, server, UI) must not assume a single running build.
 
+### Watcher
+
+`Watcher` replaces the legacy blocking main loop with a non-blocking fixed-delay poll cycle: fetch origin, enqueue due branches (changed local, recent new origin, due auto-build slots) via `BuildExecutor`, then prune results, artifacts, and stale worktrees. Nothing is scheduled until `Watcher.start()` is called explicitly (server/watch mode) — CLI commands and tests never start the loop. "Already built" is tracked via the result repository, not by moving local branch refs. Auto-build slot state lives in `.git/gittally/auto-builds.json`; watcher health is exposed via `Watcher.state()`.
+
 ### Package Structure
 
-All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), and `build` (build execution, results, workspaces). Tests mirror this structure under `src/test/kotlin`.
+All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), `build` (build execution, results, workspaces), `artifacts` (filesystem artifact store), and `watcher` (branch polling, auto-builds, startup recovery). Tests mirror this structure under `src/test/kotlin`.
 
 ## Testing Conventions
 

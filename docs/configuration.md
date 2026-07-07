@@ -54,6 +54,8 @@ artifacts:
 
 # Controls the branch-polling loop.
 watcher:
+  # delay between poll cycles; suffixes s (seconds), m (minutes), h (hours), d (days)
+  pollInterval: 10s
   # max commit age for new origin branches to be pulled automatically
   newBranchMaxAge: 5d
 

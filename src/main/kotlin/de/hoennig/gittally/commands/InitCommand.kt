@@ -126,6 +126,8 @@ class InitCommand(
 
             # Controls the branch-polling loop.
             watcher:
+              # delay between poll cycles (s/m/h/d suffix)
+              pollInterval: 10s
               # max commit age for new origin branches to be pulled automatically
               newBranchMaxAge: 5d
 

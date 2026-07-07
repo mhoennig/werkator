@@ -50,7 +50,7 @@ Core engine:
 
 - [x] `04-build-executor.md` — async build execution with logs, cancellation, status transitions
 - [x] `05-artifact-store.md` — artifact persistence, naming, retention
-- [ ] `06-watcher.md` — branch watching, scheduling, auto-builds
+- [x] `06-watcher.md` — branch watching, scheduling, auto-builds
 
 Server and UI:
 
