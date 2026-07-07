@@ -33,6 +33,11 @@ data class BuildsConfig(
 
 data class ArtifactsConfig(
     val retentionPerBranch: Int = 3,
+    /**
+     * Root directory for stored build artifacts; empty means the platform default
+     * `XDG_STATE_HOME` (or `~/.local/state`) + `/gittally/artifacts/<repo-key>`.
+     */
+    val rootDir: String = "",
 )
 
 data class WatcherConfig(

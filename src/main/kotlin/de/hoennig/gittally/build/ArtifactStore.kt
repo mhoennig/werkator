@@ -1,29 +1,31 @@
 package de.hoennig.gittally.build
 
-import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Component
 import java.nio.file.Path
 
 /**
- * Takes over the staging directory of a finished build.
- * The real store (naming, retention, serving) arrives in step 05.
+ * Persists the artifacts of finished builds (logs plus configured report directories)
+ * and prunes them together with the result retention.
+ * Implemented by `de.hoennig.gittally.artifacts.FileArtifactStore`.
  */
 interface ArtifactStore {
+    /**
+     * Takes over the staging directory of the finished [build] (log files) plus the
+     * configured `artifactDirs` from [workspace] and stores them under the build's
+     * artifact key. [workspace] is null when the build crashed before its workspace
+     * was prepared; only the logs are stored then.
+     */
     fun persist(
         build: BuildResult,
         stagingDir: Path,
+        workspace: Path?,
     )
-}
 
-/** Placeholder until step 05: logs and leaves the staging directory untouched. */
-@Component
-class NoOpArtifactStore : ArtifactStore {
-    private val log = LoggerFactory.getLogger(NoOpArtifactStore::class.java)
+    /**
+     * Deletes all stored artifact directories whose keys are not in [keptResults];
+     * call after repository retention pruning. Returns the removed artifact keys.
+     */
+    fun prune(keptResults: Collection<BuildResult>): List<String>
 
-    override fun persist(
-        build: BuildResult,
-        stagingDir: Path,
-    ) {
-        log.info("artifact store not implemented yet; leaving build output of {} in {}", build.artifactKey, stagingDir)
-    }
+    /** The stored artifact directory for [artifactKey], or null if none exists. */
+    fun artifactDir(artifactKey: String): Path?
 }

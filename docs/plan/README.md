@@ -49,7 +49,7 @@ Foundation:
 Core engine:
 
 - [x] `04-build-executor.md` — async build execution with logs, cancellation, status transitions
-- [ ] `05-artifact-store.md` — artifact persistence, naming, retention
+- [x] `05-artifact-store.md` — artifact persistence, naming, retention
 - [ ] `06-watcher.md` — branch watching, scheduling, auto-builds
 
 Server and UI:

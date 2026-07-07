@@ -111,6 +111,7 @@ class BuildExecutor(
     private fun execute(build: ActiveBuild) {
         var slot: Semaphore? = null
         var finalStatus = BuildStatus.FAILED
+        var workspace: Path? = null
         try {
             slot = slotsFor(build.workingDir)
             slot.acquire()
@@ -120,13 +121,14 @@ class BuildExecutor(
             }
             build.running = true
             transition(build, BuildStatus.RUNNING, duration = null)
-            val workspace =
+            val preparedWorkspace =
                 workspaces.prepare(
                     branch = build.runningBuild.branch,
                     commit = build.runningBuild.commit,
                     repoDir = build.workingDir,
                 )
-            val exitCode = runBuildCommands(build, workspace)
+            workspace = preparedWorkspace
+            val exitCode = runBuildCommands(build, preparedWorkspace)
             finalStatus =
                 when {
                     build.cancelled.get() -> BuildStatus.CANCELLED
@@ -141,7 +143,7 @@ class BuildExecutor(
             val duration = Duration.between(build.runningBuild.startedAt, Instant.now())
             val result = transition(build, finalStatus, duration)
             try {
-                artifactStore.persist(result, build.runningBuild.stagingDir)
+                artifactStore.persist(result, build.runningBuild.stagingDir, workspace)
             } catch (e: Exception) {
                 log.warn("could not persist artifacts of {}: {}", result.artifactKey, e.message)
             }

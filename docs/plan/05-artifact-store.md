@@ -40,3 +40,32 @@ Update `GitTallyConfig`, `InitCommand` templates, and `docs/configuration.md` to
 
 - `./gradlew ktlintFormat` then `./gradlew build` is green.
 - Step 04's executor persists artifacts through the real store (integration test).
+
+## Execution Notes (done 2026-07-07)
+
+Implemented as `FileArtifactStore` in `de.hoennig.gittally.artifacts`; build green, 12 new tests
+(`FileArtifactStoreTest`, `BuildExecutorArtifactIntegrationTest`, plus a `repoKey` case in `ArtifactKeysTest`).
+Deviations and decisions:
+
+- The `ArtifactStore` interface stays in `de.hoennig.gittally.build` (moving it would make `build` depend on `artifacts`).
+  It gained `prune(keptResults)` and `artifactDir(artifactKey)`; the `NoOpArtifactStore` placeholder was removed.
+- Interface gap from step 04 resolved by an additional parameter: `persist(build, stagingDir, workspace)`.
+  The store copies the configured `artifactDirs` out of the branch worktree itself, so the archived layout stays store knowledge.
+  `workspace` is null when a build crashed before its worktree was prepared; only the logs are stored then.
+- Key naming was reused from step 04's `ArtifactKeys` (UTC `Instant`, not local time like legacy); only `repoKey` was added.
+  The repo key sanitizes the absolute normalized working directory, not `git rev-parse --show-toplevel` — consistent
+  with step 04's decision to resolve everything relative to the working directory.
+- The atomic move does not move the staging directory directly: staging is a temp dir (usually under `/tmp`) and may
+  be on a different filesystem than the artifact root, where a move is not atomic.
+  Like legacy `persist_build_artifacts` (`$artifact_dir.tmp.$$`), everything is assembled in `.incoming-<key>` next to
+  the target and then moved with `ATOMIC_MOVE`; on failure the incoming dir is deleted, so no partial dirs appear.
+  The staging directory is deleted after a successful move.
+- The legacy archive layout was ported: `build/reports` archives as `reports/`, every other artifact dir below `reports/<dir>`.
+- Concurrency (builds run concurrently since the step 04 amendment): persists share a read lock — their target dirs are
+  disjoint because artifact keys are unique per build — while `prune` takes the write lock, so it never deletes mid-persist.
+  `prune` also removes `.incoming-*` leftovers of crashed persists, deletes symlinks without following them,
+  and returns the removed keys.
+- `artifactDir` rejects keys outside `[A-Za-z0-9._-]+` and anything resolving outside `<root>/branches/` (path traversal).
+- `artifacts.rootDir` supports a leading `~/` and resolves relative paths against the repository;
+  when empty, the default is `$XDG_STATE_HOME` (or `~/.local/state`) + `/gittally/artifacts/<repo-key>` as designed.
+- The bean is wired in `ArtifactsConfiguration` with the working directory defaulting to `.`, mirroring `BuildConfiguration`.

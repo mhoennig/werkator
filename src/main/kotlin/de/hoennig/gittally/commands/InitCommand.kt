@@ -117,8 +117,10 @@ class InitCommand(
               # how many branches may build at the same time (at most one build per branch regardless)
               maxConcurrent: 1
 
-            # Build artifact retention.
+            # Build artifact storage and retention.
             artifacts:
+              # root directory for stored artifacts; empty = XDG_STATE_HOME (or ~/.local/state) + /gittally/artifacts/<repo-key>
+              rootDir: ""
               # number of builds to keep per branch
               retentionPerBranch: 3
 

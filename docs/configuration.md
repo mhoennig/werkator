@@ -42,8 +42,13 @@ builds:
   # Changing this value requires a restart.
   maxConcurrent: 1
 
-# Build artifact retention.
+# Build artifact storage and retention.
 artifacts:
+  # Root directory for stored build artifacts.
+  # Empty means the platform default: $XDG_STATE_HOME (or ~/.local/state) plus /gittally/artifacts/<repo-key>,
+  # where <repo-key> is the sanitized absolute repository path.
+  # A leading ~/ expands to the home directory; a relative path is resolved against the repository.
+  rootDir: ""
   # number of builds to keep per branch
   retentionPerBranch: 3
 

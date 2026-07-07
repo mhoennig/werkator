@@ -1,5 +1,6 @@
 package de.hoennig.gittally.build
 
+import java.nio.file.Path
 import java.security.MessageDigest
 import java.time.Instant
 
@@ -15,6 +16,9 @@ object ArtifactKeys {
         branch: String,
         startedAt: Instant,
     ): String = "${branchKey(branch)}-${sanitize(startedAt.toString())}-${sha256Prefix("$branch\t$startedAt")}"
+
+    /** Legacy `repository_key`: the sanitized absolute repository path. */
+    fun repoKey(repoDir: Path): String = sanitize(repoDir.toAbsolutePath().normalize().toString())
 
     private fun sanitize(value: String): String = value.replace(Regex("[^A-Za-z0-9._-]"), "_")
 

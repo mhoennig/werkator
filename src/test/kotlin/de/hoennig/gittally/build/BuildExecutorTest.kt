@@ -130,7 +130,7 @@ class BuildExecutorTest : FunSpec() {
             verify { h.giteaClient.publishStatus("abc123", BuildStatus.PENDING, any(), null, h.workingDir) }
             verify { h.giteaClient.publishStatus("abc123", BuildStatus.RUNNING, any(), null, h.workingDir) }
             verify { h.giteaClient.publishStatus("abc123", BuildStatus.SUCCESS, any(), null, h.workingDir) }
-            verify { h.artifactStore.persist(match { it.status == BuildStatus.SUCCESS }, build.stagingDir) }
+            verify { h.artifactStore.persist(match { it.status == BuildStatus.SUCCESS }, build.stagingDir, h.workingDir) }
         }
 
         test("build commands run in the workspace prepared for the branch") {

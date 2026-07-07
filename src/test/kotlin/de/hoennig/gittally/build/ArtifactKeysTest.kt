@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldMatch
+import java.nio.file.Paths
 import java.time.Instant
 
 class ArtifactKeysTest : FunSpec() {
@@ -33,6 +34,10 @@ class ArtifactKeysTest : FunSpec() {
 
             key shouldContain ArtifactKeys.branchKey("main")
             key shouldContain "2026-07-07T10_00_00Z"
+        }
+
+        test("repoKey sanitizes the absolute repository path") {
+            ArtifactKeys.repoKey(Paths.get("/home/user/my repo")) shouldBe "_home_user_my_repo"
         }
     }
 }
