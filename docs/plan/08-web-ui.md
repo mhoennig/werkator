@@ -17,7 +17,8 @@ Views (ported from legacy, see analysis for columns and behavior):
 
 - `/` (Latest): latest build per branch — status badge, branch and commit with Gitea links and copy buttons, times, duration, artifact link, restart/delete actions.
 - `/history`: all builds.
-- `/current`: running build with live log view (incremental fetch via `/api/builds/current?offset=`), cancel button, and a clear "no build running" state.
+- `/current`: running builds with live log view (incremental fetch via the step 07 current-builds API), a cancel button per build, and a clear "no build running" state.
+  Remember there can be several running builds (one per branch, up to `builds.maxConcurrent`); the view must list all of them, not assume a single one.
 - `/builds/{artifactKey}`: artifact index — build command, logs, links into archived report directories (rendered from the artifact store, not pre-generated HTML).
 - Shared layout: view toggle nav, footer with version and optional impressum link, `prefers-color-scheme` support (port the legacy CSS look loosely, keep it simple).
 

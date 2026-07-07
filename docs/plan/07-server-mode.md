@@ -22,9 +22,9 @@ JSON API (package `de.hoennig.gittally.server`), replacing the legacy `/control/
 
 - `GET /api/builds/latest` — latest build per branch.
 - `GET /api/builds/history` — all builds, newest first.
-- `GET /api/builds/current` — running build, its live status, and log tail (`?offset=` for incremental log fetch).
+- `GET /api/builds/current` — the list of running builds (there can be several, one per branch, up to `builds.maxConcurrent`), each with live status and log tail (`?offset=` for incremental log fetch, addressed by artifact key).
 - `GET /api/status/{commit}` — effective status including Gitea lookup (replaces `/control/status`); must return an explicit error state on Gitea failure, never hang.
-- `POST /api/builds/{branch}/restart`, `POST /api/builds/current/cancel`, `DELETE /api/builds/{artifactKey}` — guarded by a simple token like the legacy cancel token; wire into executor/watcher/repository.
+- `POST /api/builds/{branch}/restart`, `POST /api/builds/{artifactKey}/cancel` (cancel takes the artifact key because multiple builds can run concurrently), `DELETE /api/builds/{artifactKey}` — guarded by a simple token like the legacy cancel token; wire into executor/watcher/repository.
 - `GET /api/watcher` — watcher health (last poll, last error).
 - Artifact serving: `GET /artifacts/{artifactKey}/**` streaming from the artifact store, with no-cache headers for html/json/log.
 

@@ -34,6 +34,14 @@ gitea:
   repo: my-repo                      # repository name
   statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
 
+# Build execution.
+builds:
+  # How many branches may build at the same time.
+  # At most one build per branch runs regardless; each branch builds in its own
+  # git worktree under .git/gittally/worktrees/, never in the primary checkout.
+  # Changing this value requires a restart.
+  maxConcurrent: 1
+
 # Build artifact retention.
 artifacts:
   # number of builds to keep per branch

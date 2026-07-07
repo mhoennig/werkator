@@ -88,11 +88,11 @@ flowchart LR
 ### BuildWorker
 
 - Pending-Build übernehmen
-- Worktree anlegen
+- Branch-Worktree anlegen oder wiederverwenden
 - Commit auschecken
 - Build starten
 - Artefakte sammeln
-- Worktree entfernen
+- Worktrees entfallener Branches entfernen
 
 ### GitStatusPublisher
 
@@ -118,10 +118,26 @@ flowchart LR
 ### Commit-basierte Builds
 
 GitTally baut immer einen konkreten Commit und niemals nur einen Branchnamen.
+Buildergebnisse werden intern trotzdem pro Branch geführt: derselbe Commit auf zwei Branches ergibt zwei getrennte Builds mit eigenem Status, eigenen Artefakten und eigenem Worktree.
+Das ist gewollt, weil Buildläufe den Branchnamen einbeziehen können (Umgebungsvariable `branch`).
+In Gitea hängt der Commit-Status dagegen am Commit-SHA: zeigen zwei Branches auf denselben Commit, überschreiben sich ihre Statusmeldungen gegenseitig (der zuletzt gemeldete gewinnt).
+Falls das je stört, kann der Branchname später in den Status-Context aufgenommen werden (z. B. `GitTally/main`), sodass ein Commit mehrere unabhängige Statuszeilen bekommt.
 
-### Worktree pro Build
+### Worktree pro Branch
 
-Jeder Build erhält einen eigenen temporären Worktree.
+Jeder Branch erhält einen eigenen, wiederverwendeten Worktree unter `.git/gittally/worktrees/<branchKey>`.
+Der Branch-Key ist der dateisystem-sicher bereinigte Branchname plus 12 Zeichen SHA-256 des Originalnamens (z. B. `main-0d6e4079e367`).
+Der Hash schützt nur vor Kollisionen durch die Bereinigung (`feature/x` vs. `feature_x`); der Commit ist bewusst nicht Teil des Keys, damit das Verzeichnis über alle Builds des Branches stabil bleibt.
+Der zu bauende Commit wird darin detached ausgecheckt.
+Der primäre Checkout wird niemals für Builds verwendet.
+Die Wiederverwendung erhält inkrementelle Build-Caches; das `cleanCommand` des Branches bestimmt, wie viel davon überlebt.
+
+### Parallele Builds
+
+Mehrere Branches können gleichzeitig bauen (`builds.maxConcurrent`, Default 1).
+Pro Branch läuft höchstens ein Build gleichzeitig.
+Ein neuer Build desselben Branches wartet, bis der laufende fertig ist.
+Ob ein neuer Commit den laufenden Build seines Branches stattdessen abbrechen soll, wird später entschieden und ist möglicherweise konfigurierbar.
 
 ## Konfigurationsmodell
 

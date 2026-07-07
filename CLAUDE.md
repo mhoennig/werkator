@@ -58,9 +58,13 @@ Three places must stay in sync when config keys change: the `GitTallyConfig` dat
 
 `GitService` shells out to the `git` CLI via `GitCommandRunner` (a thin `ProcessBuilder` wrapper; no JGit). Commands that need repo information take it as a constructor dependency so tests can mock it. HTTPS fetches authenticate via a temporary, secret-free `GIT_ASKPASS` script (`GitAskPass`) with credentials from config passed through environment variables.
 
+### Build Execution
+
+`BuildExecutor` runs builds asynchronously: up to `builds.maxConcurrent` branches concurrently (default 1), but never more than one build per branch at a time. Each branch builds in its own reusable git worktree at `.git/gittally/worktrees/<branchKey>` (`BranchWorkspaces`), checked out detached at the requested commit — the primary checkout is never used for builds. Status transitions are persisted via `BuildResultRepository` (JSON file under `.git/gittally/`), published to Gitea non-fatally, and emitted as `BuildStatusChangedEvent`s. Cancellation addresses a build by artifact key and terminates the whole process tree. Future code (watcher, server, UI) must not assume a single running build.
+
 ### Package Structure
 
-All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), and `git` (git CLI access). Tests mirror this structure under `src/test/kotlin`.
+All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), and `build` (build execution, results, workspaces). Tests mirror this structure under `src/test/kotlin`.
 
 ## Testing Conventions
 

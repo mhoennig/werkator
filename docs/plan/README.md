@@ -30,6 +30,9 @@ These are proposals baked into the steps.
 Revisit them in an ADR if a step uncovers problems.
 
 - Build results are persisted as a JSON file under `.git/gittally/`, behind a `BuildResultRepository` interface (no database, but replaceable).
+- Builds run concurrently up to `builds.maxConcurrent` (default 1), but never more than one build per branch at a time.
+  Each branch builds in its own reusable git worktree under `.git/gittally/worktrees/`, checked out detached at the requested commit — never in the primary checkout.
+  A later step must decide (possibly per config) whether a new commit on a branch cancels that branch's running build or waits for it; for now new builds queue behind the running one.
 - Artifacts stay on the filesystem, served by the Spring server.
 - The web UI is server-rendered HTML plus small JavaScript polling JSON endpoints (no SPA framework).
 - The watcher is a Spring-managed scheduled component, decoupled from the build executor via the result repository and events.
@@ -45,7 +48,7 @@ Foundation:
 
 Core engine:
 
-- [ ] `04-build-executor.md` — async build execution with logs, cancellation, status transitions
+- [x] `04-build-executor.md` — async build execution with logs, cancellation, status transitions
 - [ ] `05-artifact-store.md` — artifact persistence, naming, retention
 - [ ] `06-watcher.md` — branch watching, scheduling, auto-builds
 

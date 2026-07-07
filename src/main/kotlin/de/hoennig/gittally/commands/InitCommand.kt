@@ -112,6 +112,11 @@ class InitCommand(
               repo: ${detected.repo}                      # repository name
               statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
 
+            # Build execution.
+            builds:
+              # how many branches may build at the same time (at most one build per branch regardless)
+              maxConcurrent: 1
+
             # Build artifact retention.
             artifacts:
               # number of builds to keep per branch

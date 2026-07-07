@@ -216,5 +216,46 @@ class GitServiceTest : FunSpec() {
 
             service.headCommit(fixture.work) shouldMatch Regex("[0-9a-f]{40}")
         }
+
+        test("worktreeAdd creates a detached worktree at the commit") {
+            val fixture = Fixture()
+            val head = service.headCommit(fixture.work)
+            val worktree = fixture.work.resolve(".git/gittally/worktrees/main-test")
+
+            service.worktreeAdd(worktree, head, fixture.work)
+
+            Files.readString(worktree.resolve("README.md")) shouldBe "hello"
+            service.headCommit(worktree) shouldBe head
+            service.currentBranch(worktree).shouldBeNull()
+        }
+
+        test("checkoutDetached switches a worktree to another commit and discards local modifications") {
+            val fixture = Fixture()
+            val firstCommit = service.headCommit(fixture.work)
+            fixture.commitFile(fixture.work, "second.txt", "second")
+            val secondCommit = service.headCommit(fixture.work)
+            val worktree = fixture.work.resolve(".git/gittally/worktrees/main-test")
+            service.worktreeAdd(worktree, firstCommit, fixture.work)
+            Files.writeString(worktree.resolve("README.md"), "dirty")
+
+            service.checkoutDetached(secondCommit, worktree)
+
+            service.headCommit(worktree) shouldBe secondCommit
+            Files.readString(worktree.resolve("README.md")) shouldBe "hello"
+            Files.readString(worktree.resolve("second.txt")) shouldBe "second"
+        }
+
+        test("worktreePrune allows re-adding a worktree whose directory was deleted") {
+            val fixture = Fixture()
+            val head = service.headCommit(fixture.work)
+            val worktree = fixture.work.resolve(".git/gittally/worktrees/main-test")
+            service.worktreeAdd(worktree, head, fixture.work)
+            worktree.toFile().deleteRecursively()
+
+            service.worktreePrune(fixture.work)
+
+            service.worktreeAdd(worktree, head, fixture.work)
+            service.headCommit(worktree) shouldBe head
+        }
     }
 }

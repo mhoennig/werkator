@@ -34,6 +34,19 @@ class ConfigLoaderTest : FunSpec() {
             config.gitea.repo shouldBe "my-repo"
         }
 
+        test("reads builds.maxConcurrent and defaults it to 1") {
+            val dir = Files.createTempDirectory("gittally-test")
+            loader.load(dir).builds.maxConcurrent shouldBe 1
+
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  maxConcurrent: 3
+                """.trimIndent(),
+            )
+            loader.load(dir).builds.maxConcurrent shouldBe 3
+        }
+
         test("repo install config overrides project config for same keys") {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(

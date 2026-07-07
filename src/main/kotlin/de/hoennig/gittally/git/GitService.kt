@@ -157,6 +157,28 @@ class GitService(
             .stdout
             .trim()
 
+    /** Creates a worktree at [path] with [commit] checked out as a detached HEAD; [path] must not exist yet. */
+    fun worktreeAdd(
+        path: Path,
+        commit: String,
+        workingDir: Path = Paths.get("."),
+    ) {
+        runner.runOrThrow(listOf("git", "worktree", "add", "--detach", path.toString(), commit), workingDir)
+    }
+
+    /** Removes registrations of worktrees whose directories no longer exist. */
+    fun worktreePrune(workingDir: Path = Paths.get(".")) {
+        runner.runOrThrow(listOf("git", "worktree", "prune"), workingDir)
+    }
+
+    /** Checks out [commit] as a detached HEAD, discarding local modifications to tracked files. */
+    fun checkoutDetached(
+        commit: String,
+        workingDir: Path = Paths.get("."),
+    ) {
+        runner.runOrThrow(listOf("git", "checkout", "--force", "--detach", commit), workingDir)
+    }
+
     private fun refExists(
         ref: String,
         workingDir: Path,

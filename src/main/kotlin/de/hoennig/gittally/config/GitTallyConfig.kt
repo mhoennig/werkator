@@ -4,6 +4,7 @@ data class GitTallyConfig(
     val server: ServerConfig = ServerConfig(),
     val git: GitConfig = GitConfig(),
     val gitea: GiteaConfig = GiteaConfig(),
+    val builds: BuildsConfig = BuildsConfig(),
     val artifacts: ArtifactsConfig = ArtifactsConfig(),
     val watcher: WatcherConfig = WatcherConfig(),
     val branches: Map<String, BranchConfig> = mapOf("default" to BranchConfig()),
@@ -23,6 +24,11 @@ data class GiteaConfig(
     val owner: String = "",
     val repo: String = "",
     val statusContext: String = "GitTally",
+)
+
+data class BuildsConfig(
+    /** How many branches may build at the same time; at most one build per branch regardless. */
+    val maxConcurrent: Int = 1,
 )
 
 data class ArtifactsConfig(
