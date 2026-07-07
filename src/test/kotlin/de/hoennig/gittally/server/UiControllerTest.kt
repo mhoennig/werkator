@@ -55,6 +55,9 @@ class UiControllerTest : FunSpec() {
     @MockkBean
     lateinit var metricsCollector: SystemMetricsCollector
 
+    @MockkBean
+    lateinit var branchListing: BranchListing
+
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
     private val emptySystemMetrics =
@@ -85,7 +88,7 @@ class UiControllerTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(repository, buildExecutor, artifactStore, controlTokens, configLoader, metricsCollector)
+            clearMocks(repository, buildExecutor, artifactStore, controlTokens, configLoader, metricsCollector, branchListing)
             every { configLoader.load(any()) } returns
                 GitTallyConfig(
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),
@@ -102,6 +105,7 @@ class UiControllerTest : FunSpec() {
                 .andExpect(status().isOk)
                 .andExpect(content().string(containsString("No builds recorded yet.")))
                 .andExpect(content().string(containsString("""data-api="/api/builds/latest"""")))
+                .andExpect(content().string(containsString("""id="reload-button"""")))
         }
 
         test("latest view renders rows with badge, Gitea links, artifact link, actions, and token") {
@@ -120,6 +124,24 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("""name="gittally-control-token" content="test-token"""")))
                 .andExpect(content().string(containsString("https://example.org/imprint")))
                 .andExpect(content().string(containsString("1:23")))
+        }
+
+        test("branches view renders built and never-built branches with restart actions") {
+            every { branchListing.branches(any()) } returns
+                listOf(
+                    BranchDto.from("main", "ignored-head", successResult),
+                    BranchDto.from("feature/x", "fedcba9876543210fedcba9876543210fedcba98", null),
+                )
+
+            mockMvc
+                .perform(get("/branches"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("status status-success")))
+                .andExpect(content().string(containsString("status status-unknown")))
+                .andExpect(content().string(containsString("feature/x")))
+                .andExpect(content().string(containsString("fedcba987654")))
+                .andExpect(content().string(containsString("""data-api="/api/branches"""")))
+                .andExpect(content().string(containsString("""data-action="restart"""")))
         }
 
         test("history view renders mixed history without restart actions") {

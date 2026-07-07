@@ -96,6 +96,23 @@ data class BuildRowView(
             branchUrl = links.branchUrl(result.branch),
             commitUrl = links.commitUrl(result.commit),
         )
+
+        /** A branches-view row; never-built branches have no timestamps and no artifact. */
+        fun from(
+            entry: BranchDto,
+            links: GiteaWebLinks,
+        ) = BuildRowView(
+            branch = entry.branch,
+            commit = entry.commit,
+            commitAbbrev = entry.commit.take(12),
+            status = entry.status,
+            startedAtIso = entry.startedAt?.toString() ?: "",
+            startedAt = entry.startedAt?.let { UiFormats.timestamp(it) } ?: "",
+            duration = UiFormats.duration(entry.durationSeconds?.let { Duration.ofSeconds(it) }),
+            artifactKey = entry.artifactKey,
+            branchUrl = links.branchUrl(entry.branch),
+            commitUrl = links.commitUrl(entry.commit),
+        )
     }
 }
 

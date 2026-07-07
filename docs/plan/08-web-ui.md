@@ -72,3 +72,11 @@ After `git push`, the open Latest tab showed the new build without reload and it
 `/current` showed the build card with streaming live log, ticking duration, and cancel button; on completion the card flipped to `finished` with a working link to the artifact page (status badge, build command, three log links, `reports/demo/index.html` served with no-cache headers).
 Killing the server flipped the indicator to a red `error` badge (fetch failure in the tooltip) and dimmed the stale table — zero spinners (verified through a TCP proxy so the tab outlived the process); restarting the server brought `live` back.
 The 375px viewport stacked rows as labeled cards, and the History view correctly offers delete but no restart.
+
+Addendum (2026-07-07, after step 12): the legacy Branches view had not been ported; it was added later on request.
+`/branches` (nav: Latest | Branches | History | Current | System) lists every branch with its latest build, or an `unknown` row when never built — main/master first, then flat names, then hierarchical names, like legacy.
+Deviation: the listing enumerates origin branches instead of legacy's local branches, because the new watcher's branch universe is origin (local refs never move and origin-only branches do get built).
+`POST /api/builds/restart` falls back to the branch's origin head when it has no recorded build, so the Branches view can trigger first builds like legacy.
+
+Addendum (2026-07-07): the legacy per-page reload button (`⟳`, top right) was also re-added on request, next to the live indicator.
+On polling pages it triggers an immediate data refresh via the page's poller; pages without a poller (artifact index) reload fully.

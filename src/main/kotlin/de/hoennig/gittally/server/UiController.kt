@@ -34,6 +34,7 @@ class UiController(
     private val controlTokens: ControlTokenService,
     private val configLoader: ConfigLoader,
     private val metricsCollector: SystemMetricsCollector,
+    private val branchListing: BranchListing,
     private val buildProperties: ObjectProvider<BuildProperties>,
 ) {
     var workingDir: Path = Paths.get(".")
@@ -45,6 +46,17 @@ class UiController(
         model.addAttribute("apiPath", "/api/builds/latest")
         model.addAttribute("allowRestart", true)
         model.addAttribute("emptyMessage", "No builds recorded yet.")
+        return "builds"
+    }
+
+    /** The legacy branches view: every origin branch with its latest build or an `unknown` row. */
+    @GetMapping("/branches")
+    fun branches(model: Model): String {
+        val links = baseModel(model, view = "branches", pageTitle = "Branches")
+        model.addAttribute("rows", branchListing.branches(workingDir).map { BuildRowView.from(it, links) })
+        model.addAttribute("apiPath", "/api/branches")
+        model.addAttribute("allowRestart", true)
+        model.addAttribute("emptyMessage", "No branches found on origin.")
         return "builds"
     }
 

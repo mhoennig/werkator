@@ -482,10 +482,30 @@ document.addEventListener("click", async (event) => {
     }
 });
 
+// ---- reload button -------------------------------------------------------------
+
+/** Refreshes via the page's poller; pages without one (e.g. artifact index) reload fully. */
+function initReloadButton() {
+    const button = document.getElementById("reload-button");
+    if (!button) {
+        return;
+    }
+    button.addEventListener("animationend", () => button.classList.remove("is-reloading"));
+    button.addEventListener("click", () => {
+        button.classList.add("is-reloading");
+        if (refreshNow) {
+            refreshNow();
+        } else {
+            window.location.reload();
+        }
+    });
+}
+
 // ---- page wiring ---------------------------------------------------------------
 
 initBuildsTable();
 initCurrentBuilds();
 initSystemTable();
+initReloadButton();
 setInterval(tickRunningDurations, 1000);
 tickRunningDurations();

@@ -29,6 +29,45 @@ data class BuildResultDto(
     }
 }
 
+/**
+ * One entry of `GET /api/branches`, like a legacy branches-view row: an origin
+ * branch with its latest build, or an `unknown` placeholder when never built.
+ */
+data class BranchDto(
+    val branch: String,
+    val commit: String,
+    val status: String,
+    val startedAt: Instant?,
+    val durationSeconds: Long?,
+    val artifactKey: String,
+) {
+    companion object {
+        fun from(
+            branch: String,
+            headCommit: String,
+            latest: BuildResult?,
+        ) = if (latest == null) {
+            BranchDto(
+                branch = branch,
+                commit = headCommit,
+                status = CommitStatusDto.UNKNOWN_STATUS,
+                startedAt = null,
+                durationSeconds = null,
+                artifactKey = "",
+            )
+        } else {
+            BranchDto(
+                branch = branch,
+                commit = latest.commit,
+                status = latest.status.jsonName,
+                startedAt = latest.startedAt,
+                durationSeconds = latest.duration?.seconds,
+                artifactKey = latest.artifactKey,
+            )
+        }
+    }
+}
+
 /** One entry of `GET /api/builds/current`; the log grows while the build runs. */
 data class CurrentBuildDto(
     val branch: String,

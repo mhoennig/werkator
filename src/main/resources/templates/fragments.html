@@ -21,6 +21,8 @@
     <nav class="view-toggle">
         <span th:if="${view == 'latest'}">Latest</span>
         <a th:unless="${view == 'latest'}" href="/">Latest</a>
+        <span th:if="${view == 'branches'}">Branches</span>
+        <a th:unless="${view == 'branches'}" href="/branches">Branches</a>
         <span th:if="${view == 'history'}">History</span>
         <a th:unless="${view == 'history'}" href="/history">History</a>
         <span th:if="${view == 'current'}">Current</span>
@@ -30,6 +32,7 @@
     </nav>
     <span class="view-row-actions">
         <span id="live-indicator" class="status status-unknown" title="live-update state">static</span>
+        <button id="reload-button" class="reload-button" type="button" title="Reload view" aria-label="Reload view">⟳</button>
     </span>
 </div>
 

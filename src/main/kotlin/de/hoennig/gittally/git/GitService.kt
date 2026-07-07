@@ -52,6 +52,17 @@ class GitService(
             .lines()
             .filter { it != "HEAD" }
 
+    /** All origin branches with their head commit, in one git call; refnames cannot contain spaces. */
+    fun originBranchHeads(workingDir: Path = Paths.get(".")): Map<String, String> =
+        runner
+            .runOrThrow(
+                listOf("git", "for-each-ref", "--format=%(refname:strip=3) %(objectname)", "refs/remotes/origin"),
+                workingDir,
+            ).lines()
+            .map { it.substringBeforeLast(' ') to it.substringAfterLast(' ') }
+            .filter { (branch, _) -> branch != "HEAD" }
+            .toMap()
+
     /**
      * A branch has new commits when its origin counterpart is ahead of the local branch,
      * or when it exists only on origin.

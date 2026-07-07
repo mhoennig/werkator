@@ -7,6 +7,7 @@ import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.build.RunningBuild
+import de.hoennig.gittally.git.GitService
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -43,6 +44,12 @@ class BuildsApiControllerTest : FunSpec() {
     @MockkBean
     lateinit var controlTokens: ControlTokenService
 
+    @MockkBean
+    lateinit var gitService: GitService
+
+    @MockkBean
+    lateinit var branchListing: BranchListing
+
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
     private val successResult =
@@ -67,7 +74,7 @@ class BuildsApiControllerTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(repository, buildExecutor, artifactStore, controlTokens)
+            clearMocks(repository, buildExecutor, artifactStore, controlTokens, gitService, branchListing)
             every { controlTokens.matches(any()) } answers { firstArg<String?>() == "secret" }
         }
 
@@ -147,12 +154,48 @@ class BuildsApiControllerTest : FunSpec() {
             verify { buildExecutor.startBuild("feature/topic", successResult.commit) }
         }
 
-        test("restart of a branch without recorded builds answers 404") {
+        test("restart of a never-built branch enqueues its origin head commit") {
+            val liveLogFile = tempDir.resolve("first-build.log")
+            every { repository.latestFor("fresh") } returns null
+            every { gitService.originHeadCommit("fresh", any()) } returns successResult.commit
+            every { buildExecutor.startBuild("fresh", successResult.commit) } returns
+                runningBuild(liveLogFile).copy(branch = "fresh")
+
+            mockMvc
+                .perform(post("/api/builds/restart").param("branch", "fresh").param("token", "secret"))
+                .andExpect(status().isAccepted)
+                .andExpect(jsonPath("$.status").value("pending"))
+
+            verify { buildExecutor.startBuild("fresh", successResult.commit) }
+        }
+
+        test("restart of a branch without recorded builds and without origin counterpart answers 404") {
             every { repository.latestFor("gone") } returns null
+            every { gitService.originHeadCommit("gone", any()) } returns null
 
             mockMvc
                 .perform(post("/api/builds/restart").param("branch", "gone").param("token", "secret"))
                 .andExpect(status().isNotFound)
+        }
+
+        test("branches answers the branch listing with unknown placeholders for never-built branches") {
+            every { branchListing.branches(any()) } returns
+                listOf(
+                    BranchDto.from("main", "ignored-head", successResult),
+                    BranchDto.from("feature/x", "fedcba9876543210fedcba9876543210fedcba98", null),
+                )
+
+            mockMvc
+                .perform(get("/api/branches"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$[0].branch").value("main"))
+                .andExpect(jsonPath("$[0].status").value("success"))
+                .andExpect(jsonPath("$[0].commit").value(successResult.commit))
+                .andExpect(jsonPath("$[1].branch").value("feature/x"))
+                .andExpect(jsonPath("$[1].status").value("unknown"))
+                .andExpect(jsonPath("$[1].commit").value("fedcba9876543210fedcba9876543210fedcba98"))
+                .andExpect(jsonPath("$[1].startedAt").doesNotExist())
+                .andExpect(jsonPath("$[1].artifactKey").value(""))
         }
 
         test("restart with a wrong token answers 403 and does not build") {

@@ -101,6 +101,18 @@ class GitServiceTest : FunSpec() {
             service.originBranches(fixture.work) shouldContainExactly listOf("main")
         }
 
+        test("originBranchHeads maps every origin branch to its head commit, without HEAD") {
+            val fixture = Fixture()
+            fixture.pushNewSeedBranch("feature/x")
+            service.fetchOrigin(fixture.work)
+
+            val heads = service.originBranchHeads(fixture.work)
+
+            heads.keys shouldBe setOf("feature/x", "main")
+            heads["main"] shouldBe fixture.git(fixture.work, "rev-parse", "refs/remotes/origin/main").stdout.trim()
+            heads["feature/x"] shouldBe fixture.git(fixture.work, "rev-parse", "refs/remotes/origin/feature/x").stdout.trim()
+        }
+
         test("fetchOrigin picks up new origin branches and prunes deleted ones") {
             val fixture = Fixture()
             fixture.pushNewSeedBranch("feature/x")

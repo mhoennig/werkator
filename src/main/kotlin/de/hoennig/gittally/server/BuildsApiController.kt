@@ -4,6 +4,7 @@ import de.hoennig.gittally.build.ArtifactStore
 import de.hoennig.gittally.build.BuildExecutor
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
+import de.hoennig.gittally.git.GitService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -17,6 +18,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 
 /**
@@ -30,9 +32,17 @@ class BuildsApiController(
     private val buildExecutor: BuildExecutor,
     private val artifactStore: ArtifactStore,
     private val controlTokens: ControlTokenService,
+    private val gitService: GitService,
+    private val branchListing: BranchListing,
 ) {
+    var workingDir: Path = Paths.get(".")
+
     @GetMapping("/api/builds/latest")
     fun latest(): List<BuildResultDto> = repository.latestPerBranch().map { BuildResultDto.from(it) }
+
+    /** The legacy branches view: every origin branch with its latest build or `unknown`. */
+    @GetMapping("/api/branches")
+    fun branches(): List<BranchDto> = branchListing.branches(workingDir)
 
     @GetMapping("/api/builds/history")
     fun history(): List<BuildResultDto> = repository.history().map { BuildResultDto.from(it) }
@@ -68,7 +78,8 @@ class BuildsApiController(
     }
 
     /**
-     * Re-enqueues the branch's last recorded commit, like the legacy `/control/restart`.
+     * Re-enqueues the branch's last recorded commit — or its origin head for a branch
+     * never built, so the branches view can trigger first builds like legacy.
      * The branch is a parameter, not a path variable, because branch names may contain
      * slashes (Tomcat rejects encoded slashes in the path by default).
      */
@@ -79,10 +90,11 @@ class BuildsApiController(
         @RequestParam(name = "token", required = false) paramToken: String?,
     ): ResponseEntity<Any> {
         rejectBadToken(headerToken ?: paramToken)?.let { return it }
-        val latest =
-            repository.latestFor(branch)
-                ?: return notFound("branch '$branch' has no recorded build")
-        val running = buildExecutor.startBuild(branch, latest.commit)
+        val commit =
+            repository.latestFor(branch)?.commit
+                ?: gitService.originHeadCommit(branch, workingDir)
+                ?: return notFound("branch '$branch' has no recorded build and no origin counterpart")
+        val running = buildExecutor.startBuild(branch, commit)
         return ResponseEntity.accepted().body(
             BuildResultDto(
                 branch = running.branch,
