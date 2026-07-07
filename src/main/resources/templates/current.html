@@ -1,0 +1,40 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${pageTitle})}"></head>
+<body>
+<main>
+    <h1 th:replace="~{fragments :: header(${pageTitle})}"></h1>
+    <div th:replace="~{fragments :: nav(${view})}"></div>
+    <div id="current-builds" data-api="/api/builds/current">
+        <p id="no-current" class="empty-panel" th:style="${#lists.isEmpty(currentBuilds)} ? '' : 'display: none'">
+            No build is currently running.
+        </p>
+        <section class="build-card" th:each="build : ${currentBuilds}"
+                 th:attr="data-artifact-key=${build.artifactKey},data-started-at=${build.startedAtIso},data-status=${build.status}">
+            <header class="build-card-header">
+                <span th:class="'status status-' + ${build.status}" th:text="${build.status}">running</span>
+                <span class="branch link-tools">
+                    <a th:if="${build.branchUrl != null}" th:href="${build.branchUrl}" target="_blank"
+                       rel="noopener noreferrer" th:text="${build.branch}">main</a>
+                    <span th:if="${build.branchUrl == null}" th:text="${build.branch}">main</span>
+                </span>
+                <code>
+                    <a th:if="${build.commitUrl != null}" th:href="${build.commitUrl}" target="_blank"
+                       rel="noopener noreferrer" th:text="${build.commitAbbrev}">0123abc</a>
+                    <span th:if="${build.commitUrl == null}" th:text="${build.commitAbbrev}">0123abc</span>
+                </code>
+                <span class="muted" th:text="'started ' + ${build.startedAt}">started 2026-07-07 12:00</span>
+                <span class="duration-cell running-duration"></span>
+                <span class="build-card-actions">
+                    <button class="action-button cancel-button" type="button" data-action="cancel"
+                            th:attr="data-artifact-key=${build.artifactKey}" title="Cancel build">× Cancel</button>
+                </span>
+            </header>
+            <pre class="live-log" th:attr="aria-label='live log of ' + ${build.branch}"></pre>
+        </section>
+    </div>
+</main>
+<footer th:replace="~{fragments :: footer}"></footer>
+<script src="/gittally.js"></script>
+</body>
+</html>

@@ -129,32 +129,39 @@ class BuildsApiControllerTest : FunSpec() {
                 .andExpect(jsonPath("$.error").exists())
         }
 
-        test("restart enqueues the branch's last recorded commit") {
+        test("restart enqueues the branch's last recorded commit, also for branch names with slashes") {
             val liveLogFile = tempDir.resolve("restart.log")
-            every { repository.latestFor("main") } returns successResult
-            every { buildExecutor.startBuild("main", successResult.commit) } returns runningBuild(liveLogFile)
+            every { repository.latestFor("feature/topic") } returns successResult.copy(branch = "feature/topic")
+            every { buildExecutor.startBuild("feature/topic", successResult.commit) } returns
+                runningBuild(liveLogFile).copy(branch = "feature/topic")
 
             mockMvc
-                .perform(post("/api/builds/main/restart").header(BuildsApiController.TOKEN_HEADER, "secret"))
-                .andExpect(status().isAccepted)
+                .perform(
+                    post("/api/builds/restart")
+                        .param("branch", "feature/topic")
+                        .header(BuildsApiController.TOKEN_HEADER, "secret"),
+                ).andExpect(status().isAccepted)
                 .andExpect(jsonPath("$.status").value("pending"))
                 .andExpect(jsonPath("$.artifactKey").value("main-abc123-running"))
 
-            verify { buildExecutor.startBuild("main", successResult.commit) }
+            verify { buildExecutor.startBuild("feature/topic", successResult.commit) }
         }
 
         test("restart of a branch without recorded builds answers 404") {
             every { repository.latestFor("gone") } returns null
 
             mockMvc
-                .perform(post("/api/builds/gone/restart").param("token", "secret"))
+                .perform(post("/api/builds/restart").param("branch", "gone").param("token", "secret"))
                 .andExpect(status().isNotFound)
         }
 
         test("restart with a wrong token answers 403 and does not build") {
             mockMvc
-                .perform(post("/api/builds/main/restart").header(BuildsApiController.TOKEN_HEADER, "wrong"))
-                .andExpect(status().isForbidden)
+                .perform(
+                    post("/api/builds/restart")
+                        .param("branch", "main")
+                        .header(BuildsApiController.TOKEN_HEADER, "wrong"),
+                ).andExpect(status().isForbidden)
 
             verify(exactly = 0) { buildExecutor.startBuild(any(), any(), any()) }
         }

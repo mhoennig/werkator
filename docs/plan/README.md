@@ -55,7 +55,7 @@ Core engine:
 Server and UI:
 
 - [x] `07-server-mode.md` — `server` subcommand, REST/JSON endpoints, artifact serving
-- [ ] `08-web-ui.md` — HTML views with robust live updates
+- [x] `08-web-ui.md` — HTML views with robust live updates
 - [ ] `09-system-metrics.md` — system resource monitoring page
 
 Completion:

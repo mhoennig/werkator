@@ -1,0 +1,71 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${pageTitle})}"></head>
+<body>
+<main>
+    <h1 th:replace="~{fragments :: header(${pageTitle})}"></h1>
+    <div th:replace="~{fragments :: nav(${view})}"></div>
+    <article class="panel">
+        <h2>Build</h2>
+        <ul th:if="${result != null}" class="build-facts">
+            <li>
+                <span th:class="'status status-' + ${result.status}" th:text="${result.status}">success</span>
+            </li>
+            <li>Branch:
+                <span class="branch link-tools">
+                    <a th:if="${result.branchUrl != null}" th:href="${result.branchUrl}" target="_blank"
+                       rel="noopener noreferrer" th:text="${result.branch}">main</a>
+                    <span th:if="${result.branchUrl == null}" th:text="${result.branch}">main</span>
+                    <button class="copy-button" type="button" th:attr="data-copy=${result.branch}"
+                            title="Copy branch name" aria-label="Copy branch name">⧉</button>
+                </span>
+            </li>
+            <li>Commit:
+                <span class="link-tools">
+                    <code>
+                        <a th:if="${result.commitUrl != null}" th:href="${result.commitUrl}" target="_blank"
+                           rel="noopener noreferrer" th:text="${result.commitAbbrev}">0123abc</a>
+                        <span th:if="${result.commitUrl == null}" th:text="${result.commitAbbrev}">0123abc</span>
+                    </code>
+                    <button class="copy-button" type="button" th:attr="data-copy=${result.commit}"
+                            title="Copy full commit ID" aria-label="Copy full commit ID">⧉</button>
+                </span>
+            </li>
+            <li>Started: <span th:text="${result.startedAt}">2026-07-07 12:00</span>
+                <th:block th:if="${result.duration != ''}">— Duration: <span th:text="${result.duration}">1:23</span></th:block>
+            </li>
+            <li th:if="${buildCommand != null}">Build command (as currently configured):<br>
+                <code th:text="${buildCommand}">./gradlew test</code>
+            </li>
+        </ul>
+        <p th:if="${result == null}" class="muted">
+            This build has no stored result anymore — only its artifact files remain.
+        </p>
+
+        <h2>Logs</h2>
+        <ul th:if="${!#lists.isEmpty(logs)}">
+            <li th:each="log : ${logs}">
+                <a th:href="'/artifacts/' + ${artifactKey} + '/' + ${log}" th:text="${log}">build.log</a>
+            </li>
+        </ul>
+        <p th:if="${#lists.isEmpty(logs)}" class="muted">
+            No log files are stored for this build<th:block th:unless="${hasArtifacts}">
+            — the build has not finished yet, or its artifacts were pruned</th:block>.
+        </p>
+
+        <h2>Build Artifacts</h2>
+        <ul th:if="${!#lists.isEmpty(reportIndexes)}">
+            <li th:each="report : ${reportIndexes}">
+                <a th:href="'/artifacts/' + ${artifactKey} + '/reports/' + ${report}"
+                   th:text="'reports/' + ${report}">reports/tests/index.html</a>
+            </li>
+        </ul>
+        <p th:if="${#lists.isEmpty(reportIndexes)}" class="muted">
+            No artifact directories were produced by this build.
+        </p>
+    </article>
+</main>
+<footer th:replace="~{fragments :: footer}"></footer>
+<script src="/gittally.js"></script>
+</body>
+</html>

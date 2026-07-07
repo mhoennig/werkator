@@ -15,6 +15,8 @@ data class ServerConfig(
     /** HTTP port of the `server` subcommand; 18080 like the legacy artifact server. */
     val port: Int = 18080,
     val bindAddress: String = "0.0.0.0",
+    /** Optional Impressum (legal disclosure) link shown in the web UI footer; empty hides the link. */
+    val impressumUrl: String = "",
 )
 
 data class GitConfig(

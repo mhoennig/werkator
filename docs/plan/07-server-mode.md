@@ -57,7 +57,7 @@ Deviations and decisions:
 - The control token needs no config key. It is generated on first use and persisted to `.git/gittally/control-token` (mode 600); operators can write their own token there, deleting the file rotates it. Requests pass it via the `X-GitTally-Token` header or a `token` parameter; mismatch answers 403 like legacy.
 - `DELETE /api/builds/{artifactKey}` removes the result and then calls `ArtifactStore.prune(history)`, so no new store interface method was needed.
 - `GET /api/status/{commit}` also accepts abbreviated hashes (7–40 hex like legacy) and resolves them against the local history. The `GiteaClient` (step 03) gained 10s connect/read timeouts so the endpoint can never hang; a Gitea failure yields HTTP 200 with `status: unknown` (or the local status) plus `giteaError`.
-- `POST /api/builds/{branch}/restart` rebuilds the branch's last recorded commit. Branch names containing `/` would need an encoded slash, which Tomcat rejects by default — revisit in step 08 if the UI needs restart for such branches.
+- `POST /api/builds/{branch}/restart` rebuilds the branch's last recorded commit. Branch names containing `/` would need an encoded slash, which Tomcat rejects by default — revisit in step 08 if the UI needs restart for such branches. (Resolved in step 08: the endpoint moved to `POST /api/builds/restart?branch=…`.)
 - Spring Boot 4 moved `@WebMvcTest` into the new `spring-boot-starter-webmvc-test` test module (added as test dependency).
 - The server-profile `@SpringBootTest` mocks the `Watcher` bean, so booting the test never fetches origin or enqueues builds; watcher wiring is proven by verifying `start()` was called.
 

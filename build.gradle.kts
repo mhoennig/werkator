@@ -24,6 +24,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework:spring-web")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("info.picocli:picocli-spring-boot-starter:4.7.6")
@@ -50,6 +51,16 @@ dependencies {
     // Testcontainers (versions managed by Spring Boot BOM)
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers")
+}
+
+springBoot {
+    // exposes the project version to the UI footer via the BuildProperties bean;
+    // the volatile build time is excluded to keep builds repeatable
+    buildInfo {
+        properties {
+            excludes.set(setOf("time"))
+        }
+    }
 }
 
 kotlin {

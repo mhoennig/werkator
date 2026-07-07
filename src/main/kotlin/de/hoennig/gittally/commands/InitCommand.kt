@@ -108,6 +108,8 @@ class InitCommand(
               port: 18080
               # bind address of the `server` subcommand
               bindAddress: 0.0.0.0
+              # optional Impressum (legal disclosure) link in the web UI footer; empty hides the link
+              impressumUrl: ""
 
             # Gitea integration for fetching commits and posting build statuses.
             gitea:

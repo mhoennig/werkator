@@ -125,3 +125,10 @@ Until then, a Java runtime must be available on the host.
    ```bash
    java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar server
    ```
+
+## Example: Self-Hosting GitTally
+
+[examples/setup-gittally-selfhost.sh](examples/setup-gittally-selfhost.sh) shows the full sequence as a runnable script: it sets up a GitTally instance that watches and builds GitTally itself.
+Run it from a working checkout; it builds the JAR, creates a dedicated clone, runs `init`, writes the machine-specific config, and starts the server.
+`INSTALL_DIR`, `ORIGIN_URL`, `SERVER_PORT`, `GIT_ACCOUNT`, and `GIT_TOKEN` can be overridden via environment variables.
+The script also demonstrates the kick-start trick: resetting the local ref one commit behind origin makes the very first poll build immediately, instead of waiting for the next push.

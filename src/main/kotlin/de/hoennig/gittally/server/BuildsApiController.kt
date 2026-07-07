@@ -67,10 +67,14 @@ class BuildsApiController(
         return ResponseEntity.ok(readLogTail(artifactKey, build.liveLogFile, offset))
     }
 
-    /** Re-enqueues the branch's last recorded commit, like the legacy `/control/restart`. */
-    @PostMapping("/api/builds/{branch}/restart")
+    /**
+     * Re-enqueues the branch's last recorded commit, like the legacy `/control/restart`.
+     * The branch is a parameter, not a path variable, because branch names may contain
+     * slashes (Tomcat rejects encoded slashes in the path by default).
+     */
+    @PostMapping("/api/builds/restart")
     fun restart(
-        @PathVariable branch: String,
+        @RequestParam branch: String,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
         @RequestParam(name = "token", required = false) paramToken: String?,
     ): ResponseEntity<Any> {

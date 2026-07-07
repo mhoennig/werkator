@@ -1,0 +1,76 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${pageTitle})}"></head>
+<body>
+<main>
+    <h1 th:replace="~{fragments :: header(${pageTitle})}"></h1>
+    <div th:replace="~{fragments :: nav(${view})}"></div>
+    <div class="table-wrap">
+        <table id="builds-table"
+               th:attr="data-api=${apiPath},data-allow-restart=${allowRestart},data-empty-message=${emptyMessage}">
+            <thead>
+            <tr>
+                <th>Status</th>
+                <th>Branch</th>
+                <th>Commit</th>
+                <th>Started</th>
+                <th>Duration</th>
+                <th>Artifacts</th>
+                <th class="actions-column">Actions</th>
+            </tr>
+            </thead>
+            <tbody id="build-rows">
+            <tr th:if="${#lists.isEmpty(rows)}">
+                <td class="empty" colspan="7" th:text="${emptyMessage}">No builds recorded yet.</td>
+            </tr>
+            <tr th:each="row : ${rows}"
+                th:attr="data-artifact-key=${row.artifactKey},data-branch=${row.branch},data-started-at=${row.startedAtIso},data-status=${row.status}">
+                <td data-label="Status">
+                    <span th:class="'status status-' + ${row.status}" th:text="${row.status}">success</span>
+                </td>
+                <td class="branch" data-label="Branch">
+                    <span class="link-tools">
+                        <a th:if="${row.branchUrl != null}" th:href="${row.branchUrl}" target="_blank"
+                           rel="noopener noreferrer" th:text="${row.branch}">main</a>
+                        <span th:if="${row.branchUrl == null}" th:text="${row.branch}">main</span>
+                        <button class="copy-button" type="button" th:attr="data-copy=${row.branch}"
+                                title="Copy branch name" aria-label="Copy branch name">⧉</button>
+                    </span>
+                </td>
+                <td data-label="Commit">
+                    <span class="link-tools">
+                        <code>
+                            <a th:if="${row.commitUrl != null}" th:href="${row.commitUrl}" target="_blank"
+                               rel="noopener noreferrer" th:text="${row.commitAbbrev}">0123abc</a>
+                            <span th:if="${row.commitUrl == null}" th:text="${row.commitAbbrev}">0123abc</span>
+                        </code>
+                        <button class="copy-button" type="button" th:attr="data-copy=${row.commit}"
+                                title="Copy full commit ID" aria-label="Copy full commit ID">⧉</button>
+                    </span>
+                </td>
+                <td data-label="Started" th:text="${row.startedAt}">2026-07-07 12:00</td>
+                <td class="duration-cell" data-label="Duration" th:text="${row.duration}">1:23</td>
+                <td data-label="Artifacts">
+                    <a th:if="${row.artifactKey != ''}" class="artifact-link"
+                       th:href="'/builds/' + ${row.artifactKey}" title="Open artifacts">📄</a>
+                    <span th:if="${row.artifactKey == ''}">n/a</span>
+                </td>
+                <td class="actions-cell">
+                    <div class="actions">
+                        <button th:if="${allowRestart}" class="action-button" type="button" data-action="restart"
+                                th:attr="data-branch=${row.branch}" title="Restart build"
+                                aria-label="Restart build">↻</button>
+                        <button th:if="${row.artifactKey != ''}" class="action-button delete-button" type="button"
+                                data-action="delete" th:attr="data-artifact-key=${row.artifactKey}"
+                                title="Delete stored build" aria-label="Delete stored build">×</button>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+<footer th:replace="~{fragments :: footer}"></footer>
+<script src="/gittally.js"></script>
+</body>
+</html>

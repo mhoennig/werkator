@@ -45,3 +45,30 @@ Robust live updates (the actual bug fix):
 - `./gradlew ktlintFormat` then `./gradlew build` is green.
 - Manual smoke test with a real build: status flips pending → running → success in the open browser tab without a manual reload, and a killed server results in error badges, not spinners.
   Document the result in this file.
+
+## Implementation Notes (2026-07-07)
+
+Implemented as designed: Thymeleaf templates (`fragments`, `builds`, `current`, `artifact`) rendered by `UiController`, one hand-written `static/gittally.js`, one `static/gittally.css` (loosely ported legacy look incl. dark mode and the mobile card layout), and the legacy favicon.
+Pages render the full state server-side and work without JavaScript; the script polls the JSON API (tables 10s, current builds and log tails 3s) and re-renders table bodies from data.
+Every fetch runs with an 8s timeout; a failure flips the nav-row indicator to an explicit `error` badge and dims the stale table — there is no loading state at all, so no spinner can get stuck.
+Polling pauses on `visibilitychange` and refreshes immediately when the tab becomes visible; running durations tick client-side from `data-started-at`.
+
+Deviations and decisions:
+
+- The tables show one `Started` column instead of the legacy `Commit Time` + `Status Time` pair, and client-side column sorting was not ported; the API delivers newest-first.
+- Status badges show the repository status; the per-row Gitea lookup (`/control/status` per commit) was deliberately not ported — that fan-out caused the legacy stuck spinners. `GET /api/status/{commit}` remains available.
+- The control token is embedded as a `<meta>` tag in every rendered page (legacy embedded its cancel token in the cancel form the same way); `gittally.js` sends it via `X-GitTally-Token` for restart/cancel/delete.
+- The restart endpoint moved from `POST /api/builds/{branch}/restart` to `POST /api/builds/restart?branch=…` so branch names with slashes work (resolves the step 07 deviation note).
+- Artifact links render whenever a result has an artifact key; the artifact index page itself explains a pruned/missing artifact directory instead of a per-row existence check.
+- `/builds/{artifactKey}` renders logs (top-level files) and the topmost `reports/**/index.html` pages from the artifact store; nested index pages below an already-listed one are skipped like legacy. Raw directory browsing is not offered.
+- The build command shown on the artifact page is the currently configured one — the command effective at build time is not persisted.
+- On `/current`, a build that leaves the running list keeps its card, marked `finished` with a link to its result page; its initial server render shows an empty log (the script fetches from offset 0).
+- JS builds all DOM via `createElement`/`textContent`, so re-rendered data cannot inject markup; server-side escaping is covered by a MockMvc test with a hostile branch name.
+- New config key `server.impressumUrl` (empty hides the footer link); the footer version comes from Spring Boot `buildInfo()` (`BuildProperties`, build time excluded for repeatability) with a `dev` fallback.
+- `UiFormats` (Kotlin) and `gittally.js` intentionally produce the same timestamp/duration display formats.
+
+Manual smoke test (2026-07-07): scratch repository with a bare origin, `pollInterval: 5s`, and a 25s build command; server on port 18982, observed through a real browser tab.
+After `git push`, the open Latest tab showed the new build without reload and its badge flipped `running` → `success` live (`pending` was too short to sample; the row itself appeared via polling).
+`/current` showed the build card with streaming live log, ticking duration, and cancel button; on completion the card flipped to `finished` with a working link to the artifact page (status badge, build command, three log links, `reports/demo/index.html` served with no-cache headers).
+Killing the server flipped the indicator to a red `error` badge (fetch failure in the tooltip) and dimmed the stale table — zero spinners (verified through a TCP proxy so the tab outlived the process); restarting the server brought `live` back.
+The 375px viewport stacked rows as labeled cards, and the History view correctly offers delete but no restart.

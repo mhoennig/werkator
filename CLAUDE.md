@@ -41,7 +41,11 @@ commands/
   ConfigPrintCommand  ← "config:print [--full]"
 ```
 
-The web application type is set to `none` in `application.yml`, so plain CLI runs never start a web server. The `server` subcommand launches a **second** `SpringApplication` with `WebApplicationType.SERVLET` and the `server` profile, then blocks until shutdown. `application-server.yml` switches the web type (`spring.main.*` properties beat programmatic builder settings), `CliRunner` is `@Profile("!server")` so the second context does not run picocli again, and the watcher poll loop starts only in the `server` profile (`ServerWatcherLifecycle`). The JSON API and artifact serving live in the `server` package; mutating endpoints are guarded by a generated control token under `.git/gittally/control-token`.
+The web application type is set to `none` in `application.yml`, so plain CLI runs never start a web server. The `server` subcommand launches a **second** `SpringApplication` with `WebApplicationType.SERVLET` and the `server` profile, then blocks until shutdown. `application-server.yml` switches the web type (`spring.main.*` properties beat programmatic builder settings), `CliRunner` is `@Profile("!server")` so the second context does not run picocli again, and the watcher poll loop starts only in the `server` profile (`ServerWatcherLifecycle`). The JSON API, artifact serving, and the web UI live in the `server` package; mutating endpoints are guarded by a generated control token under `.git/gittally/control-token`.
+
+### Web UI
+
+The UI is server-rendered Thymeleaf (`UiController`, templates under `src/main/resources/templates/`) plus one hand-written JavaScript file (`static/gittally.js`) — no SPA framework, no frontend build pipeline. Pages render the full state server-side; the script then polls the JSON API and re-renders table bodies from data. Every fetch has a timeout and failures flip an explicit error badge — never re-fetch and diff whole HTML pages, and never leave a spinner without an error path (the legacy defect). Polling pauses while the tab is hidden. `UiFormats`/`gittally.js` must produce the same display formats (timestamps, durations).
 
 ### Configuration System
 
@@ -68,7 +72,7 @@ Three places must stay in sync when config keys change: the `GitTallyConfig` dat
 
 ### Package Structure
 
-All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), `build` (build execution, results, workspaces), `artifacts` (filesystem artifact store), `watcher` (branch polling, auto-builds, startup recovery), and `server` (JSON API controllers, artifact serving, control token, watcher lifecycle). Tests mirror this structure under `src/test/kotlin`.
+All production code lives under `de.hoennig.gittally`, with sub-packages `commands` (picocli subcommands), `config` (YAML config loading and schema), `git` (git CLI access), `gitea` (Gitea commit-status API client), `build` (build execution, results, workspaces), `artifacts` (filesystem artifact store), `watcher` (branch polling, auto-builds, startup recovery), and `server` (JSON API controllers, Thymeleaf UI, artifact serving, control token, watcher lifecycle). Tests mirror this structure under `src/test/kotlin`.
 
 ## Testing Conventions
 

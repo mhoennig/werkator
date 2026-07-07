@@ -1,0 +1,43 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:fragment="head(title)">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${#strings.isEmpty(repoName)} ? ${title} + ' — GitTally' : ${title} + ' — ' + ${repoName} + ' — GitTally'">GitTally</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/gittally.css">
+    <meta name="gittally-control-token" th:content="${controlToken}">
+    <meta name="gittally-gitea-repo-url" th:content="${giteaRepoUrl}">
+</head>
+<body>
+
+<h1 th:fragment="header(title)">
+    <a class="title-home" href="/" aria-label="Open latest builds"><img src="/favicon.svg" alt=""></a>
+    <span th:text="${title}">Latest Builds</span>
+    <span class="repo-name" th:unless="${#strings.isEmpty(repoName)}" th:text="${repoName}">owner/repo</span>
+</h1>
+
+<div th:fragment="nav(view)" class="view-row">
+    <nav class="view-toggle">
+        <span th:if="${view == 'latest'}">Latest</span>
+        <a th:unless="${view == 'latest'}" href="/">Latest</a>
+        <span th:if="${view == 'history'}">History</span>
+        <a th:unless="${view == 'history'}" href="/history">History</a>
+        <span th:if="${view == 'current'}">Current</span>
+        <a th:unless="${view == 'current'}" href="/current">Current</a>
+    </nav>
+    <span class="view-row-actions">
+        <span id="live-indicator" class="status status-unknown" title="live-update state">static</span>
+    </span>
+</div>
+
+<footer th:fragment="footer" class="site-footer">
+    <strong><em th:text="'GitTally v' + ${version}">GitTally</em></strong>
+    — © <a href="https://michael.hoennig.de" target="_blank" rel="noopener noreferrer">Michael Hönnig</a>, 2026
+    <th:block th:unless="${#strings.isEmpty(impressumUrl)}">
+        — <a th:href="${impressumUrl}" target="_blank" rel="noopener noreferrer">Impressum (Legal Disclosure)</a>
+    </th:block>
+</footer>
+
+</body>
+</html>
