@@ -113,6 +113,19 @@ class GitServiceTest : FunSpec() {
             heads["feature/x"] shouldBe fixture.git(fixture.work, "rev-parse", "refs/remotes/origin/feature/x").stdout.trim()
         }
 
+        test("pullRequestHeads returns the head commits of the remote's pull-request refs") {
+            val fixture = Fixture()
+            fixture.pushNewSeedBranch("feature/x")
+
+            service.pullRequestHeads(fixture.work) shouldBe emptySet()
+
+            // Gitea materializes a pull request as refs/pull/<n>/head on the served repository
+            fixture.git(fixture.seed, "push", "origin", "refs/heads/feature/x:refs/pull/1/head")
+            val featureHead = fixture.git(fixture.seed, "rev-parse", "refs/heads/feature/x").stdout.trim()
+
+            service.pullRequestHeads(fixture.work) shouldBe setOf(featureHead)
+        }
+
         test("fetchOrigin picks up new origin branches and prunes deleted ones") {
             val fixture = Fixture()
             fixture.pushNewSeedBranch("feature/x")

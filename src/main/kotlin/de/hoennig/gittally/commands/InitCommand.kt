@@ -166,6 +166,9 @@ class InitCommand(
                   - build/reports
                 stdoutLog: build.stdout.log   # filename for captured stdout
                 stderrLog: build.stderr.log   # filename for captured stderr
+                # build only while the branch head matches a pull-request head on origin
+                # (refs/pull/*/head — read via plain git, no API token needed)
+                requirePullRequest: false
                 autoBuild:
                   enabled: false        # whether to rebuild on schedule
                   times: ["01:00"]      # UTC times HH:MM for scheduled builds

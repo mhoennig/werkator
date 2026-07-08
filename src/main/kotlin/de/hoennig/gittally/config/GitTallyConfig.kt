@@ -57,6 +57,11 @@ data class BranchConfig(
     val artifactDirs: List<String> = listOf("build/reports"),
     val stdoutLog: String = "build.stdout.log",
     val stderrLog: String = "build.stderr.log",
+    /**
+     * The watcher builds this branch only while its head commit matches a pull-request
+     * head (`refs/pull/<n>/head` on origin); manual `build` commands are not affected.
+     */
+    val requirePullRequest: Boolean = false,
     val autoBuild: AutoBuildConfig = AutoBuildConfig(),
     val docker: DockerConfig = DockerConfig(),
 )

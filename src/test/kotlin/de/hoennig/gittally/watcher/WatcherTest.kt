@@ -72,6 +72,7 @@ class WatcherTest : FunSpec() {
             every { gitService.newOriginBranches(any(), any()) } returns emptyList()
             every { gitService.hasNewCommits(any(), any()) } returns false
             every { gitService.originHeadCommit(any(), any()) } returns null
+            every { gitService.pullRequestHeads(any()) } returns emptySet()
             every { gitService.worktreePrune(any()) } returns Unit
             every { buildExecutor.currentBuilds() } returns emptyList()
             every { buildExecutor.startBuild(any(), any(), any()) } answers {
@@ -228,6 +229,77 @@ class WatcherTest : FunSpec() {
             harness.watcher.poll(harness.workingDir)
 
             verify { harness.gitService.newOriginBranches(Duration.ofHours(12), any()) }
+        }
+
+        test("a branch requiring a pull request is only built when its head matches a pull-request head") {
+            val harness = Harness(GitTallyConfig(branches = mapOf("default" to BranchConfig(requirePullRequest = true))))
+            every { harness.gitService.originBranches(any()) } returns listOf("feature/pr", "feature/no-pr")
+            every { harness.gitService.newOriginBranches(any(), any()) } returns listOf("feature/pr", "feature/no-pr")
+            every { harness.gitService.originHeadCommit("feature/pr", any()) } returns "commit-pr"
+            every { harness.gitService.originHeadCommit("feature/no-pr", any()) } returns "commit-solo"
+            every { harness.gitService.pullRequestHeads(any()) } returns setOf("commit-pr")
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.startedBuilds shouldContainExactly listOf("feature/pr" to "commit-pr")
+        }
+
+        test("pull-request refs are not queried when no due branch requires a pull request") {
+            val harness = Harness()
+            every { harness.gitService.originBranches(any()) } returns listOf("feature/x")
+            every { harness.gitService.newOriginBranches(any(), any()) } returns listOf("feature/x")
+            every { harness.gitService.originHeadCommit("feature/x", any()) } returns "commit-x"
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.startedBuilds shouldContainExactly listOf("feature/x" to "commit-x")
+            verify(exactly = 0) { harness.gitService.pullRequestHeads(any()) }
+        }
+
+        test("a branch entry overrides requirePullRequest from the default entry") {
+            val harness =
+                Harness(
+                    GitTallyConfig(
+                        branches =
+                            mapOf(
+                                "default" to BranchConfig(requirePullRequest = true),
+                                "main" to BranchConfig(requirePullRequest = false),
+                            ),
+                    ),
+                )
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.localBranches(any()) } returns listOf("main")
+            every { harness.gitService.hasNewCommits("main", any()) } returns true
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.startedBuilds shouldContainExactly listOf("main" to "commit-main")
+        }
+
+        test("an auto build requiring a pull request is skipped and its slot stays untriggered") {
+            val harness =
+                Harness(
+                    GitTallyConfig(
+                        branches =
+                            mapOf(
+                                "default" to BranchConfig(),
+                                "main" to
+                                    BranchConfig(
+                                        requirePullRequest = true,
+                                        autoBuild = AutoBuildConfig(enabled = true, times = listOf("11:00")),
+                                    ),
+                            ),
+                    ),
+                )
+            harness.seed("main", BuildStatus.SUCCESS, commit = "commit-abc")
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.startedBuilds.shouldBeEmpty()
+            harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeFalse()
         }
 
         test("auto builds rebuild the already built commit once per day and slot") {

@@ -6,6 +6,7 @@ import de.hoennig.gittally.build.BuildExecutor
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.build.GitWorktreeWorkspaces
+import de.hoennig.gittally.config.BranchConfig
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.DurationParser
 import de.hoennig.gittally.config.GitTallyConfig
@@ -153,6 +154,8 @@ class Watcher(
         originBranches: Set<String>,
         workingDir: Path,
     ) {
+        // one ls-remote per poll cycle at most, and only when a due branch requires a pull request
+        val pullRequestHeads = lazy { gitService.pullRequestHeads(workingDir) }
         val changedLocal =
             gitService
                 .localBranches(workingDir)
@@ -160,9 +163,9 @@ class Watcher(
         val newOrigin =
             gitService.newOriginBranches(DurationParser.parse(config.watcher.newBranchMaxAge), workingDir)
         for (branch in (changedLocal + newOrigin).distinct()) {
-            startBuildIfDue(branch, allowSameCommit = false, workingDir = workingDir)
+            startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir)
         }
-        enqueueAutoBuilds(config, originBranches, workingDir)
+        enqueueAutoBuilds(config, originBranches, pullRequestHeads, workingDir)
     }
 
     /**
@@ -171,10 +174,14 @@ class Watcher(
      * never move local branch refs, so "already built" is tracked via the result
      * repository, not by resetting the local ref like legacy. A new commit for a
      * branch that is still pending/running waits for a later cycle (queue-behind).
+     * With `requirePullRequest`, the branch head must match a pull-request head on
+     * origin (`refs/pull/<n>/head`); manual `build` commands bypass this gate.
      */
     private fun startBuildIfDue(
         branch: String,
         allowSameCommit: Boolean,
+        config: GitTallyConfig,
+        pullRequestHeads: Lazy<Set<String>>,
         workingDir: Path,
     ): Boolean {
         val latest = repository.latestFor(branch)
@@ -185,14 +192,24 @@ class Watcher(
         if (!allowSameCommit && latest?.commit == commit) {
             return false
         }
+        if (branchConfig(config, branch).requirePullRequest && commit !in pullRequestHeads.value) {
+            log.info("not enqueueing branch {}: no pull request has head commit {}", branch, commit)
+            return false
+        }
         log.info("enqueueing build of branch {} at commit {}", branch, commit)
         buildExecutor.startBuild(branch, commit, workingDir)
         return true
     }
 
+    private fun branchConfig(
+        config: GitTallyConfig,
+        branch: String,
+    ): BranchConfig = config.branches[branch] ?: config.branches["default"] ?: BranchConfig()
+
     private fun enqueueAutoBuilds(
         config: GitTallyConfig,
         originBranches: Set<String>,
+        pullRequestHeads: Lazy<Set<String>>,
         workingDir: Path,
     ) {
         val autoBuildBranches =
@@ -216,7 +233,7 @@ class Watcher(
                 continue
             }
             // rebuilding the already-built commit is the point of an auto build
-            if (startBuildIfDue(branch, allowSameCommit = true, workingDir = workingDir)) {
+            if (startBuildIfDue(branch, allowSameCommit = true, config, pullRequestHeads, workingDir)) {
                 autoBuildState.markTriggered(branch, today, slot)
             }
         }

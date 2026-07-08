@@ -80,6 +80,9 @@ branches:
       - build/doc
     stdoutLog: build.stdout.log   # filename for captured stdout
     stderrLog: build.stderr.log   # filename for captured stderr
+    # Build this branch only while its head commit matches a pull-request head on origin
+    # (refs/pull/*/head — read via plain git, no API token needed; see notes below).
+    requirePullRequest: false
     autoBuild:
       enabled: false        # whether to rebuild on schedule
       times: ["01:00"]      # UTC times HH:MM for scheduled builds
@@ -114,6 +117,30 @@ branches:
       times:
         - "04:00"
 ```
+
+### Notes on `branches.<name>.requirePullRequest`
+
+The gate applies to all watcher-triggered builds (push-triggered and scheduled auto builds).
+A manual `gittally build <branch>` always builds, regardless of this setting.
+
+Detection works without a Gitea API token:
+the watcher lists `refs/pull/*/head` on origin via `git ls-remote` and builds a branch only when its head commit equals one of those pull-request head commits.
+This ls-remote call is made at most once per poll cycle, and only when a branch requiring a pull request is otherwise due.
+
+Because matching is by commit id, a closed pull request whose head ref still equals the branch head also counts.
+Distinguishing open from closed pull requests would require the Gitea API.
+
+To build pull-request branches only, set the key under `branches.default` and override it for permanent branches:
+
+```yaml
+branches:
+  default:
+    requirePullRequest: true
+  main:
+    requirePullRequest: false
+```
+
+Without the `main` override, direct pushes and merges to `main` would never build — merge commits do not match any pull-request head.
 
 ### Notes on `branches.<name>.docker`
 

@@ -64,6 +64,18 @@ class GitService(
             .toMap()
 
     /**
+     * Head commits of the remote's pull-request refs (`refs/pull/<n>/head`), which Gitea
+     * exposes to plain git clients — no API token needed. A branch whose head appears
+     * here has a pull request open for exactly this commit.
+     */
+    fun pullRequestHeads(workingDir: Path = Paths.get(".")): Set<String> =
+        authenticated(workingDir) { environment ->
+            runner.runOrThrow(listOf("git", "ls-remote", "origin", "refs/pull/*/head"), workingDir, environment)
+        }.lines()
+            .map { it.substringBefore('\t') }
+            .toSet()
+
+    /**
      * A branch has new commits when its origin counterpart is ahead of the local branch,
      * or when it exists only on origin.
      */
