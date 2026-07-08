@@ -57,6 +57,11 @@ artifacts:
   rootDir: ""
   # number of builds to keep per branch
   retentionPerBranch: 3
+  # Keep each branch's latest green (successful) build even beyond retentionPerBranch.
+  # This backs the permanent artifact URLs /branches/<branch-key>/... — they always serve
+  # the latest green build of a branch and stay valid while newer builds fail.
+  # The kept build is still dropped once its branch is deleted from origin.
+  keepLatestGreen: true
 
 # Controls the branch-polling loop.
 watcher:

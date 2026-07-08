@@ -23,7 +23,14 @@ class BranchListing(
             .originBranchHeads(workingDir)
             .entries
             .sortedWith(compareBy({ sortGroup(it.key) }, { it.key }))
-            .map { (branch, headCommit) -> BranchDto.from(branch, headCommit, repository.latestFor(branch)) }
+            .map { (branch, headCommit) ->
+                BranchDto.from(
+                    branch,
+                    headCommit,
+                    repository.latestFor(branch),
+                    hasGreenBuild = repository.latestGreenFor(branch) != null,
+                )
+            }
 
     private fun sortGroup(branch: String): Int =
         when {

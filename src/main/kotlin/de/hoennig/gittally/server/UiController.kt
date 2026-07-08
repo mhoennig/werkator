@@ -2,6 +2,7 @@ package de.hoennig.gittally.server
 
 import de.hoennig.gittally.build.ArtifactStore
 import de.hoennig.gittally.build.BuildExecutor
+import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.config.ConfigLoader
@@ -35,6 +36,7 @@ class UiController(
     private val configLoader: ConfigLoader,
     private val metricsCollector: SystemMetricsCollector,
     private val branchListing: BranchListing,
+    private val branchPermalinks: BranchPermalinks,
     private val buildProperties: ObjectProvider<BuildProperties>,
 ) {
     var workingDir: Path = Paths.get(".")
@@ -112,8 +114,50 @@ class UiController(
         if (result == null && artifactDir == null) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "no build with artifact key '$artifactKey'")
         }
-        val links = baseModel(model, view = "artifact", pageTitle = "Build Artifacts")
+        return artifactIndexView(
+            model,
+            pageTitle = "Build Artifacts",
+            result = result,
+            artifactKey = artifactKey,
+            artifactDir = artifactDir,
+            filesBase = "/artifacts/$artifactKey",
+        )
+    }
+
+    /**
+     * The permanent artifact index of a branch's latest green build; the file links
+     * stay on the permanent `/branches/…` paths, so every link copied from this page
+     * outlives artifact pruning.
+     */
+    @GetMapping("/branches/{branchKey}")
+    fun latestGreenArtifactIndex(
+        @PathVariable branchKey: String,
+        model: Model,
+    ): String {
+        val build = branchPermalinks.latestGreenBuild(branchKey)
+        model.addAttribute("permanentBranch", build.branch)
+        model.addAttribute("concreteUrl", "/builds/${build.artifactKey}")
+        return artifactIndexView(
+            model,
+            pageTitle = "Latest Green Build",
+            result = build,
+            artifactKey = build.artifactKey,
+            artifactDir = artifactStore.artifactDir(build.artifactKey),
+            filesBase = "/branches/$branchKey",
+        )
+    }
+
+    private fun artifactIndexView(
+        model: Model,
+        pageTitle: String,
+        result: BuildResult?,
+        artifactKey: String,
+        artifactDir: Path?,
+        filesBase: String,
+    ): String {
+        val links = baseModel(model, view = "artifact", pageTitle = pageTitle)
         model.addAttribute("artifactKey", artifactKey)
+        model.addAttribute("filesBase", filesBase)
         model.addAttribute("result", result?.let { BuildRowView.from(it, links) })
         model.addAttribute("hasArtifacts", artifactDir != null)
         model.addAttribute("buildCommand", result?.let { branchBuildCommand(it.branch) })

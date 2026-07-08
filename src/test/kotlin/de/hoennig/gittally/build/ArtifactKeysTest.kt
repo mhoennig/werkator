@@ -20,6 +20,11 @@ class ArtifactKeysTest : FunSpec() {
             ArtifactKeys.branchKey("feature/x") shouldNotBe ArtifactKeys.branchKey("feature_x")
         }
 
+        test("permanentBranchKey is the hash-free sanitized branch name") {
+            ArtifactKeys.permanentBranchKey("feature/x") shouldBe "feature_x"
+            ArtifactKeys.branchKey("feature/x") shouldContain ArtifactKeys.permanentBranchKey("feature/x")
+        }
+
         test("buildKey is stable for the same input") {
             ArtifactKeys.buildKey("main", startedAt) shouldBe ArtifactKeys.buildKey("main", startedAt)
         }

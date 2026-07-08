@@ -12,6 +12,13 @@ import java.time.Instant
 object ArtifactKeys {
     fun branchKey(branch: String): String = "${sanitize(branch)}-${sha256Prefix(branch)}"
 
+    /**
+     * The hash-free key of the permanent `/branches/<key>/…` artifact URLs, e.g.
+     * `feature/demo` → `feature_demo`. Unlike [branchKey] it is not necessarily
+     * unique; lookups must reject ambiguous matches.
+     */
+    fun permanentBranchKey(branch: String): String = sanitize(branch)
+
     fun buildKey(
         branch: String,
         startedAt: Instant,

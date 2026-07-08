@@ -6,6 +6,11 @@
     <h1 th:replace="~{fragments :: header(${pageTitle})}"></h1>
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <article class="panel">
+        <p th:if="${permanentBranch != null}" class="muted">
+            Permanent link: this page always shows the latest green build of branch
+            <b th:text="${permanentBranch}">main</b> — every link on it stays valid across new builds.
+            <a th:href="${concreteUrl}">Open this specific build</a> instead.
+        </p>
         <h2>Build</h2>
         <ul th:if="${result != null}" class="build-facts">
             <li>
@@ -45,7 +50,7 @@
         <h2>Logs</h2>
         <ul th:if="${!#lists.isEmpty(logs)}">
             <li th:each="log : ${logs}">
-                <a th:href="'/artifacts/' + ${artifactKey} + '/' + ${log}" target="_blank"
+                <a th:href="${filesBase} + '/' + ${log}" target="_blank"
                    rel="noopener noreferrer" th:text="${log}">build.log</a>
             </li>
         </ul>
@@ -57,7 +62,7 @@
         <h2>Build Artifacts</h2>
         <ul th:if="${!#lists.isEmpty(reportIndexes)}">
             <li th:each="report : ${reportIndexes}">
-                <a th:href="'/artifacts/' + ${artifactKey} + '/reports/' + ${report}" target="_blank"
+                <a th:href="${filesBase} + '/reports/' + ${report}" target="_blank"
                    rel="noopener noreferrer" th:text="'reports/' + ${report}">reports/tests/index.html</a>
             </li>
         </ul>

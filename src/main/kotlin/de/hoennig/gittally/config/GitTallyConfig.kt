@@ -39,6 +39,12 @@ data class BuildsConfig(
 data class ArtifactsConfig(
     val retentionPerBranch: Int = 3,
     /**
+     * Keep each branch's latest green (SUCCESS) build beyond [retentionPerBranch],
+     * so the permanent `/branches/<branch-key>/…` artifact URLs stay valid while newer
+     * builds fail; the build is still dropped once its branch is gone from origin.
+     */
+    val keepLatestGreen: Boolean = true,
+    /**
      * Root directory for stored build artifacts; empty means the platform default
      * `XDG_STATE_HOME` (or `~/.local/state`) + `/gittally/artifacts/<repo-key>`.
      */

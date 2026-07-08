@@ -53,6 +53,9 @@
                 <td data-label="Artifacts">
                     <a th:if="${row.artifactKey != ''}" class="artifact-link"
                        th:href="'/builds/' + ${row.artifactKey}" title="Open artifacts">📄</a>
+                    <a th:if="${row.latestGreenUrl != null}" class="artifact-link"
+                       th:href="${row.latestGreenUrl}"
+                       title="Permanent link: artifacts of the latest green build">🔗</a>
                     <span th:if="${row.artifactKey == ''}">n/a</span>
                 </td>
                 <td class="actions-cell">

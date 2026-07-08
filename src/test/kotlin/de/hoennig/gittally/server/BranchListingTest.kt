@@ -37,6 +37,7 @@ class BranchListingTest : FunSpec() {
                     "develop" to "eee",
                 )
             every { repository.latestFor(any()) } returns null
+            every { repository.latestGreenFor(any()) } returns null
 
             listing.branches().map { it.branch } shouldBe
                 listOf("main", "develop", "zz-flat", "aa/nested", "feature/x")
@@ -46,7 +47,9 @@ class BranchListingTest : FunSpec() {
             every { gitService.originBranchHeads(any()) } returns
                 mapOf("main" to "newer-head", "feature/x" to "fedcba98")
             every { repository.latestFor("main") } returns mainResult
+            every { repository.latestGreenFor("main") } returns mainResult
             every { repository.latestFor("feature/x") } returns null
+            every { repository.latestGreenFor("feature/x") } returns null
 
             val branches = listing.branches()
 
@@ -54,11 +57,25 @@ class BranchListingTest : FunSpec() {
             branches[0].status shouldBe "success"
             branches[0].commit shouldBe mainResult.commit
             branches[0].artifactKey shouldBe "main-abc123-key"
+            branches[0].latestGreenUrl shouldBe "/branches/main"
             branches[1].branch shouldBe "feature/x"
             branches[1].status shouldBe "unknown"
             branches[1].commit shouldBe "fedcba98"
             branches[1].startedAt shouldBe null
             branches[1].artifactKey shouldBe ""
+            branches[1].latestGreenUrl shouldBe null
+        }
+
+        test("a failed latest build still links the older green build's permanent URL") {
+            every { gitService.originBranchHeads(any()) } returns mapOf("feature/x" to "aaa")
+            every { repository.latestFor("feature/x") } returns
+                mainResult.copy(branch = "feature/x", status = BuildStatus.FAILED)
+            every { repository.latestGreenFor("feature/x") } returns mainResult.copy(branch = "feature/x")
+
+            val branches = listing.branches()
+
+            branches[0].status shouldBe "failed"
+            branches[0].latestGreenUrl shouldBe "/branches/feature_x"
         }
     }
 }

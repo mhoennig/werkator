@@ -245,7 +245,7 @@ class Watcher(
         originBranches: List<String>,
         workingDir: Path,
     ) {
-        repository.prune(originBranches, config.artifacts.retentionPerBranch)
+        repository.prune(originBranches, config.artifacts.retentionPerBranch, config.artifacts.keepLatestGreen)
         artifactStore.prune(repository.history())
         pruneWorktrees(originBranches, workingDir)
     }
