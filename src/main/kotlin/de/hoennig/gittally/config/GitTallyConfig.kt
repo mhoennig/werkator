@@ -71,9 +71,17 @@ data class BuildsConfig(
 data class ArtifactsConfig(
     val retentionPerBranch: Int = 3,
     /**
-     * Keep each branch's latest green (SUCCESS) build beyond [retentionPerBranch],
-     * so the permanent `/branches/<branch-key>/…` artifact URLs stay valid while newer
-     * builds fail; the build is still dropped once its branch is gone from origin.
+     * Additionally drop builds older than this age (e.g. `30d` or `12h`); empty means no
+     * age limit. Combines with [retentionPerBranch] — a build is kept only while it
+     * satisfies both limits. A branch's newest build is never age-pruned, so dormant
+     * branches keep their last status.
+     */
+    val retentionMaxAge: String = "",
+    /**
+     * Keep each branch's latest green (SUCCESS) build beyond [retentionPerBranch] and
+     * [retentionMaxAge], so the permanent `/branches/<branch-key>/…` artifact URLs stay
+     * valid while newer builds fail; the build is still dropped once its branch is gone
+     * from origin.
      */
     val keepLatestGreen: Boolean = true,
     /**

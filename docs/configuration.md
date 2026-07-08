@@ -77,7 +77,12 @@ artifacts:
   rootDir: ""
   # number of builds to keep per branch
   retentionPerBranch: 3
-  # Keep each branch's latest green (successful) build even beyond retentionPerBranch.
+  # Additionally drop builds older than this age; suffixes s (seconds), m (minutes), h (hours), d (days).
+  # Empty means no age limit.
+  # Combines with retentionPerBranch: a build is kept only while it satisfies both limits.
+  # A branch's newest build is never age-pruned, so dormant branches keep their last status.
+  retentionMaxAge: ""
+  # Keep each branch's latest green (successful) build even beyond retentionPerBranch and retentionMaxAge.
   # This backs the permanent artifact URLs /branches/<branch-key>/... — they always serve
   # the latest green build of a branch and stay valid while newer builds fail.
   # The kept build is still dropped once its branch is deleted from origin.

@@ -27,7 +27,7 @@ Branch-level keys below live under `branches.<name>`; use `branches.default` for
 | `GITTALLY_ARTIFACT_SERVER_PORT` | `server.port` |
 | `GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS` | `server.bindAddress` |
 | `GITTALLY_ARTIFACT_PUBLIC_BASE_URL` | `server.publicBaseUrl` |
-| `GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH` | `artifacts.retentionPerBranch` — build count only; the legacy age suffix (`h`/`d`) is not supported |
+| `GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH` | `artifacts.retentionPerBranch` for a count, `artifacts.retentionMaxAge` for a legacy age value (`h`/`d` suffix); unlike legacy, both limits can be combined |
 | `GITTALLY_IMPRESSUM_URL` | `server.impressumUrl` |
 | `GITTALLY_AUTO_BUILD_BRANCHES` | `branches.<name>.autoBuild.enabled: true` per branch instead of a branch list |
 | `GITTALLY_AUTO_BUILD_TIMES` | `branches.<name>.autoBuild.times` — YAML list, per branch |

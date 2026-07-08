@@ -420,6 +420,18 @@ class WatcherTest : FunSpec() {
             dropping.repository.history().map { it.status } shouldContainExactly listOf(BuildStatus.FAILED)
         }
 
+        test("poll drops builds older than retentionMaxAge but keeps the branch's newest build") {
+            // seeds start one hour before the fixed clock, so a 30m age limit cuts them off
+            val harness = Harness(GitTallyConfig(artifacts = ArtifactsConfig(retentionMaxAge = "30m")))
+            harness.seed("main", BuildStatus.FAILED, commit = "commit-1")
+            harness.seed("main", BuildStatus.FAILED, commit = "commit-2")
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.repository.history().map { it.commit } shouldContainExactly listOf("commit-2")
+        }
+
         test("worktrees of queued or running builds are never pruned") {
             val harness = Harness()
             harness.seed("busy", BuildStatus.RUNNING, commit = "commit-1")

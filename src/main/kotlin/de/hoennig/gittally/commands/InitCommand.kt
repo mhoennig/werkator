@@ -156,7 +156,10 @@ class InitCommand(
               rootDir: ""
               # number of builds to keep per branch
               retentionPerBranch: 3
-              # keep each branch's latest green build beyond the retention count,
+              # additionally drop builds older than this age (h/d suffix, e.g. 30d); empty = no age limit;
+              # a branch's newest build is never age-pruned
+              retentionMaxAge: ""
+              # keep each branch's latest green build beyond the retention limits,
               # so the permanent /branches/<branch-key>/... artifact URLs stay valid while newer builds fail
               keepLatestGreen: true
 

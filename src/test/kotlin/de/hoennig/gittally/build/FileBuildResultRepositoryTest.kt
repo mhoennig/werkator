@@ -220,6 +220,90 @@ class FileBuildResultRepositoryTest : FunSpec() {
                 )
         }
 
+        test("prune drops entries older than the retention cutoff even within the retention count") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 0))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120))
+
+            val removed =
+                repository.prune(
+                    originBranches = listOf("main"),
+                    retentionPerBranch = 3,
+                    retentionCutoff = baseTime.plusSeconds(90),
+                )
+
+            removed shouldContainExactlyInAnyOrder
+                listOf(
+                    result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 0),
+                    result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60),
+                )
+            repository.history() shouldContainExactly
+                listOf(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120))
+        }
+
+        test("prune never age-prunes a branch's newest entry") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 0))
+
+            val removed =
+                repository.prune(
+                    originBranches = listOf("main"),
+                    retentionPerBranch = 3,
+                    retentionCutoff = baseTime.plusSeconds(300),
+                )
+
+            removed.shouldBeEmpty()
+            repository.history() shouldContainExactly
+                listOf(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 0))
+        }
+
+        test("prune applies the retention count and cutoff as independent limits") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 0))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120))
+
+            val removed =
+                repository.prune(
+                    originBranches = listOf("main"),
+                    // the count drops the entry at 0, the cutoff drops the entry at 60
+                    retentionPerBranch = 2,
+                    retentionCutoff = baseTime.plusSeconds(90),
+                )
+
+            removed shouldContainExactlyInAnyOrder
+                listOf(
+                    result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 0),
+                    result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60),
+                )
+            repository.history() shouldContainExactly
+                listOf(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120))
+        }
+
+        test("prune with keepLatestGreen keeps the newest green build beyond the retention cutoff") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120))
+
+            val removed =
+                repository.prune(
+                    originBranches = listOf("main"),
+                    retentionPerBranch = 3,
+                    keepLatestGreen = true,
+                    retentionCutoff = baseTime.plusSeconds(90),
+                )
+
+            removed shouldContainExactly
+                listOf(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60))
+            repository.history() shouldContainExactly
+                listOf(
+                    result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120),
+                    result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0),
+                )
+        }
+
         test("prune with keepLatestGreen keeps the newest green build beyond the retention count") {
             val repository = FileBuildResultRepository(newFile())
             repository.append(result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0))

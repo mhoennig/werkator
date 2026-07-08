@@ -250,7 +250,16 @@ class Watcher(
         originBranches: List<String>,
         workingDir: Path,
     ) {
-        repository.prune(originBranches, config.artifacts.retentionPerBranch, config.artifacts.keepLatestGreen)
+        val retentionCutoff =
+            config.artifacts.retentionMaxAge
+                .takeIf { it.isNotBlank() }
+                ?.let { clock.instant().minus(DurationParser.parse(it)) }
+        repository.prune(
+            originBranches,
+            config.artifacts.retentionPerBranch,
+            config.artifacts.keepLatestGreen,
+            retentionCutoff,
+        )
         artifactStore.prune(repository.history())
         pruneWorktrees(originBranches, workingDir)
     }

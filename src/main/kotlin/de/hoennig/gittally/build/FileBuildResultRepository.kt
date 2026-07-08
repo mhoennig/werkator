@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.time.Instant
 
 /**
  * Stores build results as a JSON file, e.g. `.git/gittally/build-results.json`.
@@ -123,6 +124,7 @@ class FileBuildResultRepository(
         originBranches: Collection<String>,
         retentionPerBranch: Int,
         keepLatestGreen: Boolean,
+        retentionCutoff: Instant?,
     ): List<BuildResult> {
         synchronized(lock) {
             val results = load()
@@ -137,6 +139,10 @@ class FileBuildResultRepository(
                             entries
                                 .sortedByDescending { it.startedAt }
                                 .take(retentionPerBranch.coerceAtLeast(0))
+                                .filterIndexed { index, entry ->
+                                    // the branch's newest entry is never age-pruned
+                                    index == 0 || retentionCutoff == null || !entry.startedAt.isBefore(retentionCutoff)
+                                }
                         val latestGreen =
                             entries
                                 .filter { keepLatestGreen && it.status == BuildStatus.SUCCESS }
