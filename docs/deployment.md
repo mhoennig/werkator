@@ -2,7 +2,8 @@
 
 This document describes how to run GitTally as a permanent service.
 The recommended setup is a systemd user service behind an existing reverse proxy.
-GitTally does not manage nginx or TLS certificates itself (unlike the legacy script); it relies on the host's existing web server and certbot.
+By default GitTally does not manage nginx or TLS certificates itself; it relies on the host's existing web server and certbot.
+For hosts without one, an opt-in managed nginx/TLS container is available, see [Hosts Without a Reverse Proxy](#hosts-without-a-reverse-proxy-managed-nginxtls).
 
 ## Prerequisites
 
@@ -122,4 +123,32 @@ sudo certbot --nginx -d ci.example.org
 ```
 
 This replaces the legacy script's managed nginx/Let's Encrypt Docker container for hosts that have their own web server.
-For hosts without a usable reverse proxy (e.g. Hostsharing managed containers), an opt-in managed nginx/TLS container is planned (see `docs/plan/13-nginx-tls.md`, ADR 0005).
+
+## Hosts Without a Reverse Proxy (Managed nginx/TLS)
+
+Some hosts provide Docker but no root access and no host web server, e.g. Hostsharing managed container environments.
+For these, GitTally can manage its own nginx+certbot Docker container (ADR 0005).
+This is opt-in; where a host web server exists, prefer the reverse-proxy setup above.
+
+Enable it in the server section of the configuration:
+
+```yaml
+server:
+  port: 18080
+  nginx:
+    enabled: true
+    serverName: ci.example.org
+    httpPort: 8080
+    httpsPort: 8443
+    letsencryptEmail: admin@example.org
+```
+
+On server start, GitTally writes the nginx configuration, starts a labelled nginx container publishing `httpPort` and `httpsPort`, obtains a Let's Encrypt certificate via a certbot container (webroot mode), and restarts nginx with the full HTTPS configuration.
+A renewal check runs daily; certificates and nginx state persist in `server.nginx.stateDir` across restarts.
+On shutdown the container is removed.
+All nginx and certificate failures are non-fatal warnings — the plain HTTP server keeps running without the proxy.
+
+`serverName` must be a public DNS name pointing at the host, reachable from the internet on port 80/443 (directly or via a port forward to `httpPort`/`httpsPort`), otherwise the ACME challenge fails.
+The nginx container cannot reach `localhost` of the host, so the proxy upstream defaults to `serverName`; set `server.nginx.upstreamHost` if the host is reachable under a different name from inside containers.
+With the managed nginx, keep `server.bindAddress: 0.0.0.0` (or an address reachable from the Docker network) — binding GitTally to `127.0.0.1` would make it unreachable for the proxy.
+See [configuration.md](configuration.md) for all `server.nginx.*` keys.

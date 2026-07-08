@@ -37,13 +37,18 @@ Branch-level keys below live under `branches.<name>`; use `branches.default` for
 | `GITTALLY_GITEA_STATUS_CONTEXT` | `gitea.statusContext` |
 | `GITTALLY_GITEA_GIT_USERNAME` | `git.account` — in `.git/gittally/.gittally.yml` |
 | `GITTALLY_GITEA_TOKEN` | `git.token` — in `.git/gittally/.gittally.yml`, never committed |
+| `GITTALLY_ARTIFACT_NGINX_SERVER_NAME` | `server.nginx.serverName` — also set `server.nginx.enabled: true` (replaces the `--nginx` flag) |
+| `GITTALLY_ARTIFACT_NGINX_HTTP_PORT` | `server.nginx.httpPort` |
+| `GITTALLY_ARTIFACT_NGINX_HTTPS_PORT` | `server.nginx.httpsPort` |
+| `GITTALLY_ARTIFACT_NGINX_UPSTREAM_HOST` | `server.nginx.upstreamHost` |
+| `GITTALLY_ARTIFACT_NGINX_CONTAINER_NAME` | `server.nginx.containerName` |
+| `GITTALLY_ARTIFACT_NGINX_STATE_DIR` | `server.nginx.stateDir` |
+| `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL` | `server.nginx.letsencryptEmail` |
 
 New keys without a legacy counterpart: `builds.maxConcurrent`, `artifacts.rootDir`, and `watcher.pollInterval`.
 
 ## Intentionally Not Ported
 
-- Managed nginx/Let's Encrypt container (`GITTALLY_ARTIFACT_NGINX_*`, `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL`) — not ported yet, but planned as an opt-in feature for hosts without a reverse proxy (see `docs/plan/13-nginx-tls.md`).
-  Until then, use the host's reverse proxy, see [deployment.md](deployment.md).
 - Self-install and self-update (`--install`, `--pull`, `GITTALLY_INSTALL_DIR`) — replaced by jar deployment plus `init --systemd`.
 - `GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND` and `GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — hsadmin-ng-specific; use `branches.<name>.docker.env` if needed.
 - `HSADMIN_NG_*` environment-variable fallbacks.

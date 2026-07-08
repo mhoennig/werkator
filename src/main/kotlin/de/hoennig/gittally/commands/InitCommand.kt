@@ -126,6 +126,17 @@ class InitCommand(
               bindAddress: 0.0.0.0
               # optional Impressum (legal disclosure) link in the web UI footer; empty hides the link
               impressumUrl: ""
+              # Opt-in managed nginx+certbot Docker container for HTTPS, for hosts without
+              # a usable reverse proxy (see docs/deployment.md). Off by default.
+              nginx:
+                enabled: false          # manage an nginx container with Let's Encrypt certificates
+                serverName: ""          # public DNS name served by nginx; required when enabled
+                httpPort: 8080          # host port published as nginx port 80
+                httpsPort: 8443         # host port published as nginx port 443
+                upstreamHost: ""        # host nginx proxies to; empty = serverName
+                containerName: ""       # empty = gittally-nginx-<repo-name>
+                stateDir: ""            # empty = XDG_STATE_HOME (or ~/.local/state) + /gittally/nginx/<repo-key>
+                letsencryptEmail: ""    # e-mail for the Let's Encrypt account; empty registers without one
 
             # Gitea integration for fetching commits and posting build statuses.
             gitea:

@@ -11,12 +11,44 @@ data class GitTallyConfig(
 )
 
 data class ServerConfig(
+    /**
+     * Public base URL of this installation; empty defaults to `https://<nginx.serverName>/`
+     * when [NginxConfig.serverName] is set (applied by [ConfigLoader]).
+     */
     val publicBaseUrl: String = "",
     /** HTTP port of the `server` subcommand; 18080 like the legacy artifact server. */
     val port: Int = 18080,
     val bindAddress: String = "0.0.0.0",
     /** Optional Impressum (legal disclosure) link shown in the web UI footer; empty hides the link. */
     val impressumUrl: String = "",
+    val nginx: NginxConfig = NginxConfig(),
+)
+
+/**
+ * Opt-in managed nginx+certbot Docker container serving GitTally over HTTPS,
+ * for hosts without a usable reverse proxy (ADR 0005). Off by default; the
+ * reverse-proxy deployment from `docs/deployment.md` stays the recommended setup.
+ */
+data class NginxConfig(
+    /** Manage an nginx Docker container with Let's Encrypt certificates. */
+    val enabled: Boolean = false,
+    /** Public DNS name served by nginx and used for the certificate; required when [enabled]. */
+    val serverName: String = "",
+    /** Host port published as nginx port 80 (ACME challenge + HTTPS redirect). */
+    val httpPort: Int = 8080,
+    /** Host port published as nginx port 443. */
+    val httpsPort: Int = 8443,
+    /** Host nginx proxies to; empty uses [serverName] (the container cannot reach `localhost`). */
+    val upstreamHost: String = "",
+    /** Name of the managed container; empty means `gittally-nginx-<repo-name>`. */
+    val containerName: String = "",
+    /**
+     * Directory for nginx config, certificates, and logs; empty means the platform
+     * default `XDG_STATE_HOME` (or `~/.local/state`) + `/gittally/nginx/<repo-key>`.
+     */
+    val stateDir: String = "",
+    /** E-mail for the Let's Encrypt account; empty registers without one. */
+    val letsencryptEmail: String = "",
 )
 
 data class GitConfig(

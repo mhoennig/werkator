@@ -39,3 +39,25 @@ Port the legacy nginx subsystem (functions `configure_artifact_nginx_defaults` ~
 - Manual walkthrough on a Docker host: nginx container starts with the init config and proxies HTTP to GitTally.
   Full ACME issuance needs a public DNS name; if none is available, verify the certbot argv and the full-config path against the legacy script and document that in this file.
 - `docs/deployment.md` gains a section for hosts without a reverse proxy; `docs/migration-from-legacy.md` maps the `GITTALLY_ARTIFACT_NGINX_*`/`GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL` variables.
+
+## Result (2026-07-08)
+
+Implemented as `NginxConfigFiles` (config generation), `NginxProxyManager` (docker orchestration), and `ServerNginxLifecycle` (server-profile startup, daily renewal, shutdown cleanup).
+
+Deviations from the design above and from legacy:
+
+- Renewal reloads nginx via `docker exec <container> nginx -s reload` after `certbot renew` instead of restarting the container (no dropped connections).
+- Legacy auto-moved the artifact server port on a collision with the nginx ports; the rewrite refuses to start the proxy with a warning instead — the Spring port cannot move after startup.
+- Legacy derived a missing `serverName` from the public base URL host; the rewrite requires `serverName` explicitly (the config default direction is only publicBaseUrl ← serverName).
+- `serverName` and `upstreamHost` are validated against a host-name pattern instead of substituting raw values, so no nginx directives can be injected via config.
+- The container label namespace is `org.hoennig.gittally` (like the Docker build runner), not `org.hostsharing.gittally`; port cleanup still also matches legacy-named containers.
+- The legacy `--nginx` CLI flag is not ported; enablement is `server.nginx.enabled` only.
+- `ssl-dhparams.pem` is downloaded via the Java HTTP client instead of `curl` (replaceable seam for tests).
+
+Manual walkthrough (dev machine, Rancher Desktop Docker, no public DNS name — so no real ACME issuance):
+
+- Fresh state dir: nginx container started with the init config; port 80 served the ACME challenge location and answered `301 https://<serverName>/...`; `certonly` then failed as expected without public DNS and the HTTP server kept running (non-fatal path).
+- Pre-seeded certificate (self-signed): manager took the full-config path, `certbot renew` ran (exit 0), and HTTPS end-to-end worked — `/api/branches` JSON served through the TLS proxy with the configured no-cache headers.
+- `SIGTERM` removed the container (lifecycle `@PreDestroy`).
+- The certbot `certonly`/`renew` argv and both config modes are asserted verbatim against the legacy script in `NginxProxyManagerTest`/`NginxConfigFilesTest`.
+- Environment note: the nginx container cannot reach the host's `localhost`; on the walkthrough machine the upstream had to be `host.docker.internal` (documented in `deployment.md` as `upstreamHost`).

@@ -120,6 +120,36 @@ class ConfigLoaderTest : FunSpec() {
             config.branches["release"]!!.buildCommand shouldBe "./mvnw -P release test"
         }
 
+        test("empty publicBaseUrl defaults to https://<nginx.serverName>/ when set") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                server:
+                  nginx:
+                    serverName: ci.example.org
+                """.trimIndent(),
+            )
+            loader.load(dir).server.publicBaseUrl shouldBe "https://ci.example.org/"
+        }
+
+        test("explicit publicBaseUrl wins over the nginx.serverName default") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                server:
+                  publicBaseUrl: https://other.example.org/
+                  nginx:
+                    serverName: ci.example.org
+                """.trimIndent(),
+            )
+            loader.load(dir).server.publicBaseUrl shouldBe "https://other.example.org/"
+        }
+
+        test("publicBaseUrl stays empty without an nginx.serverName") {
+            val dir = Files.createTempDirectory("gittally-test")
+            loader.load(dir).server.publicBaseUrl shouldBe ""
+        }
+
         test("toYaml serializes GitTallyConfig with all sections") {
             val yaml = loader.toYaml(GitTallyConfig())
             yaml shouldContain "server:"

@@ -21,11 +21,24 @@ class ConfigLoader {
 
     fun load(workingDir: Path = Paths.get(".")): GitTallyConfig {
         val raw = loadRaw(workingDir)
-        return if (raw.isEmpty()) {
-            GitTallyConfig()
-        } else {
-            yaml.convertValue(mergeBranchDefaults(raw), GitTallyConfig::class.java)
+        val config =
+            if (raw.isEmpty()) {
+                GitTallyConfig()
+            } else {
+                yaml.convertValue(mergeBranchDefaults(raw), GitTallyConfig::class.java)
+            }
+        return defaultPublicBaseUrl(config)
+    }
+
+    /** Legacy default: an empty `server.publicBaseUrl` becomes `https://<nginx.serverName>/`. */
+    private fun defaultPublicBaseUrl(config: GitTallyConfig): GitTallyConfig {
+        if (config.server.publicBaseUrl.isNotBlank() ||
+            config.server.nginx.serverName
+                .isBlank()
+        ) {
+            return config
         }
+        return config.copy(server = config.server.copy(publicBaseUrl = "https://${config.server.nginx.serverName}/"))
     }
 
     fun loadRaw(workingDir: Path = Paths.get(".")): Map<String, Any?> {

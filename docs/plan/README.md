@@ -67,7 +67,7 @@ Completion:
 
 Added after the initial plan (ADR 0005):
 
-- [ ] `13-nginx-tls.md` — opt-in managed nginx/TLS container for hosts without a reverse proxy
+- [x] `13-nginx-tls.md` — opt-in managed nginx/TLS container for hosts without a reverse proxy
 
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.

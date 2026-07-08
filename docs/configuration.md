@@ -32,6 +32,26 @@ server:
   bindAddress: 0.0.0.0
   # optional Impressum (legal disclosure) link in the web UI footer; empty hides the link
   impressumUrl: ""
+  # Opt-in managed nginx+certbot Docker container for HTTPS, for hosts without
+  # a usable reverse proxy (ADR 0005; see notes below and deployment.md).
+  nginx:
+    # manage an nginx Docker container with Let's Encrypt certificates
+    enabled: false
+    # public DNS name served by nginx and used for the certificate; required when enabled
+    serverName: ""
+    # host port published as nginx port 80 (ACME challenge + HTTPS redirect)
+    httpPort: 8080
+    # host port published as nginx port 443
+    httpsPort: 8443
+    # host nginx proxies to; empty = serverName (the container cannot reach localhost)
+    upstreamHost: ""
+    # name of the managed container; empty = gittally-nginx-<repo-name>
+    containerName: ""
+    # directory for nginx config, certificates, and logs;
+    # empty = $XDG_STATE_HOME (or ~/.local/state) plus /gittally/nginx/<repo-key>
+    stateDir: ""
+    # e-mail for the Let's Encrypt account; empty registers without one
+    letsencryptEmail: ""
 
 # Gitea integration for fetching commits and posting build statuses.
 gitea:
@@ -126,6 +146,16 @@ branches:
       times:
         - "04:00"
 ```
+
+### Notes on `server.nginx`
+
+With `nginx.enabled`, the `server` subcommand also starts a managed nginx Docker container that serves GitTally over HTTPS (ADR 0005).
+This is meant for hosts that provide Docker but no usable reverse proxy (e.g. Hostsharing managed containers); otherwise prefer the reverse-proxy setup in [deployment.md](deployment.md).
+Certificates are obtained and renewed via Let's Encrypt (certbot Docker container, webroot mode), so `serverName` must be a public DNS name pointing at the host and `httpPort` must be reachable from the internet as port 80 (or via a port forward).
+When `server.publicBaseUrl` is empty and `serverName` is set, it defaults to `https://<serverName>/`.
+All nginx/certificate failures are non-fatal warnings; the plain HTTP server keeps running without the proxy.
+The container is labelled `org.hoennig.gittally`; stale nginx containers of the repository are removed before each start, and the container is removed on shutdown.
+`server.port` must differ from `httpPort` and `httpsPort`.
 
 ### Notes on `branches.<name>.requirePullRequest`
 
