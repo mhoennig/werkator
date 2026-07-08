@@ -70,6 +70,11 @@ class FileBuildResultRepository(
         return indexOfLatest(results, branch)?.let { results[it] }
     }
 
+    override fun latestGreenFor(branch: String): BuildResult? =
+        load()
+            .filter { it.branch == branch && it.status == BuildStatus.SUCCESS }
+            .maxByOrNull { it.startedAt }
+
     override fun latestPerBranch(): List<BuildResult> =
         load()
             .groupBy { it.branch }
@@ -117,6 +122,7 @@ class FileBuildResultRepository(
     override fun prune(
         originBranches: Collection<String>,
         retentionPerBranch: Int,
+        keepLatestGreen: Boolean,
     ): List<BuildResult> {
         synchronized(lock) {
             val results = load()
@@ -127,9 +133,15 @@ class FileBuildResultRepository(
                     .groupBy { it.branch }
                     .values
                     .flatMap { entries ->
-                        entries
-                            .sortedByDescending { it.startedAt }
-                            .take(retentionPerBranch.coerceAtLeast(0))
+                        val newest =
+                            entries
+                                .sortedByDescending { it.startedAt }
+                                .take(retentionPerBranch.coerceAtLeast(0))
+                        val latestGreen =
+                            entries
+                                .filter { keepLatestGreen && it.status == BuildStatus.SUCCESS }
+                                .maxByOrNull { it.startedAt }
+                        newest + listOfNotNull(latestGreen)
                     }.toSet()
             val removed = results.filterNot { it in kept }
             if (removed.isNotEmpty()) {

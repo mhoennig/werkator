@@ -8,6 +8,7 @@ import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.build.FileBuildResultRepository
 import de.hoennig.gittally.build.GitWorktreeWorkspaces
 import de.hoennig.gittally.build.RunningBuild
+import de.hoennig.gittally.config.ArtifactsConfig
 import de.hoennig.gittally.config.AutoBuildConfig
 import de.hoennig.gittally.config.BranchConfig
 import de.hoennig.gittally.config.ConfigLoader
@@ -395,6 +396,28 @@ class WatcherTest : FunSpec() {
             Files.exists(keptWorktree).shouldBeTrue()
             Files.exists(removedWorktree).shouldBeFalse()
             verify { harness.gitService.worktreePrune(any()) }
+        }
+
+        test("poll keeps the latest green build beyond retention unless keepLatestGreen is disabled") {
+            val keeping = Harness(GitTallyConfig(artifacts = ArtifactsConfig(retentionPerBranch = 1)))
+            keeping.seed("main", BuildStatus.SUCCESS, commit = "commit-1")
+            keeping.seed("main", BuildStatus.FAILED, commit = "commit-2")
+            every { keeping.gitService.originBranches(any()) } returns listOf("main")
+
+            keeping.watcher.poll(keeping.workingDir)
+
+            keeping.repository.history().map { it.status } shouldContainExactly
+                listOf(BuildStatus.FAILED, BuildStatus.SUCCESS)
+
+            val dropping =
+                Harness(GitTallyConfig(artifacts = ArtifactsConfig(retentionPerBranch = 1, keepLatestGreen = false)))
+            dropping.seed("main", BuildStatus.SUCCESS, commit = "commit-1")
+            dropping.seed("main", BuildStatus.FAILED, commit = "commit-2")
+            every { dropping.gitService.originBranches(any()) } returns listOf("main")
+
+            dropping.watcher.poll(dropping.workingDir)
+
+            dropping.repository.history().map { it.status } shouldContainExactly listOf(BuildStatus.FAILED)
         }
 
         test("worktrees of queued or running builds are never pruned") {

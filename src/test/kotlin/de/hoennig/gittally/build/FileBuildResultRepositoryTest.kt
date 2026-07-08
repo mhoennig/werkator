@@ -80,6 +80,25 @@ class FileBuildResultRepositoryTest : FunSpec() {
             repository.latestFor("main") shouldBe result(branch = "main", startedOffsetSeconds = 60)
         }
 
+        test("latestGreenFor returns the newest SUCCESS entry even when newer builds failed") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0))
+            repository.append(result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 60))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120))
+            repository.append(result(branch = "other", status = BuildStatus.SUCCESS, startedOffsetSeconds = 180))
+
+            repository.latestGreenFor("main") shouldBe
+                result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 60)
+        }
+
+        test("latestGreenFor returns null for a branch without a successful build") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.FAILED))
+
+            repository.latestGreenFor("main").shouldBeNull()
+            repository.latestGreenFor("unknown").shouldBeNull()
+        }
+
         test("latestPerBranch returns one entry per branch, newest first") {
             val repository = FileBuildResultRepository(newFile())
             repository.append(result(branch = "main", startedOffsetSeconds = 0))
@@ -199,6 +218,35 @@ class FileBuildResultRepositoryTest : FunSpec() {
                     result(branch = "main", startedOffsetSeconds = 120),
                     result(branch = "main", startedOffsetSeconds = 60),
                 )
+        }
+
+        test("prune with keepLatestGreen keeps the newest green build beyond the retention count") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60))
+            repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120))
+
+            val removed =
+                repository.prune(originBranches = listOf("main"), retentionPerBranch = 2, keepLatestGreen = true)
+
+            removed.shouldBeEmpty()
+            repository.history() shouldContainExactly
+                listOf(
+                    result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 120),
+                    result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 60),
+                    result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0),
+                )
+        }
+
+        test("prune with keepLatestGreen still drops green builds of branches missing from origin") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "gone", status = BuildStatus.SUCCESS))
+
+            val removed =
+                repository.prune(originBranches = listOf("main"), retentionPerBranch = 3, keepLatestGreen = true)
+
+            removed shouldContainExactly listOf(result(branch = "gone", status = BuildStatus.SUCCESS))
+            repository.history().shouldBeEmpty()
         }
 
         test("prune drops entries of branches missing from origin") {

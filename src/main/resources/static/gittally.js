@@ -227,7 +227,14 @@ function renderBuildRow(build, allowRestart) {
         artifactLink.href = "/builds/" + encodeURIComponent(build.artifactKey);
         artifactLink.title = "Open artifacts";
         artifactsCell.appendChild(artifactLink);
-    } else {
+    }
+    if (build.latestGreenUrl) {
+        const permanentLink = elem("a", "artifact-link", "🔗");
+        permanentLink.href = build.latestGreenUrl;
+        permanentLink.title = "Permanent link: artifacts of the latest green build";
+        artifactsCell.appendChild(permanentLink);
+    }
+    if (!build.artifactKey && !build.latestGreenUrl) {
         artifactsCell.textContent = "n/a";
     }
     row.appendChild(artifactsCell);

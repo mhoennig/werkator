@@ -17,6 +17,9 @@ interface BuildResultRepository {
 
     fun latestFor(branch: String): BuildResult?
 
+    /** The newest SUCCESS entry of [branch] — the build behind the permanent `/branches/…` links. */
+    fun latestGreenFor(branch: String): BuildResult?
+
     /** The newest entry of each branch, newest first. */
     fun latestPerBranch(): List<BuildResult>
 
@@ -34,10 +37,13 @@ interface BuildResultRepository {
 
     /**
      * Keeps the newest [retentionPerBranch] entries per branch and drops entries of branches
-     * not contained in [originBranches]. Returns the removed entries.
+     * not contained in [originBranches]. With [keepLatestGreen], the newest SUCCESS entry of
+     * each surviving branch is kept even beyond the retention count, so the permanent
+     * `/branches/…` artifact links stay valid while newer builds fail. Returns the removed entries.
      */
     fun prune(
         originBranches: Collection<String>,
         retentionPerBranch: Int,
+        keepLatestGreen: Boolean = false,
     ): List<BuildResult>
 }

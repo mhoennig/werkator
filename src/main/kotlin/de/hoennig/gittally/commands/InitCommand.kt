@@ -145,6 +145,9 @@ class InitCommand(
               rootDir: ""
               # number of builds to keep per branch
               retentionPerBranch: 3
+              # keep each branch's latest green build beyond the retention count,
+              # so the permanent /branches/<branch-key>/... artifact URLs stay valid while newer builds fail
+              keepLatestGreen: true
 
             # Controls the branch-polling loop.
             watcher:

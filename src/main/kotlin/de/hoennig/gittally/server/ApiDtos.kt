@@ -32,6 +32,8 @@ data class BuildResultDto(
 /**
  * One entry of `GET /api/branches`, like a legacy branches-view row: an origin
  * branch with its latest build, or an `unknown` placeholder when never built.
+ * [latestGreenUrl] is the permanent artifact URL of the branch's latest green
+ * build; null while the branch has never built successfully.
  */
 data class BranchDto(
     val branch: String,
@@ -40,12 +42,14 @@ data class BranchDto(
     val startedAt: Instant?,
     val durationSeconds: Long?,
     val artifactKey: String,
+    val latestGreenUrl: String? = null,
 ) {
     companion object {
         fun from(
             branch: String,
             headCommit: String,
             latest: BuildResult?,
+            hasGreenBuild: Boolean = false,
         ) = if (latest == null) {
             BranchDto(
                 branch = branch,
@@ -63,6 +67,7 @@ data class BranchDto(
                 startedAt = latest.startedAt,
                 durationSeconds = latest.duration?.seconds,
                 artifactKey = latest.artifactKey,
+                latestGreenUrl = if (hasGreenBuild) BranchPermalinks.permanentUrl(branch) else null,
             )
         }
     }

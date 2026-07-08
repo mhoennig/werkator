@@ -21,10 +21,12 @@ import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.not
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.web.server.ResponseStatusException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
@@ -58,6 +60,9 @@ class UiControllerTest : FunSpec() {
     @MockkBean
     lateinit var branchListing: BranchListing
 
+    @MockkBean
+    lateinit var branchPermalinks: BranchPermalinks
+
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
     private val emptySystemMetrics =
@@ -88,7 +93,16 @@ class UiControllerTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(repository, buildExecutor, artifactStore, controlTokens, configLoader, metricsCollector, branchListing)
+            clearMocks(
+                repository,
+                buildExecutor,
+                artifactStore,
+                controlTokens,
+                configLoader,
+                metricsCollector,
+                branchListing,
+                branchPermalinks,
+            )
             every { configLoader.load(any()) } returns
                 GitTallyConfig(
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),
@@ -129,7 +143,7 @@ class UiControllerTest : FunSpec() {
         test("branches view renders built and never-built branches with restart actions") {
             every { branchListing.branches(any()) } returns
                 listOf(
-                    BranchDto.from("main", "ignored-head", successResult),
+                    BranchDto.from("main", "ignored-head", successResult, hasGreenBuild = true),
                     BranchDto.from("feature/x", "fedcba9876543210fedcba9876543210fedcba98", null),
                 )
 
@@ -142,6 +156,8 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("fedcba987654")))
                 .andExpect(content().string(containsString("""data-api="/api/branches"""")))
                 .andExpect(content().string(containsString("""data-action="restart"""")))
+                .andExpect(content().string(containsString("""href="/branches/main"""")))
+                .andExpect(content().string(containsString("Permanent link")))
         }
 
         test("history view renders mixed history without restart actions") {
@@ -225,6 +241,33 @@ class UiControllerTest : FunSpec() {
                 .perform(get("/builds/main-abc123-key"))
                 .andExpect(status().isOk)
                 .andExpect(content().string(containsString("No log files are stored for this build")))
+        }
+
+        test("permanent artifact index renders the latest green build with permanent file links") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("permanent-main-key"))
+            Files.writeString(artifactDir.resolve("build.stdout.log"), "out")
+            Files.createDirectories(artifactDir.resolve("reports/tests/test"))
+            Files.writeString(artifactDir.resolve("reports/tests/test/index.html"), "<html></html>")
+            every { branchPermalinks.latestGreenBuild("main") } returns successResult
+            every { artifactStore.artifactDir("main-abc123-key") } returns artifactDir
+
+            mockMvc
+                .perform(get("/branches/main"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("latest green build of branch")))
+                .andExpect(content().string(containsString("""/branches/main/build.stdout.log" target="_blank"""")))
+                .andExpect(content().string(containsString("""/branches/main/reports/tests/test/index.html"""")))
+                .andExpect(content().string(containsString("/builds/main-abc123-key")))
+                .andExpect(content().string(not(containsString("/artifacts/main-abc123-key"))))
+        }
+
+        test("permanent artifact index of a branch without a green build answers 404") {
+            every { branchPermalinks.latestGreenBuild("main") } throws
+                ResponseStatusException(HttpStatus.NOT_FOUND, "branch 'main' has no successful build")
+
+            mockMvc
+                .perform(get("/branches/main"))
+                .andExpect(status().isNotFound)
         }
 
         test("artifact index of an unknown key answers 404") {

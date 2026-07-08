@@ -67,7 +67,7 @@ object UiFormats {
     fun timeOfDay(instant: Instant): String = timeOfDayFormat.format(instant)
 }
 
-/** One row of the latest/history build tables. */
+/** One row of the latest/history build tables; [latestGreenUrl] only on the branches view. */
 data class BuildRowView(
     val branch: String,
     val commit: String,
@@ -79,6 +79,7 @@ data class BuildRowView(
     val artifactKey: String,
     val branchUrl: String?,
     val commitUrl: String?,
+    val latestGreenUrl: String? = null,
 ) {
     companion object {
         fun from(
@@ -112,6 +113,7 @@ data class BuildRowView(
             artifactKey = entry.artifactKey,
             branchUrl = links.branchUrl(entry.branch),
             commitUrl = links.commitUrl(entry.commit),
+            latestGreenUrl = entry.latestGreenUrl,
         )
     }
 }
