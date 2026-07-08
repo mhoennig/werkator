@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "de.hoennig"
-version = "0.1.0-SNAPSHOT"
+version = "0.9.0"
 
 java {
     toolchain {
@@ -61,6 +61,12 @@ springBoot {
             excludes.set(setOf("time"))
         }
     }
+}
+
+tasks.bootJar {
+    // version-free jar name, so docs and scripts never contain the version;
+    // the version itself stays available via BuildProperties (UI footer, --version)
+    archiveFileName = "gittally.jar"
 }
 
 kotlin {

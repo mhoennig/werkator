@@ -14,8 +14,8 @@ The repo install config (`.git/gittally/.gittally.yml`) wins on any key present 
 ## Inspect the Effective Config
 
 ```bash
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print         # only explicitly set values
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print --full  # all values including defaults
+java -jar build/libs/gittally.jar config:print         # only explicitly set values
+java -jar build/libs/gittally.jar config:print --full  # all values including defaults
 ```
 
 ## `.gittally.yml`

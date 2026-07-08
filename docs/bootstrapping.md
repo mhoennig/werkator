@@ -23,7 +23,7 @@ First, in `<gittally-root>`, build the application to generate the executable JA
 Then run `init` using the generated JAR (not the `-plain.jar`):
 
 ```bash
-java -jar <gittally-root>/build/libs/gittally-0.1.0-SNAPSHOT.jar init
+java -jar <gittally-root>/build/libs/gittally.jar init
 ```
 
 `init` performs the following steps in order:
@@ -120,11 +120,11 @@ Until then, a Java runtime must be available on the host.
 2. Review `.gittally.yml` and add/adjust any branch build settings.
 3. Verify the effective configuration:
    ```bash
-   java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print --full
+   java -jar build/libs/gittally.jar config:print --full
    ```
 4. Start the server:
    ```bash
-   java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar server
+   java -jar build/libs/gittally.jar server
    ```
 5. For permanent operation, install the systemd user service described in [deployment.md](deployment.md).
 

@@ -16,8 +16,8 @@ Detailed guides live as Agent Skills under `.claude/skills/` ([SKILL.md format](
 Run the JAR directly:
 
 ```bash
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar --help
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar init
+java -jar build/libs/gittally.jar --help
+java -jar build/libs/gittally.jar init
 ```
 
 `ktlintFormat` must be run before `build` passes — the formatter is enforced as part of the `check` lifecycle.

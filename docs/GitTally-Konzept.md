@@ -161,13 +161,13 @@ Ob ein neuer Commit den laufenden Build seines Branches stattdessen abbrechen so
 ### Initialisierung
 
 ```bash
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar init
+java -jar build/libs/gittally.jar init
 ```
 
 ### Serverstart
 
 ```bash
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar server
+java -jar build/libs/gittally.jar server
 ```
 
 Für den Dauerbetrieb als systemd-User-Service siehe [deployment.md](deployment.md) (`init --systemd`).
@@ -175,8 +175,8 @@ Für den Dauerbetrieb als systemd-User-Service siehe [deployment.md](deployment.
 ### Konfigurationsanzeige
 
 ```bash
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print
-java -jar build/libs/gittally-0.1.0-SNAPSHOT.jar config:print --full
+java -jar build/libs/gittally.jar config:print
+java -jar build/libs/gittally.jar config:print --full
 ```
 
 ## Erweiterungen

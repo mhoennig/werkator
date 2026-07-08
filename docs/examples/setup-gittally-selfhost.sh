@@ -21,8 +21,7 @@ ORIGIN_URL="${ORIGIN_URL:-$(git -C "$DEV_CHECKOUT" remote get-url origin)}"
 # 2. Dedicated clone: builds run in worktrees under its .git/gittally/worktrees,
 #    completely separate from your dev checkout.
 mkdir -p "$INSTALL_DIR"
-JAR=$(ls "$DEV_CHECKOUT"/build/libs/gittally-*.jar | grep -v -- '-plain' | head -1)
-cp "$JAR" "$INSTALL_DIR/gittally.jar"
+cp "$DEV_CHECKOUT/build/libs/gittally.jar" "$INSTALL_DIR/gittally.jar"
 if [ ! -d "$INSTALL_DIR/repo/.git" ]; then
     git clone "$ORIGIN_URL" "$INSTALL_DIR/repo"
 fi

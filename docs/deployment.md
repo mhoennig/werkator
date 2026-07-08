@@ -19,14 +19,14 @@ Build the executable jar once:
 
 ```bash
 ./gradlew build
-ls build/libs/gittally-*-SNAPSHOT.jar
+ls build/libs/gittally.jar
 ```
 
 Copy the jar to a stable path outside any watched repository, by convention `~/bin/gittally.jar`:
 
 ```bash
 mkdir -p ~/bin
-cp build/libs/gittally-0.1.0-SNAPSHOT.jar ~/bin/gittally.jar
+cp build/libs/gittally.jar ~/bin/gittally.jar
 ```
 
 The systemd unit generated below points at the jar that was used to run `init --systemd`.

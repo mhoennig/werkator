@@ -24,8 +24,7 @@ DEV_CHECKOUT=$(git rev-parse --show-toplevel)
 # 1. Build the GitTally jar.
 (cd "$DEV_CHECKOUT" && ./gradlew --console=plain build)
 mkdir -p "$INSTALL_DIR"
-JAR=$(ls "$DEV_CHECKOUT"/build/libs/gittally-*.jar | grep -v -- '-plain' | head -1)
-cp "$JAR" "$INSTALL_DIR/gittally.jar"
+cp "$DEV_CHECKOUT/build/libs/gittally.jar" "$INSTALL_DIR/gittally.jar"
 
 # 2. Scratch bare origin plus a "work" clone for triggering builds by pushing.
 if [ ! -d "$INSTALL_DIR/origin.git" ]; then
