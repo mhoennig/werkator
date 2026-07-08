@@ -1,3 +1,6 @@
+> **WARNING:** This document describes only the change applied in this PR.
+> It may already be outdated once the next PR is merged.
+> Historic PR-documentation is not maintained along with new PRs — treat it as a snapshot, not as current documentation.
 
 ## The Problem
 
