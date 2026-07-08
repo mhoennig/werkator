@@ -152,6 +152,9 @@ class InitCommand(
               pollInterval: 10s
               # max commit age for new origin branches to be pulled automatically
               newBranchMaxAge: 5d
+              # honor branches.<name>.requirePullRequest; set false for a plain git origin
+              # without pull-request refs (refs/pull/*/head) — gated branches then build on new commits
+              pullRequestGate: true
 
             # Per-branch build configuration.
             # Use "default" as the fallback for all branches not listed explicitly.

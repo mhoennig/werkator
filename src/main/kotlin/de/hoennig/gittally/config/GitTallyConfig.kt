@@ -49,6 +49,13 @@ data class WatcherConfig(
     /** Delay between poll cycles, e.g. `10s` or `1m`. */
     val pollInterval: String = "10s",
     val newBranchMaxAge: String = "5d",
+    /**
+     * Honor the `branches.<name>.requirePullRequest` gates. Set false for a plain git
+     * origin without pull-request refs (no Gitea/GitHub) — gated branches then build
+     * on new commits like any other branch. Typically overridden per machine in
+     * `.git/gittally/.gittally.yml` when the committed config enables the gates.
+     */
+    val pullRequestGate: Boolean = true,
 )
 
 data class BranchConfig(

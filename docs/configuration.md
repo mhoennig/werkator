@@ -64,6 +64,10 @@ watcher:
   pollInterval: 10s
   # max commit age for new origin branches to be pulled automatically
   newBranchMaxAge: 5d
+  # Honor the branches.<name>.requirePullRequest gates (see notes below).
+  # Set false for a plain git origin without pull-request refs (no Gitea/GitHub);
+  # gated branches then build on new commits like any other branch.
+  pullRequestGate: true
 
 # Per-branch build configuration.
 # Use "default" as the fallback for all branches not listed explicitly.
@@ -141,6 +145,9 @@ branches:
 ```
 
 Without the `main` override, direct pushes and merges to `main` would never build — merge commits do not match any pull-request head.
+
+A plain git origin (no Gitea/GitHub) serves no `refs/pull/*/head` at all, so gated branches would never build there.
+For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/gittally/.gittally.yml`, so the committed configuration keeps the gates for forge-backed environments.
 
 ### Notes on `branches.<name>.docker`
 

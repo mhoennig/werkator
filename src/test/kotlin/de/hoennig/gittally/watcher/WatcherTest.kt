@@ -256,6 +256,24 @@ class WatcherTest : FunSpec() {
             verify(exactly = 0) { harness.gitService.pullRequestHeads(any()) }
         }
 
+        test("a disabled pull-request gate builds gated branches on plain-git origins without querying pull-request refs") {
+            val harness =
+                Harness(
+                    GitTallyConfig(
+                        watcher = WatcherConfig(pullRequestGate = false),
+                        branches = mapOf("default" to BranchConfig(requirePullRequest = true)),
+                    ),
+                )
+            every { harness.gitService.originBranches(any()) } returns listOf("feature/no-pr")
+            every { harness.gitService.newOriginBranches(any(), any()) } returns listOf("feature/no-pr")
+            every { harness.gitService.originHeadCommit("feature/no-pr", any()) } returns "commit-solo"
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.startedBuilds shouldContainExactly listOf("feature/no-pr" to "commit-solo")
+            verify(exactly = 0) { harness.gitService.pullRequestHeads(any()) }
+        }
+
         test("a branch entry overrides requirePullRequest from the default entry") {
             val harness =
                 Harness(

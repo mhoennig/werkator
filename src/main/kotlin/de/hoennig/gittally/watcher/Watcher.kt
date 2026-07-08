@@ -175,7 +175,9 @@ class Watcher(
      * repository, not by resetting the local ref like legacy. A new commit for a
      * branch that is still pending/running waits for a later cycle (queue-behind).
      * With `requirePullRequest`, the branch head must match a pull-request head on
-     * origin (`refs/pull/<n>/head`); manual `build` commands bypass this gate.
+     * origin (`refs/pull/<n>/head`); manual `build` commands bypass this gate, and
+     * `watcher.pullRequestGate: false` disables it globally for plain-git origins
+     * without pull-request refs.
      */
     private fun startBuildIfDue(
         branch: String,
@@ -192,7 +194,10 @@ class Watcher(
         if (!allowSameCommit && latest?.commit == commit) {
             return false
         }
-        if (branchConfig(config, branch).requirePullRequest && commit !in pullRequestHeads.value) {
+        if (config.watcher.pullRequestGate &&
+            branchConfig(config, branch).requirePullRequest &&
+            commit !in pullRequestHeads.value
+        ) {
             log.info("not enqueueing branch {}: no pull request has head commit {}", branch, commit)
             return false
         }
