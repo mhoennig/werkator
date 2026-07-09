@@ -38,6 +38,7 @@ All production code lives under `de.hoennig.gittally`, with sub-packages `comman
 - Nothing is scheduled during CLI runs or tests: the watcher poll loop and metrics sampling start only via an explicit `start()` in the `server` profile.
 - Builds run detached in worktrees under `.git/gittally/worktrees/<branchKey>`; the primary checkout is never used for builds; never assume a single running build.
 - When config keys change, three places must stay in sync: the `GitTallyConfig` data classes, the `InitCommand` templates, and `docs/configuration.md`.
+- Build config is layered via `ConfigLoader.loadForWorktree`: the build worktree's `.gittally.yml` overrides `.git`/project for build-specific keys, but the pinned set — secrets/server-side sections (`git`, `gitea`, `server`) and the docker sandbox policy (`docker.enabled`, `docker.network`) — is stripped from the worktree layer and always comes from `.git`/primary. A branch must never be able to disable its container, change its network, or reach credentials via its committed config.
 - Web UI: server-rendered Thymeleaf plus one hand-written `static/gittally.js` — no SPA framework, no frontend build pipeline; every fetch has a timeout and an explicit error badge; `UiFormats` and `gittally.js` must produce identical display formats.
 - Git and Docker access shells out to the CLIs (`GitCommandRunner`, `docker`) — no JGit, no Docker SDK.
 

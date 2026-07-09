@@ -1,6 +1,6 @@
 # GitTally Configuration Reference
 
-GitTally is configured via YAML files. Settings are merged from two sources in order — later layers override earlier ones.
+GitTally is configured via YAML files. Settings are merged from several sources in order — later layers override earlier ones.
 
 ## Config File Locations
 
@@ -8,8 +8,28 @@ GitTally is configured via YAML files. Settings are merged from two sources in o
 |--------------------------|----------------------------|------------------|----------------------------------------------|
 | Project config           | `.gittally.yml`            | Yes              | Shared team settings                         |
 | Repo installation config | `.git/gittally/.gittally.yml` | No               | Machine- or user-specific overrides, secrets |
+| Build worktree config    | `.gittally.yml` of the built commit | Yes    | Per-branch build settings (build layer only) |
 
 The repo install config (`.git/gittally/.gittally.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
+
+### Per-branch build settings from the worktree
+
+When a branch builds, its build config is resolved with an extra layer: the `.gittally.yml`
+committed on the branch being built (read from its build worktree) overrides the two layers
+above, giving the precedence **worktree > repo install > project**. So a branch can change its
+own `buildCommand`, `cleanCommand`, `artifactDirs`, log file names, `autoBuild`, and
+`docker.image`/`dockerfile`/`context`/`env`.
+
+This layer applies **only** to the build itself. A pinned set is always taken from the repo
+install/project config and can never be set from the worktree:
+
+- secrets and server-side settings: the whole `git`, `gitea`, and `server` sections;
+- the container sandbox policy: `docker.enabled` and `docker.network`.
+
+This keeps a branch from disabling its own build container, changing its network mode, or
+reaching credentials. Watcher decisions that happen before a build exists — `autoBuild`
+scheduling and the `requirePullRequest` gate — are still read from the repo install/project
+config, because there is no worktree at that point.
 
 ## Inspect the Effective Config
 

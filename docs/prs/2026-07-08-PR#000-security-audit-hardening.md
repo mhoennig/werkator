@@ -92,20 +92,20 @@ Raw build output may contain secrets echoed by build scripts; `/api/system` expo
 
 #### TODO 6 — Layer build config over the worktree, with secrets and sandbox pinned to `.git`
 
-Intended behavior (a design change, not just a security fix): a branch should be built with its own build settings, so `.gittally.yml` from the **build worktree** (the commit being built) overrides the `.git`/primary config — except for a pinned set that a branch must never control.
+A branch is built with its own build settings: `.gittally.yml` from the **build worktree** (the commit being built) overrides the `.git`/primary config — except for a pinned set that a branch must never control. **Implemented in this PR.**
 
-- [ ] Add a worktree config layer for builds: when resolving `branchConfig` for a build ([`BuildExecutor.kt:369-375`](../../src/main/kotlin/de/hoennig/gittally/build/BuildExecutor.kt)), merge the worktree's `.gittally.yml` on top of the primary/`.git` config, worktree winning.
-- [ ] **Pin these keys to `.git`/primary — never overridable from the worktree:** `git.*` (secrets), `gitea.*`, `server.*`, and the sandbox policy `docker.enabled` and `docker.network`. A branch must not be able to disable its own container or change its network mode.
-- [ ] Leave these worktree-overridable: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `autoBuild`, and `docker.image`/`dockerfile`/`context`/`env`.
-- [ ] Fix the precedence in [`ConfigLoader.loadRaw` (`ConfigLoader.kt:44-48`)](../../src/main/kotlin/de/hoennig/gittally/config/ConfigLoader.kt): for the build layer the order is worktree > `.git` > project, whereas today `.git` overlays project and the worktree is never read at all.
-- [ ] Enforce the pinned set in code (strip pinned keys from the worktree layer before merging) and assert it in `AGENTS.md`, so the boundary is explicit rather than implicit.
+- [x] Worktree config layer for builds via [`ConfigLoader.loadForWorktree`](../../src/main/kotlin/de/hoennig/gittally/config/ConfigLoader.kt), wired into the two build-time config consumers ([`BuildExecutor.branchConfig`](../../src/main/kotlin/de/hoennig/gittally/build/BuildExecutor.kt), [`FileArtifactStore.branchConfig`](../../src/main/kotlin/de/hoennig/gittally/artifacts/FileArtifactStore.kt)) — both already hold the prepared worktree path. Precedence is worktree > `.git` > project.
+- [x] **Pinned to `.git`/primary — stripped from the worktree layer:** `git`, `gitea`, `server` (secrets + server-side), and the sandbox policy `docker.enabled`/`docker.network`. A branch cannot disable its container or change its network mode.
+- [x] Worktree-overridable: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `autoBuild`, and `docker.image`/`dockerfile`/`context`/`env`.
+- [x] Pinned set enforced in code (`ConfigLoader.stripPinned`), documented in `docs/configuration.md`, and asserted as an invariant in `AGENTS.md`.
+- [ ] **Deferred:** `autoBuild` scheduling and `requirePullRequest` are still read from the primary config, not the worktree — the watcher evaluates them *before* a build (and thus a worktree) exists. Sourcing them per-branch would need the watcher to read the branch's committed config directly (e.g. via `git show <branch>:.gittally.yml`); out of scope here.
 
 **Background.**
 The build command is executed via `bash -c "$3"` inside the build container ([`DockerBuildRunner.kt:285`](../../src/main/kotlin/de/hoennig/gittally/build/DockerBuildRunner.kt)).
 Letting a branch define its own `buildCommand` is not a new risk — a CI already runs arbitrary code from that commit; the container is the sandbox.
-The real escalation is a branch turning the sandbox **off**: if the worktree could set `docker.enabled: false` (or host `docker.network`), the build would run natively on the host.
-Secrets are already safe from the build process (the Gitea token is used only by the server/watcher and is never placed in the build environment — `runCommand` passes only `mapOf("branch" to ...)`), and stay that way as long as `git.*`/`gitea.*` are excluded from the worktree layer.
-Current state (verified): all build config is loaded from the primary checkout via `configLoader.load(build.workingDir)`, the worktree's `.gittally.yml` is never consulted, and `.git` config takes precedence over the committed project config — so this is a real feature, and it reverses the assumption the rest of this audit was written under.
+The real escalation is a branch turning the sandbox **off**: if the worktree could set `docker.enabled: false` (or host `docker.network`), the build would run natively on the host — which is why those two keys are pinned.
+Secrets are also safe from the build process (the Gitea token is used only by the server/watcher and is never placed in the build environment — `runCommand` passes only `mapOf("branch" to ...)`), and the whole `git`/`gitea`/`server` sections are stripped from the worktree layer as defense in depth.
+Before this PR all build config was loaded from the primary checkout via `configLoader.load(build.workingDir)`, the worktree's `.gittally.yml` was never consulted, and `.git` took precedence over the committed project config — so this both adds the per-branch feature and reverses that assumption.
 
 ### Low / defense-in-depth
 

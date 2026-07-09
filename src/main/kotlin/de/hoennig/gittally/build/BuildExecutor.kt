@@ -178,7 +178,7 @@ class BuildExecutor(
         build: ActiveBuild,
         workspace: Path,
     ): Int {
-        val branchConfig = branchConfig(build.runningBuild.branch, build.workingDir)
+        val branchConfig = branchConfig(build.runningBuild.branch, build.workingDir, workspace)
         val stagingDir = build.runningBuild.stagingDir
         Files.newOutputStream(stagingDir.resolve(branchConfig.stdoutLog)).use { stdoutLog ->
             Files.newOutputStream(stagingDir.resolve(branchConfig.stderrLog)).use { stderrLog ->
@@ -366,11 +366,13 @@ class BuildExecutor(
         }
     }
 
+    /** The build config for [branch], with the build [worktree]'s `.gittally.yml` layered on top (see [ConfigLoader.loadForWorktree]). */
     private fun branchConfig(
         branch: String,
         workingDir: Path,
+        worktree: Path,
     ): BranchConfig {
-        val branches = configLoader.load(workingDir).branches
+        val branches = configLoader.loadForWorktree(workingDir, worktree).branches
         return branches[branch] ?: branches["default"] ?: BranchConfig()
     }
 

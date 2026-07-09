@@ -138,7 +138,7 @@ class FileArtifactStore(
             log.warn("build {} has no workspace; storing only its logs", build.artifactKey)
             return
         }
-        for (artifactDir in branchConfig(build.branch).artifactDirs) {
+        for (artifactDir in branchConfig(build.branch, workspace).artifactDirs) {
             if (artifactDir.isBlank()) {
                 continue
             }
@@ -159,8 +159,12 @@ class FileArtifactStore(
             "reports/$artifactDir"
         }
 
-    private fun branchConfig(branch: String): BranchConfig {
-        val branches = configLoader.load(workingDir).branches
+    /** The build config for [branch], with the build [workspace]'s `.gittally.yml` layered on top (see [ConfigLoader.loadForWorktree]). */
+    private fun branchConfig(
+        branch: String,
+        workspace: Path,
+    ): BranchConfig {
+        val branches = configLoader.loadForWorktree(workingDir, workspace).branches
         return branches[branch] ?: branches["default"] ?: BranchConfig()
     }
 
