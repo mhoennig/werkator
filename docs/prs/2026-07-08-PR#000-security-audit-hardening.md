@@ -30,12 +30,12 @@ It may be split into smaller PRs per severity; the filename and scenario IDs use
 ## Non-Goals
 
 - The applicaiton has deliberately no authentication/authorization layer (no Spring Security, no user accounts) — the reverse proxy stays the primary access gate.
-- No change to the "build config comes from the primary checkout, never the build worktree" trust model — this PR documents and pins it, it does not rework it.
 - No re-audit of the confirmed-safe areas; they are recorded here so future changes do not silently regress them.
+- TODO 6 introduces a layered config where the build worktree overrides build-specific keys; it does **not** let the worktree override secrets, Gitea/server settings, or the sandbox policy — those stay pinned to `.git`/primary.
 
 ## The Identified Issues
 
-The remediation, grouped by severity.
+The remediation plus one design change (TODO 6), grouped by severity.
 Each item is a TODO with the background that justifies it.
 
 ### High
@@ -88,9 +88,28 @@ There is no redaction and no masked default.
 Every read endpoint is public.
 Raw build output may contain secrets echoed by build scripts; `/api/system` exposes host metrics; `/api/watcher` exposes last fetch/poll error strings, which can leak git remote URLs or error detail.
 
+### Design change — layered build config (Medium)
+
+#### TODO 6 — Layer build config over the worktree, with secrets and sandbox pinned to `.git`
+
+Intended behavior (a design change, not just a security fix): a branch should be built with its own build settings, so `.gittally.yml` from the **build worktree** (the commit being built) overrides the `.git`/primary config — except for a pinned set that a branch must never control.
+
+- [ ] Add a worktree config layer for builds: when resolving `branchConfig` for a build ([`BuildExecutor.kt:369-375`](../../src/main/kotlin/de/hoennig/gittally/build/BuildExecutor.kt)), merge the worktree's `.gittally.yml` on top of the primary/`.git` config, worktree winning.
+- [ ] **Pin these keys to `.git`/primary — never overridable from the worktree:** `git.*` (secrets), `gitea.*`, `server.*`, and the sandbox policy `docker.enabled` and `docker.network`. A branch must not be able to disable its own container or change its network mode.
+- [ ] Leave these worktree-overridable: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `autoBuild`, and `docker.image`/`dockerfile`/`context`/`env`.
+- [ ] Fix the precedence in [`ConfigLoader.loadRaw` (`ConfigLoader.kt:44-48`)](../../src/main/kotlin/de/hoennig/gittally/config/ConfigLoader.kt): for the build layer the order is worktree > `.git` > project, whereas today `.git` overlays project and the worktree is never read at all.
+- [ ] Enforce the pinned set in code (strip pinned keys from the worktree layer before merging) and assert it in `AGENTS.md`, so the boundary is explicit rather than implicit.
+
+**Background.**
+The build command is executed via `bash -c "$3"` inside the build container ([`DockerBuildRunner.kt:285`](../../src/main/kotlin/de/hoennig/gittally/build/DockerBuildRunner.kt)).
+Letting a branch define its own `buildCommand` is not a new risk — a CI already runs arbitrary code from that commit; the container is the sandbox.
+The real escalation is a branch turning the sandbox **off**: if the worktree could set `docker.enabled: false` (or host `docker.network`), the build would run natively on the host.
+Secrets are already safe from the build process (the Gitea token is used only by the server/watcher and is never placed in the build environment — `runCommand` passes only `mapOf("branch" to ...)`), and stay that way as long as `git.*`/`gitea.*` are excluded from the worktree layer.
+Current state (verified): all build config is loaded from the primary checkout via `configLoader.load(build.workingDir)`, the worktree's `.gittally.yml` is never consulted, and `.git` config takes precedence over the committed project config — so this is a real feature, and it reverses the assumption the rest of this audit was written under.
+
 ### Low / defense-in-depth
 
-#### TODO 6 — Default `bindAddress` to `127.0.0.1`
+#### TODO 7 — Default `bindAddress` to `127.0.0.1`
 
 - [ ] Change the default in [`GitTallyConfig.kt:21`](../../src/main/kotlin/de/hoennig/gittally/config/GitTallyConfig.kt) and the `init` template ([`InitCommand.kt:126`](../../src/main/kotlin/de/hoennig/gittally/commands/InitCommand.kt)) from `0.0.0.0` to `127.0.0.1`; require operators to opt into all-interfaces.
 
@@ -98,7 +117,7 @@ Raw build output may contain secrets echoed by build scripts; `/api/system` expo
 The current default binds all interfaces, which — combined with the public read surface and token-in-HTML — exposes the whole UI and the control token to the network whenever the reverse proxy is forgotten.
 The deployment doc already recommends `127.0.0.1`; the default and template should match it.
 
-#### TODO 7 — Compare fixed-length hashes in the token check
+#### TODO 8 — Compare fixed-length hashes in the token check
 
 - [ ] In [`ControlTokenService.kt:35-37`](../../src/main/kotlin/de/hoennig/gittally/server/ControlTokenService.kt), compare `SHA-256(submitted)` against `SHA-256(secret)` with `MessageDigest.isEqual`, so the comparison is always over equal-length buffers.
 
@@ -106,22 +125,13 @@ The deployment doc already recommends `127.0.0.1`; the default and template shou
 `MessageDigest.isEqual` returns early on a length mismatch, leaking the token length via timing.
 Largely theoretical given the 192-bit CSPRNG token, but a cheap deviation from constant-time best practice to close.
 
-#### TODO 8 — Add `--` before positional refnames in git calls
+#### TODO 9 — Add `--` before positional refnames in git calls
 
 - [ ] Insert `--` before the branch argument in `checkout`, `fetchBranch`, and `resetHardToOrigin` in [`GitService.kt:145,40,155`](../../src/main/kotlin/de/hoennig/gittally/git/GitService.kt) (e.g. `git switch -- <branch>`).
 
 **Background.**
 Git accepts refnames beginning with `-` (verified: `git check-ref-format 'refs/heads/-foo'` exits 0), so a pushed branch name could in principle be read as a git option.
 These three methods currently have no production callers and the actively-used paths embed the branch in a `refs/...` prefix, so this is dormant — but the guard should be in place before any of them is wired to server-triggered input.
-
-#### TODO 9 — Pin the "config from primary checkout" invariant
-
-- [ ] Add a code comment / assertion at the config-read sites ([`BuildExecutor.kt:181`](../../src/main/kotlin/de/hoennig/gittally/build/BuildExecutor.kt), [`DockerBuildRunner.kt`](../../src/main/kotlin/de/hoennig/gittally/build/DockerBuildRunner.kt)) and in `AGENTS.md`, stating build config must be read from the primary checkout, never the build worktree.
-
-**Background.**
-`buildCommand` is executed via `bash -c "$3"` inside the build container ([`DockerBuildRunner.kt:285`](../../src/main/kotlin/de/hoennig/gittally/build/DockerBuildRunner.kt)).
-Today that is safe because config comes from `configLoader.load(workingDir)` (the operator's checkout), not the attacker's committed `.gittally.yml`.
-The moment a future feature reads per-branch config from the branch itself, this becomes direct RCE — so the invariant should be explicit, not implicit.
 
 #### TODO 10 — Create secret files restricted atomically
 
@@ -135,7 +145,8 @@ A small TOCTOU gap; `GitAskPass`'s atomic-at-creation approach is the pattern to
 
 - TODO 2: full fix (gating the pages) versus documentation-only — the pages are the UI, so gating them needs a decision on how operators authenticate; the current implemented behavior is fully public.
 - TODO 5: whether public read access is acceptable by design (it matches legacy) or should change; current behavior leaves all reads public.
-- TODO 6: changing the default `bindAddress` is a behavior change for existing installs that rely on `0.0.0.0`; needs a migration note.
+- TODO 6: the pinned set is settled (secrets + Gitea/server + `docker.enabled`/`docker.network`); the open point is whether `docker.env` should also be pinned, since a branch overriding it controls its own container's environment (currently proposed as worktree-overridable).
+- TODO 7: changing the default `bindAddress` is a behavior change for existing installs that rely on `0.0.0.0`; needs a migration note.
 
 ## Additional Changes
 
