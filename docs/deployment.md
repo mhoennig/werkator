@@ -60,6 +60,9 @@ systemctl --user enable --now gittally-<repo-name>.service
 The unit runs `java -jar ~/bin/gittally.jar server` with the repository as working directory and `Restart=always`.
 The unit name contains the repository name, so several repositories can be served by one host, each with its own service and port.
 
+Expect a burst of builds right after the very first start: in a fresh clone every origin branch counts as new, so each branch with commits younger than `watcher.newBranchMaxAge` (default 5d) is built once — one build per branch, executed serially up to `builds.maxConcurrent`.
+Lower `watcher.newBranchMaxAge` before the first start, or enable `requirePullRequest`, to limit the initial backlog.
+
 User services stop at logout unless lingering is enabled once per user:
 
 ```bash
