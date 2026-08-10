@@ -78,9 +78,14 @@ Added for the vm2176 → vm4006 migration (2026-08-10):
 - [ ] `15-runtime-bundle-distribution.md` — self-contained runtime bundle (jlink JRE + jar) for hosts without a Java runtime
 - [ ] `16-git-in-docker-builds.md` — read-only git metadata inside Docker build containers, with `.git/gittally/` masked
 
+Added for running GitTally on Hostsharing Managed Webspaces (2026-08-10):
+
+- [ ] `17-bwrap-build-runtime.md` — bubblewrap user-namespace build sandbox with a prepared rootfs, for hosts without Docker (precondition check first — see the step file)
+
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.
 Steps 07–09 depend on 04–06.
 Steps 11 and 12 are optional/deferrable; 10 only needs 04–06.
 Step 13 depends on 07, 11, and 12.
 Step 15 depends on 12 and 13 and revises the containerized-runtime sketch in `docs/bootstrapping.md` (ADR 0006 is written as part of the step; GraalVM native image was evaluated and rejected there).
+Step 17 depends on 11, 15, and 16, and starts with a hard precondition check on the target webspace (ADR 0007 is written as part of the step).
