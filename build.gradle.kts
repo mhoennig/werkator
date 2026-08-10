@@ -9,7 +9,9 @@ plugins {
 }
 
 group = "de.hoennig"
-version = "0.9.0"
+// bump at least the patch version for every deployment, so the UI footer
+// (BuildProperties) and --version identify what is actually running
+version = "0.9.1"
 
 java {
     toolchain {
