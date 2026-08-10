@@ -104,4 +104,7 @@ GitTally builds in a git worktree whose `.git` is a pointer file into the primar
 Workaround: `prQuickCheck` removed from the vm4006 build command — it is a PR quality gate against a base branch and has no meaning in a post-merge master build (on vm2176 it only passed as an accidental no-op).
 The underlying question (safe git availability inside Docker build containers without exposing `.git/gittally/` secrets) is left as a follow-up design task.
 
-Still open: green completion of the first real build with its Gitea commit status, and — after a stable parallel phase — retiring the legacy service on vm2176.
+Cutover completed (2026-08-10, same day): after three green master builds and verified Gitea statuses from vm4006, the legacy service on vm2176 was disabled and removed from systemd.
+vm4006's `statusContext` was switched to the canonical `GitTally` (effective without a restart — the Gitea client loads the config per call), and the branches still carrying red statuses from the buggy first hours were re-queued.
+vm2176 now runs only a redirect nginx container (`gittally-redirect`, ports 8080/8443 like before): HTTP and HTTPS answer 301 to `https://vm4006.hostsharing.net$request_uri`, the ACME webroot keeps serving so the `nginx-letsencrypt-renew.timer` continues to renew the old host's certificate (the renew unit gained an `ExecStartPost` nginx reload).
+GitTally answers the legacy static page names (`/index.html`, `/branches.html`, `/history.html`, `/system.html`, `/about.html`, `/license.html`) with permanent redirects to the new routes, so pre-rewrite links survive the host redirect.
