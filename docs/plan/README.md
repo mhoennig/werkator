@@ -69,6 +69,10 @@ Added after the initial plan (ADR 0005):
 
 - [x] `13-nginx-tls.md` — opt-in managed nginx/TLS container for hosts without a reverse proxy
 
+Added after the 2026-08-10 overhead measurements on vm2176:
+
+- [ ] `14-build-phase-timing-and-overhead.md` — per-build phase timing, overhead budget warning, ownership/metrics fixes
+
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.
 Steps 07–09 depend on 04–06.
