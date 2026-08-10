@@ -121,10 +121,11 @@ class GiteaClientTest :
                     mapOf(
                         BuildStatus.SUCCESS to "success",
                         BuildStatus.FAILED to "failure",
-                        BuildStatus.INTERRUPTED to "failure",
                         BuildStatus.CANCELLED to "failure",
                         BuildStatus.PENDING to "pending",
                         BuildStatus.RUNNING to "pending",
+                        // interrupted builds are re-enqueued on startup, so the commit must not turn red
+                        BuildStatus.INTERRUPTED to "pending",
                     )
 
                 expectedStates.forEach { (status, state) ->

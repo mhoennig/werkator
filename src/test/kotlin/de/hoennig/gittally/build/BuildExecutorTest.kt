@@ -292,6 +292,74 @@ class BuildExecutorTest : FunSpec() {
             }
         }
 
+        test("shutdown kills an executing build and records INTERRUPTED, not FAILED") {
+            val h = harness("echo \$\$ > pid-file; sleep 30")
+
+            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            eventually(10.seconds) {
+                Files.exists(h.workingDir.resolve("pid-file")).shouldBeTrue()
+            }
+            val pid =
+                Files
+                    .readString(h.workingDir.resolve("pid-file"))
+                    .trim()
+                    .toLong()
+
+            h.executor.shutdown()
+
+            // shutdown() drains synchronously, so the result is already persisted
+            h.repository.latestFor("main")?.status shouldBe BuildStatus.INTERRUPTED
+            h.executor.currentBuilds().shouldBeEmpty()
+            ProcessHandle.of(pid).map { it.isAlive }.orElse(false) shouldBe false
+            h.events.map { it.result.status } shouldContainExactly
+                listOf(BuildStatus.PENDING, BuildStatus.RUNNING, BuildStatus.INTERRUPTED)
+            Files.readString(build.liveLogFile) shouldContain "build interrupted by shutdown"
+            verify { h.giteaClient.publishStatus("abc123", BuildStatus.INTERRUPTED, any(), null, h.workingDir) }
+            verify { h.artifactStore.persist(match { it.status == BuildStatus.INTERRUPTED }, build.stagingDir, any()) }
+        }
+
+        test("a build still queued at shutdown stays PENDING for the startup recovery") {
+            val h = harness("sleep 30")
+
+            val first = h.executor.startBuild("main", "sha-1", h.workingDir)
+            val second = h.executor.startBuild("main", "sha-2", h.workingDir)
+            eventually(10.seconds) {
+                h.repository
+                    .history()
+                    .first { it.artifactKey == first.artifactKey }
+                    .status shouldBe BuildStatus.RUNNING
+            }
+
+            h.executor.shutdown()
+
+            h.repository
+                .history()
+                .first { it.artifactKey == first.artifactKey }
+                .status shouldBe BuildStatus.INTERRUPTED
+            // the branch worker drops the queued build without a transition or a process
+            awaitIdle(h)
+            h.repository
+                .history()
+                .first { it.artifactKey == second.artifactKey }
+                .status shouldBe BuildStatus.PENDING
+            h.events
+                .filter { it.result.artifactKey == second.artifactKey }
+                .map { it.result.status } shouldContainExactly listOf(BuildStatus.PENDING)
+            verify(exactly = 0) { h.giteaClient.publishStatus("sha-2", BuildStatus.RUNNING, any(), any(), any()) }
+        }
+
+        test("shutdown without any build in flight is a no-op") {
+            val h = harness("echo ok")
+
+            h.executor.startBuild("main", "abc123", h.workingDir)
+            awaitStatus(h, "main", BuildStatus.SUCCESS)
+            awaitIdle(h)
+
+            h.executor.shutdown()
+
+            h.repository.latestFor("main")?.status shouldBe BuildStatus.SUCCESS
+        }
+
         test("cancel with an unknown artifact key returns false") {
             val h = harness("echo ok")
 

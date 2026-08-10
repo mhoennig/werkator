@@ -5,6 +5,8 @@ import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.gitea.GiteaClient
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.context.event.ContextClosedEvent
+import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Service
 import java.io.IOException
 import java.io.InputStream
@@ -50,6 +52,9 @@ class BuildExecutor(
     /** Global concurrency limit; sized from `builds.maxConcurrent` on first use. */
     @Volatile
     private var slots: Semaphore? = null
+
+    /** Set on context close; in-flight builds then finish as INTERRUPTED instead of FAILED. */
+    private val shuttingDown = AtomicBoolean(false)
 
     /** The builds currently executing, newest last (queued builds are PENDING in the repository). */
     fun currentBuilds(): List<RunningBuild> = builds.values.filter { it.running }.map { it.runningBuild }
@@ -108,15 +113,47 @@ class BuildExecutor(
         return true
     }
 
+    /**
+     * Runs when the application context closes (e.g. systemd SIGTERM): terminates the
+     * process trees of all executing builds and waits (bounded) until their INTERRUPTED
+     * results are persisted, so a shutdown is never recorded as a build failure.
+     * Builds still queued stay PENDING; the watcher's startup recovery re-enqueues
+     * both PENDING and INTERRUPTED builds after the restart.
+     */
+    @EventListener(ContextClosedEvent::class)
+    fun shutdown() {
+        if (!shuttingDown.compareAndSet(false, true)) {
+            return
+        }
+        val executing = builds.values.filter { it.running }
+        if (executing.isEmpty()) {
+            return
+        }
+        log.info("shutdown requested; interrupting {} executing build(s)", executing.size)
+        executing.forEach { build -> build.process?.let { destroyProcessTree(it) } }
+        val deadline = System.nanoTime() + Duration.ofMillis(SHUTDOWN_DRAIN_TIMEOUT_MILLIS).toNanos()
+        while (executing.any { builds.containsKey(it.runningBuild.artifactKey) } && System.nanoTime() < deadline) {
+            Thread.sleep(50)
+        }
+        executing
+            .filter { builds.containsKey(it.runningBuild.artifactKey) }
+            .forEach { log.warn("build of branch {} was not recorded as interrupted in time", it.runningBuild.branch) }
+    }
+
     private fun execute(build: ActiveBuild) {
         var slot: Semaphore? = null
-        var finalStatus = BuildStatus.FAILED
+        // null keeps the persisted status untouched (a queued build stays PENDING over a shutdown)
+        var finalStatus: BuildStatus? = BuildStatus.FAILED
         var workspace: Path? = null
         try {
             slot = slotsFor(build.workingDir)
             slot.acquire()
             if (build.cancelled.get()) {
                 finalStatus = BuildStatus.CANCELLED
+                return
+            }
+            if (shuttingDown.get()) {
+                finalStatus = null
                 return
             }
             build.running = true
@@ -134,20 +171,34 @@ class BuildExecutor(
                 when {
                     build.cancelled.get() -> BuildStatus.CANCELLED
                     exitCode == 0 -> BuildStatus.SUCCESS
+                    shuttingDown.get() -> BuildStatus.INTERRUPTED
                     else -> BuildStatus.FAILED
                 }
         } catch (e: Exception) {
-            finalStatus = if (build.cancelled.get()) BuildStatus.CANCELLED else BuildStatus.FAILED
-            log.error("build of branch {} crashed", build.runningBuild.branch, e)
-            appendToLiveLog(build, "\nbuild crashed: ${e.message}\n")
+            finalStatus =
+                when {
+                    build.cancelled.get() -> BuildStatus.CANCELLED
+                    shuttingDown.get() -> BuildStatus.INTERRUPTED
+                    else -> BuildStatus.FAILED
+                }
+            if (finalStatus == BuildStatus.FAILED) {
+                log.error("build of branch {} crashed", build.runningBuild.branch, e)
+                appendToLiveLog(build, "\nbuild crashed: ${e.message}\n")
+            }
         } finally {
-            // pure build time, without the queue wait; null when the build never started executing
-            val duration = build.runningBuild.runningSince?.let { Duration.between(it, Instant.now()) }
-            val result = transition(build, finalStatus, duration)
-            try {
-                artifactStore.persist(result, build.runningBuild.stagingDir, workspace)
-            } catch (e: Exception) {
-                log.warn("could not persist artifacts of {}: {}", result.artifactKey, e.message)
+            if (finalStatus == BuildStatus.INTERRUPTED) {
+                log.info("build of branch {} interrupted by shutdown", build.runningBuild.branch)
+                appendToLiveLog(build, "\nbuild interrupted by shutdown\n")
+            }
+            if (finalStatus != null) {
+                // pure build time, without the queue wait; null when the build never started executing
+                val duration = build.runningBuild.runningSince?.let { Duration.between(it, Instant.now()) }
+                val result = transition(build, finalStatus, duration)
+                try {
+                    artifactStore.persist(result, build.runningBuild.stagingDir, workspace)
+                } catch (e: Exception) {
+                    log.warn("could not persist artifacts of {}: {}", result.artifactKey, e.message)
+                }
             }
             builds.remove(build.runningBuild.artifactKey)
             slot?.release()
@@ -193,7 +244,7 @@ class BuildExecutor(
                             return cleanExitCode
                         }
                     }
-                    if (build.cancelled.get()) {
+                    if (build.cancelled.get() || shuttingDown.get()) {
                         return CANCELLED_EXIT_CODE
                     }
                     return runCommand(build, branchConfig, branchConfig.buildCommand, workspace, stdoutLog, stderrLog, liveLog)
@@ -220,15 +271,15 @@ class BuildExecutor(
                 branchConfig = branchConfig,
                 onAuxProcess = { aux ->
                     // preparation phases (e.g. a Docker image build) must die on cancellation
-                    // too, otherwise a cancelled build blocks its slot until they finish
+                    // and shutdown too, otherwise they block their slot until they finish
                     build.process = aux
-                    if (build.cancelled.get()) {
+                    if (build.cancelled.get() || shuttingDown.get()) {
                         destroyProcessTree(aux)
                     }
                 },
             )
         build.process = process
-        if (build.cancelled.get()) {
+        if (build.cancelled.get() || shuttingDown.get()) {
             destroyProcessTree(process)
         }
         val stdoutPump = pump(process.inputStream, stdoutLog, liveLog)
@@ -409,5 +460,6 @@ class BuildExecutor(
         const val LIVE_LOG_FILE = "build.log"
         private const val CANCELLED_EXIT_CODE = 130
         private const val PUMP_DRAIN_TIMEOUT_MILLIS = 10_000L
+        private const val SHUTDOWN_DRAIN_TIMEOUT_MILLIS = 20_000L
     }
 }
