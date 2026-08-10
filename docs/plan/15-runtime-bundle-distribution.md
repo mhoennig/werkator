@@ -108,3 +108,7 @@ Cutover completed (2026-08-10, same day): after three green master builds and ve
 vm4006's `statusContext` was switched to the canonical `GitTally` (effective without a restart — the Gitea client loads the config per call), and the branches still carrying red statuses from the buggy first hours were re-queued.
 vm2176 now runs only a redirect nginx container (`gittally-redirect`, ports 8080/8443 like before): HTTP and HTTPS answer 301 to `https://vm4006.hostsharing.net$request_uri`, the ACME webroot keeps serving so the `nginx-letsencrypt-renew.timer` continues to renew the old host's certificate (the renew unit gained an `ExecStartPost` nginx reload).
 GitTally answers the legacy static page names (`/index.html`, `/branches.html`, `/history.html`, `/system.html`, `/about.html`, `/license.html`) with permanent redirects to the new routes, so pre-rewrite links survive the host redirect.
+
+Update to v0.9.8 (2026-08-10): the running build was awaited first (a restart would have killed it), then service stopped, `~/opt/gittally` backed up to `~/opt/gittally.v0.9.7.bak` and the new bundle unpacked over it, service started.
+Verified live: `/` reports v0.9.8, the nav has no `Current` entry, the permanent `🔗` link appears only on branches whose latest build is their latest green one, and the newly linked reports answer 200 — including the stable `/branches/<branch>/reports/profile/`.
+Master has no profile report yet because its `.gittally.yml` still carries the pre-PR#282 build command; it appears once that PR merges.
