@@ -218,6 +218,14 @@ class BuildExecutor(
                 environment = mapOf("branch" to build.runningBuild.branch),
                 repoDir = build.workingDir,
                 branchConfig = branchConfig,
+                onAuxProcess = { aux ->
+                    // preparation phases (e.g. a Docker image build) must die on cancellation
+                    // too, otherwise a cancelled build blocks its slot until they finish
+                    build.process = aux
+                    if (build.cancelled.get()) {
+                        destroyProcessTree(aux)
+                    }
+                },
             )
         build.process = process
         if (build.cancelled.get()) {

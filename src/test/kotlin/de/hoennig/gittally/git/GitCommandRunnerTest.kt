@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import java.nio.file.Files
@@ -28,6 +29,15 @@ class GitCommandRunnerTest : FunSpec() {
 
             result.isSuccess.shouldBeTrue()
             result.stdout.trim() shouldBe tempDir.toRealPath().toString()
+        }
+
+        test("hands the started process to onProcess, so callers can terminate it early") {
+            var seen: Process? = null
+
+            val result = runner.run(listOf("sh", "-c", "sleep 30"), tempDir, onProcess = { seen = it.also(Process::destroy) })
+
+            result.isSuccess.shouldBeFalse()
+            seen.shouldNotBeNull().isAlive.shouldBeFalse()
         }
 
         test("passes extra environment variables") {

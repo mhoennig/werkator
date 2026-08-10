@@ -49,10 +49,10 @@ class DockerBuildRunnerTest : FunSpec() {
             captured.clear()
             repoDir = Files.createTempDirectory("gittally-docker-runner")
             workspace = repoDir.resolve("workspace")
-            every { commandRunner.run(any(), any(), any()) } returns GitCommandResult(0, "", "")
-            every { commandRunner.runOrThrow(any(), any(), any()) } returns GitCommandResult(0, "", "")
-            every { commandRunner.runOrThrow(listOf("id", "-u"), any(), any()) } returns GitCommandResult(0, "1000\n", "")
-            every { commandRunner.runOrThrow(listOf("id", "-g"), any(), any()) } returns GitCommandResult(0, "1001\n", "")
+            every { commandRunner.run(any(), any(), any(), any()) } returns GitCommandResult(0, "", "")
+            every { commandRunner.runOrThrow(any(), any(), any(), any()) } returns GitCommandResult(0, "", "")
+            every { commandRunner.runOrThrow(listOf("id", "-u"), any(), any(), any()) } returns GitCommandResult(0, "1000\n", "")
+            every { commandRunner.runOrThrow(listOf("id", "-g"), any(), any(), any()) } returns GitCommandResult(0, "1001\n", "")
             every { socketLocator.locate("1000") } returns
                 DockerSocket(Paths.get("/var/run/docker.sock"), rootless = false, gid = 999L)
             runner = DockerBuildRunner(commandRunner, socketLocator)
@@ -144,6 +144,8 @@ class DockerBuildRunnerTest : FunSpec() {
                 commandRunner.runOrThrow(
                     match { it.take(2) == listOf("docker", "run") && it.takeLast(2) == listOf("0", "0") },
                     repoDir,
+                    any(),
+                    any(),
                 )
             }
         }
@@ -194,7 +196,7 @@ class DockerBuildRunnerTest : FunSpec() {
 
         test("builds a missing image from the Dockerfile with the input labels") {
             Files.writeString(repoDir.resolve("Dockerfile"), "FROM eclipse-temurin:21\n")
-            every { commandRunner.run(match { it.take(3) == listOf("docker", "image", "inspect") }, any(), any()) } returns
+            every { commandRunner.run(match { it.take(3) == listOf("docker", "image", "inspect") }, any(), any(), any()) } returns
                 GitCommandResult(1, "", "no such image")
 
             runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, dockerBranchConfig(dockerfile = "Dockerfile"))
@@ -221,6 +223,8 @@ class DockerBuildRunnerTest : FunSpec() {
                         ".",
                     ),
                     repoDir,
+                    any(),
+                    any(),
                 )
             }
         }
@@ -229,13 +233,13 @@ class DockerBuildRunnerTest : FunSpec() {
             Files.writeString(repoDir.resolve("Dockerfile"), "FROM eclipse-temurin:21\n")
             val dockerfileHash = DockerImageInputs.dockerfileSha256(repoDir.resolve("Dockerfile"))
             val inputsHash = DockerImageInputs.inputsSha256(dockerfileHash, "Dockerfile", ".")
-            every { commandRunner.run(match { it.take(3) == listOf("docker", "image", "inspect") }, any(), any()) } returns
+            every { commandRunner.run(match { it.take(3) == listOf("docker", "image", "inspect") }, any(), any(), any()) } returns
                 GitCommandResult(0, "$inputsHash\n", "")
 
             runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, dockerBranchConfig(dockerfile = "Dockerfile"))
 
             verify(exactly = 0) {
-                commandRunner.runOrThrow(match { it.take(2) == listOf("docker", "build") }, any(), any())
+                commandRunner.runOrThrow(match { it.take(2) == listOf("docker", "build") }, any(), any(), any())
             }
         }
 
@@ -247,25 +251,27 @@ class DockerBuildRunnerTest : FunSpec() {
 
             val repoKey = ArtifactKeys.repoKey(repoDir)
             verify(exactly = 1) {
-                commandRunner.runOrThrow(listOf("docker", "volume", "create", "gittally-gradle-$repoKey"), repoDir)
+                commandRunner.runOrThrow(listOf("docker", "volume", "create", "gittally-gradle-$repoKey"), repoDir, any(), any())
             }
             verify(exactly = 2) {
                 commandRunner.run(
                     listOf("docker", "rm", "-f", "gittally-build-$repoKey-${ArtifactKeys.branchKey("main")}"),
                     repoDir,
+                    any(),
+                    any(),
                 )
             }
         }
 
         test("removes stale labelled build containers once, before the first docker build") {
-            every { commandRunner.run(match { it.take(3) == listOf("docker", "ps", "-aq") }, any(), any()) } returns
+            every { commandRunner.run(match { it.take(3) == listOf("docker", "ps", "-aq") }, any(), any(), any()) } returns
                 GitCommandResult(0, "abc\ndef\n", "")
 
             runner.start("./gradlew clean", workspace, mapOf("branch" to "main"), repoDir, dockerBranchConfig())
             runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, dockerBranchConfig())
 
-            verify(exactly = 1) { commandRunner.run(match { it.take(3) == listOf("docker", "ps", "-aq") }, any(), any()) }
-            verify { commandRunner.run(listOf("docker", "rm", "-f", "abc", "def"), repoDir) }
+            verify(exactly = 1) { commandRunner.run(match { it.take(3) == listOf("docker", "ps", "-aq") }, any(), any(), any()) }
+            verify { commandRunner.run(listOf("docker", "rm", "-f", "abc", "def"), repoDir, any(), any()) }
         }
 
         test("fails without a configured image") {

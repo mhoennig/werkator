@@ -48,12 +48,13 @@ class DockerBuildRunner(
         environment: Map<String, String>,
         repoDir: Path,
         branchConfig: BranchConfig,
+        onAuxProcess: (Process) -> Unit,
     ): Process {
         val docker = branchConfig.docker
         require(docker.image.isNotBlank()) { "branches.<name>.docker.image must be set when docker.enabled is true" }
         val repoKey = ArtifactKeys.repoKey(repoDir)
         cleanupStaleContainersOnce(repoKey, repoDir)
-        ensureImage(docker, repoDir)
+        ensureImage(docker, repoDir, onAuxProcess)
         val uid = id("-u", repoDir)
         val gid = id("-g", repoDir)
         val socket = socketLocator.locate(uid)
@@ -64,7 +65,7 @@ class DockerBuildRunner(
         val ownershipUid = if (rootless) "0" else uid
         val ownershipGid = if (rootless) "0" else gid
         val volume = gradleVolumeName(repoKey)
-        prepareGradleVolume(volume, docker.image, ownershipUid, ownershipGid, repoDir)
+        prepareGradleVolume(volume, docker.image, ownershipUid, ownershipGid, repoDir, onAuxProcess)
         val containerName = containerName(repoKey, environment["branch"])
         removeContainer(containerName, repoDir)
         val runCommand =
@@ -92,6 +93,7 @@ class DockerBuildRunner(
     private fun ensureImage(
         docker: DockerConfig,
         repoDir: Path,
+        onAuxProcess: (Process) -> Unit,
     ) {
         if (docker.dockerfile.isBlank()) {
             return
@@ -126,6 +128,7 @@ class DockerBuildRunner(
                 docker.context,
             ),
             repoDir,
+            onProcess = onAuxProcess,
         )
     }
 
@@ -140,6 +143,7 @@ class DockerBuildRunner(
         uid: String,
         gid: String,
         repoDir: Path,
+        onAuxProcess: (Process) -> Unit,
     ) {
         val key = "$volume@$image"
         if (key in preparedVolumes) {
@@ -164,6 +168,7 @@ class DockerBuildRunner(
                 gid,
             ),
             repoDir,
+            onProcess = onAuxProcess,
         )
         preparedVolumes += key
     }

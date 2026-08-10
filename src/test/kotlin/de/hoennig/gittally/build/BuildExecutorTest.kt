@@ -31,6 +31,7 @@ class BuildExecutorTest : FunSpec() {
     private class Harness(
         configYaml: String,
         workspaceSubdir: String? = null,
+        val buildRunner: BuildRunner = ProcessBuildRunner(),
     ) {
         val workingDir: Path = Files.createTempDirectory("gittally-executor-test")
         val repository = FileBuildResultRepository(workingDir.resolve("build-results.json"))
@@ -52,7 +53,7 @@ class BuildExecutorTest : FunSpec() {
                 repository = repository,
                 configLoader = ConfigLoader(),
                 giteaClient = giteaClient,
-                buildRunner = ProcessBuildRunner(),
+                buildRunner = buildRunner,
                 workspaces = workspaces,
                 artifactStore = artifactStore,
                 eventPublisher =
@@ -73,6 +74,7 @@ class BuildExecutorTest : FunSpec() {
         cleanCommand: String = "",
         maxConcurrent: Int = 1,
         workspaceSubdir: String? = null,
+        buildRunner: BuildRunner? = null,
     ) = Harness(
         """
         builds:
@@ -83,6 +85,7 @@ class BuildExecutorTest : FunSpec() {
             cleanCommand: "$cleanCommand"
         """.trimIndent(),
         workspaceSubdir = workspaceSubdir,
+        buildRunner = buildRunner ?: ProcessBuildRunner(),
     )
 
     private suspend fun awaitStatus(
@@ -180,6 +183,40 @@ class BuildExecutorTest : FunSpec() {
                     .toMillis()
             waitMillis shouldBeGreaterThan 1000L
             result.duration.shouldNotBeNull().toMillis() shouldBeLessThan waitMillis
+        }
+
+        test("cancel kills a long auxiliary preparation phase instead of waiting for it") {
+            // like DockerBuildRunner's synchronous image build: a slow aux process runs
+            // before the build command and fails the build when it was terminated
+            val auxRunner =
+                object : BuildRunner {
+                    override fun start(
+                        command: String,
+                        workingDir: java.nio.file.Path,
+                        environment: Map<String, String>,
+                        repoDir: java.nio.file.Path,
+                        branchConfig: de.hoennig.gittally.config.BranchConfig,
+                        onAuxProcess: (Process) -> Unit,
+                    ): Process {
+                        val aux = ProcessBuilder("bash", "-c", "sleep 60").directory(workingDir.toFile()).start()
+                        onAuxProcess(aux)
+                        aux.waitFor()
+                        check(aux.exitValue() == 0) { "aux phase failed" }
+                        return ProcessBuilder("bash", "-c", "echo built").directory(workingDir.toFile()).start()
+                    }
+                }
+            val h = harness("unused", buildRunner = auxRunner)
+
+            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            eventually(10.seconds) {
+                h.repository.latestFor("main")?.status shouldBe BuildStatus.RUNNING
+            }
+            h.executor.cancel(build.artifactKey).shouldBeTrue()
+
+            // must beat the 60s aux sleep by a wide margin — the aux process gets killed
+            eventually(15.seconds) {
+                h.repository.latestFor("main")?.status shouldBe BuildStatus.CANCELLED
+            }
         }
 
         test("a build cancelled while still queued records neither runningSince nor a duration") {

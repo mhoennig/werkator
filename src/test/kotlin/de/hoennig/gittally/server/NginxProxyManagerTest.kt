@@ -118,7 +118,7 @@ class NginxProxyManagerTest : FunSpec() {
             sleepCount = 0
             repoDir = Files.createTempDirectory("gittally-nginx-repo")
             stateDir = Files.createTempDirectory("gittally-nginx-state")
-            every { commandRunner.run(capture(captured), any(), any()) } answers {
+            every { commandRunner.run(capture(captured), any(), any(), any()) } answers {
                 if (captured.last().take(3) == listOf("docker", "run", "-d")) {
                     configsAtContainerRun += Files.readString(stateDir.resolve("nginx/nginx.conf"))
                 }
@@ -246,7 +246,7 @@ class NginxProxyManagerTest : FunSpec() {
         test("does not start while a foreign container occupies an nginx port") {
             every { configLoader.load(repoDir) } returns nginxConfig()
             every {
-                commandRunner.run(match { it.take(2) == listOf("docker", "ps") && it.contains("--format") }, any(), any())
+                commandRunner.run(match { it.take(2) == listOf("docker", "ps") && it.contains("--format") }, any(), any(), any())
             } returns GitCommandResult(0, "abc123\tother-app\t0.0.0.0:8080->80/tcp\tvendor=other", "")
 
             manager.start()
@@ -258,7 +258,7 @@ class NginxProxyManagerTest : FunSpec() {
         test("removes a stale gittally-named container occupying an nginx port") {
             every { configLoader.load(repoDir) } returns nginxConfig()
             every {
-                commandRunner.run(match { it.take(2) == listOf("docker", "ps") && it.contains("--format") }, any(), any())
+                commandRunner.run(match { it.take(2) == listOf("docker", "ps") && it.contains("--format") }, any(), any(), any())
             } returnsMany
                 listOf(
                     GitCommandResult(0, "abc123\tgittally-nginx-old\t0.0.0.0:8080->80/tcp\t", ""),
@@ -304,7 +304,7 @@ class NginxProxyManagerTest : FunSpec() {
 
         test("a docker failure never throws — the HTTP server keeps running") {
             every { configLoader.load(repoDir) } returns nginxConfig()
-            every { commandRunner.run(any(), any(), any()) } throws RuntimeException("docker: command not found")
+            every { commandRunner.run(any(), any(), any(), any()) } throws RuntimeException("docker: command not found")
 
             manager.start()
         }
