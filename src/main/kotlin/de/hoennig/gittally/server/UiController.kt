@@ -226,7 +226,7 @@ class UiController(
         }
 
     /**
-     * The browsable `index.html` pages under `reports/`, shallowest first; pages nested
+     * The browsable report pages under `reports/`, shallowest first; pages nested
      * below an already-listed report index are skipped — like the legacy artifact index.
      * Each entry carries the report's failures counter for the failed-badge.
      */
@@ -248,13 +248,46 @@ class UiController(
         val topmost = mutableListOf<String>()
         for (relativeIndex in allIndexes) {
             val dir = relativeIndex.substringBeforeLast('/', "")
-            if (knownDirs.any { known -> known.isEmpty() || dir == known || dir.startsWith("$known/") }) {
+            if (dir.isCoveredBy(knownDirs)) {
                 continue
             }
             knownDirs += dir
             topmost += relativeIndex
         }
-        return topmost.map { ReportIndexView(path = it, failures = reportFailures(reportsDir.resolve(it))) }
+        return (topmost + indexLessReportPages(reportsDir, knownDirs))
+            .map { ReportIndexView(path = it, failures = reportFailures(reportsDir.resolve(it))) }
+    }
+
+    private fun String.isCoveredBy(knownDirs: List<String>): Boolean =
+        knownDirs.any { known -> known.isEmpty() || this == known || this.startsWith("$known/") }
+
+    /**
+     * Report pages of directories without an `index.html`, such as Gradle's `--profile` report
+     * with its timestamped file name. Only `reports/` itself and its direct sub-directories are
+     * scanned, so that a report tree cannot flood the artifact index with its inner pages.
+     */
+    private fun indexLessReportPages(
+        reportsDir: Path,
+        knownDirs: List<String>,
+    ): List<String> {
+        val candidateDirs =
+            buildList {
+                add(reportsDir)
+                Files.list(reportsDir).use { children ->
+                    children.asSequence().filter { Files.isDirectory(it) }.forEach { add(it) }
+                }
+            }
+        return candidateDirs
+            .filterNot { reportsDir.relativize(it).toString().isCoveredBy(knownDirs) }
+            .flatMap { dir ->
+                Files.list(dir).use { pages ->
+                    pages
+                        .asSequence()
+                        .filter { Files.isRegularFile(it) && it.name.endsWith(".html") }
+                        .map { reportsDir.relativize(it).toString() }
+                        .toList()
+                }
+            }.sorted()
     }
 
     /**

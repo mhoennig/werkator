@@ -237,6 +237,29 @@ class UiControllerTest : FunSpec() {
                 ).andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
         }
 
+        test("artifact index links report pages of directories without an index, but not their inner pages") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("main-abc123-key"))
+            Files.createDirectories(artifactDir.resolve("reports/profile"))
+            Files.writeString(artifactDir.resolve("reports/profile/profile-2026-08-10-18-36-12.html"), "<html></html>")
+            Files.createDirectories(artifactDir.resolve("reports/tests/test"))
+            Files.writeString(artifactDir.resolve("reports/tests/test/index.html"), "<html></html>")
+            Files.createDirectories(artifactDir.resolve("reports/tests/test/classes"))
+            Files.writeString(artifactDir.resolve("reports/tests/test/classes/SomeTest.html"), "<html></html>")
+            every { repository.history() } returns listOf(successResult)
+            every { artifactStore.artifactDir("main-abc123-key") } returns artifactDir
+
+            val page =
+                mockMvc
+                    .perform(get("/builds/main-abc123-key"))
+                    .andExpect(status().isOk)
+                    .andReturn()
+                    .response.contentAsString
+
+            page shouldContain "reports/profile/profile-2026-08-10-18-36-12.html"
+            page shouldContain "reports/tests/test/index.html"
+            page shouldNotContain "SomeTest.html"
+        }
+
         test("report links carry a failed-badge from the report's failures counter") {
             val artifactDir = Files.createDirectories(tempDir.resolve("main-abc123-key"))
             Files.createDirectories(artifactDir.resolve("reports/tests/test"))
