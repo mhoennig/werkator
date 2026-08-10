@@ -1,0 +1,77 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head(${pageTitle})}"></head>
+<body>
+<main>
+    <h1 th:replace="~{fragments :: header(${pageTitle})}"></h1>
+    <div th:replace="~{fragments :: nav(${view})}"></div>
+    <div class="panel release-notes">
+
+        <h2>v0.9.6 <span class="muted">— 2026-08-10</span></h2>
+        <ul>
+            <li>This release-notes page, linked from the version in the footer.</li>
+            <li>Mobile: the live indicator collapses to a colored state dot so it no longer squeezes the menu.</li>
+        </ul>
+
+        <h2>v0.9.5 <span class="muted">— 2026-08-10</span></h2>
+        <ul>
+            <li>Builds killed by a server shutdown (e.g. a deployment restart) are recorded as
+                <span class="status status-interrupted">interrupted</span> instead of
+                <span class="status status-failed">failed</span>, publish a <em>pending</em> Gitea status,
+                and are re-enqueued when the server starts again.</li>
+        </ul>
+
+        <h2>v0.9.4 <span class="muted">— 2026-08-10</span></h2>
+        <ul>
+            <li>The legacy page names (<code>/index.html</code>, <code>/branches.html</code>, …) answer with
+                permanent redirects to the new routes, so pre-rewrite bookmarks and the redirect from the
+                old host keep working.</li>
+        </ul>
+
+        <h2>v0.9.3 <span class="muted">— 2026-08-10</span></h2>
+        <ul>
+            <li>The artifact page shows a <span class="status status-failed">n failed</span> badge behind
+                links to test reports that contain failures.</li>
+        </ul>
+
+        <h2>v0.9.2 <span class="muted">— 2026-08-10</span></h2>
+        <ul>
+            <li>Cancelling a build also terminates its auxiliary phases (Docker image build, Gradle cache
+                volume preparation), so the next queued build starts immediately.</li>
+        </ul>
+
+        <h2>v0.9.1 <span class="muted">— 2026-08-10</span></h2>
+        <ul>
+            <li>Durations no longer flicker while live-updating.</li>
+            <li>While a build is running or pending, the artifact link shows an hourglass (logs only,
+                so far) instead of the report icon.</li>
+            <li>Pending builds show their queue wait time in italics; running and finished builds show
+                the pure build time without the wait.</li>
+        </ul>
+
+        <h2>v0.9.0 <span class="muted">— 2026-08-10</span></h2>
+        <p>Port of the legacy <em>gitTally</em> bash script to Kotlin/Spring Boot — the first production
+            deployment of the rewrite.</p>
+        <ul>
+            <li>Dual-mode application: CLI (<code>init</code>, <code>status</code>, <code>build</code>,
+                <code>retry</code>, <code>config:print</code>) and HTTP server with this web UI and a JSON API.</li>
+            <li>Declarative YAML configuration: committed <code>.gittally.yml</code> plus machine-specific
+                overrides and secrets under <code>.git/gittally/</code>.</li>
+            <li>Builds run detached in git worktrees — the primary checkout is never used for builds.</li>
+            <li>Docker build containers with automatic image rebuilds and a per-repository Gradle cache volume;
+                works under rootless Docker daemons; git metadata is available read-only inside the container.</li>
+            <li>Branch watcher with auto-builds (nightly slots), a pull-request gate, and pruning of results,
+                artifacts, and stale worktrees.</li>
+            <li>Commit statuses reported to Gitea; artifact store with per-branch retention and permanent
+                latest-green links; system metrics page.</li>
+            <li>Managed nginx/TLS container (Let's Encrypt) for hosts without a reverse proxy;
+                <code>init --systemd</code> generates the service unit.</li>
+            <li>Self-contained runtime bundle (jlink-trimmed JRE + jar) for hosts without a Java runtime.</li>
+        </ul>
+
+    </div>
+</main>
+<footer th:replace="~{fragments :: footer}"></footer>
+<script src="/gittally.js"></script>
+</body>
+</html>

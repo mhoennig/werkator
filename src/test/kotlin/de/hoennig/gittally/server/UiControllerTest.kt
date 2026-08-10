@@ -286,6 +286,17 @@ class UiControllerTest : FunSpec() {
                 .andExpect(header().string("Location", "/history"))
         }
 
+        test("release notes page renders the version history and the footer links to it") {
+            mockMvc
+                .perform(get("/releases"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("Release Notes")))
+                .andExpect(content().string(containsString("v0.9.0")))
+                .andExpect(content().string(containsString("Kotlin/Spring Boot")))
+                // the footer version (rendered on every page) is the link to this page
+                .andExpect(content().string(containsString("""href="/releases"""")))
+        }
+
         test("artifact index of a pruned build explains the missing artifacts") {
             every { repository.history() } returns listOf(successResult)
             every { artifactStore.artifactDir("main-abc123-key") } returns null

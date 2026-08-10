@@ -109,6 +109,13 @@ class UiController(
         return "current"
     }
 
+    /** Hand-maintained release notes (templates/releases.html); linked from the version in the footer. */
+    @GetMapping("/releases")
+    fun releases(model: Model): String {
+        baseModel(model, view = "releases", pageTitle = "Release Notes")
+        return "releases"
+    }
+
     @GetMapping("/system")
     fun system(model: Model): String {
         baseModel(model, view = "system", pageTitle = "System Metrics")

@@ -11,7 +11,7 @@ plugins {
 group = "de.hoennig"
 // bump at least the patch version for every deployment, so the UI footer
 // (BuildProperties) and --version identify what is actually running
-version = "0.9.5"
+version = "0.9.6"
 
 java {
     toolchain {
