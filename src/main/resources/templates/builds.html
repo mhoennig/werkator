@@ -52,7 +52,9 @@
                 <td class="duration-cell" data-label="Duration" th:text="${row.duration}">1:23</td>
                 <td data-label="Artifacts">
                     <a th:if="${row.artifactKey != ''}" class="artifact-link"
-                       th:href="'/builds/' + ${row.artifactKey}" title="Open artifacts">📄</a>
+                       th:href="'/builds/' + ${row.artifactKey}"
+                       th:text="${row.inProgress} ? '⏳' : '📄'"
+                       th:title="${row.inProgress} ? 'Open build log — no artifacts yet' : 'Open artifacts'">📄</a>
                     <a th:if="${row.latestGreenUrl != null}" class="artifact-link"
                        th:href="${row.latestGreenUrl}"
                        title="Permanent link: artifacts of the latest green build">🔗</a>

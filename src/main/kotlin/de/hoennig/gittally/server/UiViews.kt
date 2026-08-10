@@ -80,6 +80,8 @@ data class BuildRowView(
     val branchUrl: String?,
     val commitUrl: String?,
     val latestGreenUrl: String? = null,
+    /** True while the build has no artifacts yet — the artifact link then shows the log-only icon. */
+    val inProgress: Boolean = false,
 ) {
     companion object {
         fun from(
@@ -96,6 +98,7 @@ data class BuildRowView(
             artifactKey = result.artifactKey,
             branchUrl = links.branchUrl(result.branch),
             commitUrl = links.commitUrl(result.commit),
+            inProgress = !result.status.isTerminal,
         )
 
         /** A branches-view row; never-built branches have no timestamps and no artifact. */
@@ -114,6 +117,7 @@ data class BuildRowView(
             branchUrl = links.branchUrl(entry.branch),
             commitUrl = links.commitUrl(entry.commit),
             latestGreenUrl = entry.latestGreenUrl,
+            inProgress = entry.status == "running" || entry.status == "pending",
         )
     }
 }

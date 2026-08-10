@@ -241,9 +241,10 @@ function renderBuildRow(build, allowRestart) {
     const artifactsCell = elem("td");
     artifactsCell.dataset.label = "Artifacts";
     if (build.artifactKey) {
-        const artifactLink = elem("a", "artifact-link", "📄");
+        const inProgress = build.status === "running" || build.status === "pending";
+        const artifactLink = elem("a", "artifact-link", inProgress ? "⏳" : "📄");
         artifactLink.href = "/builds/" + encodeURIComponent(build.artifactKey);
-        artifactLink.title = "Open artifacts";
+        artifactLink.title = inProgress ? "Open build log — no artifacts yet" : "Open artifacts";
         artifactsCell.appendChild(artifactLink);
     }
     if (build.latestGreenUrl) {

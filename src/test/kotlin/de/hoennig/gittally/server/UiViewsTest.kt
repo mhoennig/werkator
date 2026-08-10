@@ -39,5 +39,27 @@ class UiViewsTest : FunSpec() {
             links.branchUrl("main") shouldBe null
             links.commitUrl("0123abc") shouldBe null
         }
+
+        test("rows are in progress while running or pending, so the artifact link shows the log-only icon") {
+            val links = GiteaWebLinks(GiteaConfig())
+
+            fun row(status: String) =
+                BuildRowView.from(
+                    BranchDto(
+                        branch = "main",
+                        commit = "0123abc",
+                        status = status,
+                        startedAt = null,
+                        durationSeconds = null,
+                        artifactKey = "some-key",
+                    ),
+                    links,
+                )
+
+            row("running").inProgress shouldBe true
+            row("pending").inProgress shouldBe true
+            row("success").inProgress shouldBe false
+            row("failed").inProgress shouldBe false
+        }
     }
 }
