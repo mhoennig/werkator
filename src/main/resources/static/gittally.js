@@ -433,6 +433,24 @@ function initCurrentBuilds() {
 
 // ---- system metrics ----------------------------------------------------------
 
+/** The total each utilization metric is compared against for the critical highlighting. */
+const UTILIZATION_TOTALS = { cpuUsed: "cpuCount", ramUsedGib: "ramTotalGib", diskUsedGib: "diskTotalGib" };
+
+/** Same thresholds as UiFormats.utilizationClass: warn from 80% of the total, critical from 90%. */
+function utilizationClass(used, total) {
+    if (used == null || total == null || !(total > 0)) {
+        return "";
+    }
+    const ratio = used / total;
+    if (ratio >= 0.90) {
+        return "metric-crit";
+    }
+    if (ratio >= 0.80) {
+        return "metric-warn";
+    }
+    return "";
+}
+
 /** The metric rows are fixed, so only the cell texts are updated — never rebuilt. */
 function initSystemTable() {
     const table = document.getElementById("system-table");
@@ -454,6 +472,15 @@ function initSystemTable() {
             row.querySelectorAll("[data-field]").forEach((cell) => {
                 cell.textContent = formatMetric(aggregate ? aggregate[cell.dataset.field] : null);
             });
+            const currentCell = row.querySelector('[data-field="current"]');
+            if (currentCell) {
+                const totalField = UTILIZATION_TOTALS[row.dataset.metric];
+                const cssClass = totalField
+                    ? utilizationClass(aggregate ? aggregate.current : null, metrics[totalField])
+                    : "";
+                currentCell.classList.toggle("metric-warn", cssClass === "metric-warn");
+                currentCell.classList.toggle("metric-crit", cssClass === "metric-crit");
+            }
         });
         setText("info-cpu-count", metrics.cpuCount != null ? metrics.cpuCount + " cores" : "n/a");
         setText("info-ram-total", metrics.ramTotalGib != null ? formatMetric(metrics.ramTotalGib) + " GiB" : "n/a");

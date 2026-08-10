@@ -95,6 +95,9 @@ tbody.is-stale { opacity: 0.55; }
 /* system metrics */
 #system-table { min-width: 640px; }
 .num { text-align: right; font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+/* critical utilization of the current value: warn from 80% of the total, critical from 90% */
+.metric-warn { background: var(--interrupted-bg); color: var(--interrupted-text); font-weight: 700; }
+.metric-crit { background: var(--failed-bg); color: var(--failed-text); font-weight: 700; }
 th.num { font-family: inherit; font-size: 12px; }
 .meta { margin: 14px 0 0; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; }
 

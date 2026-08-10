@@ -65,6 +65,29 @@ object UiFormats {
         }
 
     fun timeOfDay(instant: Instant): String = timeOfDayFormat.format(instant)
+
+    /**
+     * CSS class highlighting a critical utilization: `metric-warn` from 80% of [total],
+     * `metric-crit` from 90%, empty below or when either value is unavailable.
+     * `gittally.js` (`utilizationClass`) must apply the same thresholds.
+     */
+    fun utilizationClass(
+        used: Double?,
+        total: Double?,
+    ): String {
+        if (used == null || total == null || !used.isFinite() || !total.isFinite() || total <= 0) {
+            return ""
+        }
+        val ratio = used / total
+        return when {
+            ratio >= UTILIZATION_CRIT -> "metric-crit"
+            ratio >= UTILIZATION_WARN -> "metric-warn"
+            else -> ""
+        }
+    }
+
+    private const val UTILIZATION_WARN = 0.80
+    private const val UTILIZATION_CRIT = 0.90
 }
 
 /** One row of the latest/history build tables; [latestGreenUrl] only on the branches view. */
@@ -161,12 +184,15 @@ data class MetricRowView(
     val min: String,
     val max: String,
     val avg: String,
+    /** `metric-warn`/`metric-crit` when the current value is a critical share of its total. */
+    val currentClass: String = "",
 ) {
     companion object {
         fun from(
             key: String,
             label: String,
             aggregate: MetricAggregate?,
+            total: Double? = null,
         ) = MetricRowView(
             key = key,
             label = label,
@@ -174,6 +200,7 @@ data class MetricRowView(
             min = UiFormats.metric(aggregate?.min),
             max = UiFormats.metric(aggregate?.max),
             avg = UiFormats.metric(aggregate?.avg),
+            currentClass = UiFormats.utilizationClass(aggregate?.current, total),
         )
     }
 }
@@ -191,11 +218,11 @@ data class SystemMetricsView(
             SystemMetricsView(
                 rows =
                     listOf(
-                        MetricRowView.from("cpuUsed", "CPU used (cores)", metrics.cpuUsed),
+                        MetricRowView.from("cpuUsed", "CPU used (cores)", metrics.cpuUsed, metrics.cpuCount.toDouble()),
                         MetricRowView.from("cpuIdle", "CPU idle (cores)", metrics.cpuIdle),
-                        MetricRowView.from("ramUsedGib", "RAM used (GiB)", metrics.ramUsedGib),
+                        MetricRowView.from("ramUsedGib", "RAM used (GiB)", metrics.ramUsedGib, metrics.ramTotalGib),
                         MetricRowView.from("ramFreeGib", "RAM free (GiB)", metrics.ramFreeGib),
-                        MetricRowView.from("diskUsedGib", "Disk used (GiB)", metrics.diskUsedGib),
+                        MetricRowView.from("diskUsedGib", "Disk used (GiB)", metrics.diskUsedGib, metrics.diskTotalGib),
                         MetricRowView.from("diskFreeGib", "Disk free (GiB)", metrics.diskFreeGib),
                         MetricRowView.from("repoSizeGib", "Repo size (GiB)", metrics.repoSizeGib),
                     ),

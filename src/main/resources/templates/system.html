@@ -19,7 +19,7 @@
             <tbody id="system-rows">
             <tr th:each="row : ${metrics.rows}" th:attr="data-metric=${row.key}">
                 <td data-label="Metric" th:text="${row.label}">CPU used (cores)</td>
-                <td class="num" data-label="Current" data-field="current" th:text="${row.current}">0.42</td>
+                <td class="num" data-label="Current" data-field="current" th:classappend="${row.currentClass}" th:text="${row.current}">0.42</td>
                 <td class="num" data-label="Min" data-field="min" th:text="${row.min}">0.10</td>
                 <td class="num" data-label="Max" data-field="max" th:text="${row.max}">3.20</td>
                 <td class="num" data-label="Avg" data-field="avg" th:text="${row.avg}">0.80</td>
