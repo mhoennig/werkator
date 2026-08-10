@@ -144,7 +144,11 @@ th.num { font-family: inherit; font-size: 12px; }
 @media (max-width: 680px) {
     main { margin: 16px auto; }
     h1 { font-size: 22px; }
+    .view-row { flex-wrap: wrap; }
     .view-toggle a, .view-toggle span { min-width: 0; padding: 6px 9px; font-size: 13px; }
+    /* the live indicator collapses to a colored state dot so it cannot squeeze the menu;
+       its status color (green/red/grey) carries the live/error/static state */
+    #live-indicator { min-width: 14px; width: 14px; height: 14px; padding: 0; border-radius: 50%; font-size: 0; }
     .table-wrap { overflow-x: visible; border: none; border-radius: 0; background: transparent; box-shadow: none; }
     table, thead, tbody, tr, td { display: block; }
     table { min-width: 0; }
