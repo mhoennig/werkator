@@ -56,6 +56,24 @@ function statusCssClass(status) {
     return "status status-" + (KNOWN_STATUSES.has(status) ? status : "unknown");
 }
 
+/** Seconds elapsed since `startedAtIso`, or null when it is missing/invalid. */
+function elapsedSeconds(startedAtIso) {
+    const startedAt = new Date(startedAtIso || "").getTime();
+    return Number.isNaN(startedAt) ? null : (Date.now() - startedAt) / 1000;
+}
+
+/**
+ * The duration to display for a build: the recorded duration once finished, the
+ * live elapsed time while running or pending — so re-rendered rows never show an
+ * empty cell that the once-per-second ticker fills back in (visible flicker).
+ */
+function displayDurationSeconds(build) {
+    if (build.durationSeconds != null) {
+        return build.durationSeconds;
+    }
+    return build.status === "running" || build.status === "pending" ? elapsedSeconds(build.startedAt) : null;
+}
+
 // ---- shared infrastructure -------------------------------------------------
 
 const FETCH_TIMEOUT_MS = 8000;
@@ -216,7 +234,7 @@ function renderBuildRow(build, allowRestart) {
     startedCell.dataset.label = "Started";
     row.appendChild(startedCell);
 
-    const durationCell = elem("td", "duration-cell", formatDuration(build.durationSeconds));
+    const durationCell = elem("td", "duration-cell", formatDuration(displayDurationSeconds(build)));
     durationCell.dataset.label = "Duration";
     row.appendChild(durationCell);
 
@@ -309,7 +327,7 @@ function renderBuildCard(build) {
     );
     header.appendChild(commitCode);
     header.appendChild(elem("span", "muted", "started " + formatTimestamp(build.startedAt)));
-    header.appendChild(elem("span", "duration-cell running-duration"));
+    header.appendChild(elem("span", "duration-cell running-duration", formatDuration(displayDurationSeconds(build))));
     const cardActions = elem("span", "build-card-actions");
     cardActions.appendChild(
         actionButton("× Cancel", "Cancel build", "cancel-button", {
