@@ -7,6 +7,7 @@ import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.metrics.SystemMetricsCollector
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
 import org.springframework.http.HttpStatus
@@ -15,6 +16,7 @@ import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.web.servlet.view.RedirectView
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -40,6 +42,16 @@ class UiController(
     private val buildProperties: ObjectProvider<BuildProperties>,
 ) {
     var workingDir: Path = Paths.get(".")
+
+    /**
+     * Permanent redirects for the legacy script's static page names, so bookmarks
+     * and links from before the rewrite (e.g. via the old host's redirect) keep working.
+     */
+    @GetMapping("/index.html", "/branches.html", "/history.html", "/system.html", "/about.html", "/license.html")
+    fun legacyPageName(request: HttpServletRequest): RedirectView =
+        RedirectView(LEGACY_PAGE_TARGETS.getValue(request.requestURI)).apply {
+            setStatusCode(HttpStatus.MOVED_PERMANENTLY)
+        }
 
     @GetMapping("/")
     fun latest(model: Model): String {
@@ -256,5 +268,16 @@ class UiController(
 
     companion object {
         private val FAILURES_COUNTER = Regex("""id="failures">\s*<div class="counter">(\d+)""")
+
+        /** Legacy page name → new route; about/license had no successor pages and land on the start page. */
+        private val LEGACY_PAGE_TARGETS =
+            mapOf(
+                "/index.html" to "/",
+                "/branches.html" to "/branches",
+                "/history.html" to "/history",
+                "/system.html" to "/system",
+                "/about.html" to "/",
+                "/license.html" to "/",
+            )
     }
 }

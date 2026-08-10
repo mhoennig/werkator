@@ -28,6 +28,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.web.server.ResponseStatusException
 import java.nio.file.Files
@@ -268,6 +269,21 @@ class UiControllerTest : FunSpec() {
             page shouldNotContain "0 failed"
             // exactly one badge: the report with failures, none for the clean or counter-less reports
             Regex(""" failed</span>""").findAll(page).count() shouldBe 1
+        }
+
+        test("legacy page names redirect permanently to the new routes") {
+            mockMvc
+                .perform(get("/index.html"))
+                .andExpect(status().isMovedPermanently)
+                .andExpect(header().string("Location", "/"))
+            mockMvc
+                .perform(get("/branches.html"))
+                .andExpect(status().isMovedPermanently)
+                .andExpect(header().string("Location", "/branches"))
+            mockMvc
+                .perform(get("/history.html"))
+                .andExpect(status().isMovedPermanently)
+                .andExpect(header().string("Location", "/history"))
         }
 
         test("artifact index of a pruned build explains the missing artifacts") {
