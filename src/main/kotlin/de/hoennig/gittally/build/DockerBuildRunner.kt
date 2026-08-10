@@ -5,6 +5,7 @@ import de.hoennig.gittally.config.DockerConfig
 import de.hoennig.gittally.git.GitCommandRunner
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import java.nio.file.Files
 import java.nio.file.Path
 
 /**
@@ -17,8 +18,12 @@ import java.nio.file.Path
  * tracked via the [DockerImageInputs.INPUTS_LABEL] image label), and the per-repo
  * Gradle cache volume. The returned [Process] is the attached `docker run` client
  * (`--init`, so termination signals reach the build inside the container); the
- * executor streams and terminates it like a native build. Ownership of `build/`
- * and `.gradle/` is repaired to the host user inside the same container run.
+ * executor streams and terminates it like a native build. On rootful daemons the
+ * ownership of `build/` and `.gradle/` is repaired to the host user inside the
+ * same container run; under a rootless daemon the container runs as root, which
+ * already is the host user, so the repair chown degenerates to `0:0`.
+ * Git works inside the container: the primary `.git` is mounted read-only with
+ * `.git/gittally/` masked, see [gitMetadataMounts].
  */
 @Component
 class DockerBuildRunner(
@@ -51,8 +56,15 @@ class DockerBuildRunner(
         ensureImage(docker, repoDir)
         val uid = id("-u", repoDir)
         val gid = id("-g", repoDir)
+        val socket = socketLocator.locate(uid)
+        // Under a rootless daemon, container root IS the unprivileged host user (identity mapping),
+        // so files in the bind-mounted worktree stay host-owned and no chown is needed; chowning to
+        // the host ids there would push the files into the subuid range and lock the host user out.
+        val rootless = socket?.rootless == true
+        val ownershipUid = if (rootless) "0" else uid
+        val ownershipGid = if (rootless) "0" else gid
         val volume = gradleVolumeName(repoKey)
-        prepareGradleVolume(volume, docker.image, uid, gid, repoDir)
+        prepareGradleVolume(volume, docker.image, ownershipUid, ownershipGid, repoDir)
         val containerName = containerName(repoKey, environment["branch"])
         removeContainer(containerName, repoDir)
         val runCommand =
@@ -61,11 +73,13 @@ class DockerBuildRunner(
                 workspace = workingDir.toAbsolutePath().normalize(),
                 environment = environment,
                 docker = docker,
+                repoDir = repoDir,
                 repoKey = repoKey,
                 containerName = containerName,
                 volume = volume,
-                uid = uid,
-                gid = gid,
+                socket = socket,
+                uid = ownershipUid,
+                gid = ownershipGid,
             )
         return processStarter(runCommand, repoDir)
     }
@@ -207,13 +221,14 @@ class DockerBuildRunner(
         workspace: Path,
         environment: Map<String, String>,
         docker: DockerConfig,
+        repoDir: Path,
         repoKey: String,
         containerName: String,
         volume: String,
+        socket: DockerSocket?,
         uid: String,
         gid: String,
     ): List<String> {
-        val socket = socketLocator.locate(uid)
         val args = mutableListOf("docker", "run", "--rm", "--init", "--name", containerName)
         args +=
             listOf(
@@ -225,6 +240,7 @@ class DockerBuildRunner(
                 "$GITTALLY_LABEL.role=build",
             )
         args += listOf("--workdir", "$workspace", "--volume", "$workspace:$workspace")
+        args += gitMetadataMounts(workspace, repoDir)
         args += listOf("--volume", "$volume:/gradle-user-home")
         args += listOf("--env", "HOME=/tmp/docker-home", "--env", "GRADLE_USER_HOME=/gradle-user-home")
         for ((key, value) in environment) {
@@ -244,7 +260,9 @@ class DockerBuildRunner(
                 args += listOf("--group-add", socket.gid.toString())
             }
         }
-        args += listOf("--user", if (socket?.rootless == true) uid else "0")
+        // root in the container: the real host user under a rootless daemon (identity mapping),
+        // or actual root under a rootful daemon, where the ownership-repair chown fixes the files.
+        args += listOf("--user", "0")
         val hostOverride = if (docker.network == "host") "localhost" else "host.docker.internal"
         args += listOf("--env", "TESTCONTAINERS_HOST_OVERRIDE=$hostOverride")
         if (docker.network != "host") {
@@ -252,6 +270,48 @@ class DockerBuildRunner(
         }
         args += docker.image
         args += listOf("sh", "-c", OWNERSHIP_REPAIR_SCRIPT, "sh", uid, gid, command)
+        return args
+    }
+
+    /**
+     * Makes git work inside the build container without exposing GitTally's secrets.
+     *
+     * The workspace is a git worktree whose `.git` file points into the primary
+     * repository's `.git`, which is not part of the workspace mount — so any git call
+     * in the build would fail. Three layered mounts fix that (Docker nests mounts by
+     * target path): the primary `.git` read-only, an empty tmpfs masking `.git/gittally/`
+     * (machine config with `git.token`, control token, build state — the workspace bind
+     * resurfaces only this build's own worktree inside it), and this worktree's admin
+     * directory read-write, so index-refreshing commands like `git status` keep working.
+     * Object and ref writes stay blocked by the read-only `.git` mount.
+     * No mounts are added when the workspace is not a worktree of [repoDir].
+     */
+    private fun gitMetadataMounts(
+        workspace: Path,
+        repoDir: Path,
+    ): List<String> {
+        val gitDir = repoDir.toAbsolutePath().normalize().resolve(".git")
+        val workspaceGitFile = workspace.resolve(".git")
+        if (!Files.isDirectory(gitDir) || !Files.isRegularFile(workspaceGitFile)) {
+            return emptyList()
+        }
+        val adminDir =
+            Files
+                .readString(workspaceGitFile)
+                .substringAfter("gitdir:", "")
+                .trim()
+                .takeIf { it.isNotEmpty() }
+                ?.let { workspace.resolve(it).normalize() }
+                ?: return emptyList()
+        if (!adminDir.startsWith(gitDir) || !Files.isDirectory(adminDir)) {
+            return emptyList()
+        }
+        val args = mutableListOf("--volume", "$gitDir:$gitDir:ro")
+        val gittallyDir = gitDir.resolve("gittally")
+        if (Files.isDirectory(gittallyDir)) {
+            args += listOf("--tmpfs", "$gittallyDir")
+        }
+        args += listOf("--volume", "$adminDir:$adminDir")
         return args
     }
 

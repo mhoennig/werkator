@@ -216,6 +216,8 @@ When `dockerfile` is set, the image is (re)built whenever the Dockerfile content
 Staleness is tracked via the image label `org.gittally.build-inputs-sha256`.
 A Gradle cache volume `gittally-gradle-<repo-key>` is created per repository and mounted as `GRADLE_USER_HOME`.
 The build worktree is bind-mounted into the container; after each command the ownership of `build/` and `.gradle/` is repaired to the host user.
+Git works inside the container: the primary repository's `.git` is mounted read-only (so build steps can run read-only git commands like `git log` or `git describe`), with `.git/gittally/` masked by an empty tmpfs so the build can never read the machine config (`git.token`) or the control token.
+Note that the rest of `.git` — including `.git/config` — is visible to builds; GitTally never stores credentials there, and neither should you.
 The Docker socket is mounted into the container and `DOCKER_HOST`/`TESTCONTAINERS_*` variables are set, so Testcontainers-based builds work inside the container.
 All GitTally containers carry `org.hoennig.gittally` labels; stale build containers of the repository are removed before the first Docker build after a restart.
 

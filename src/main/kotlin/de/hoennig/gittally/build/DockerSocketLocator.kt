@@ -8,7 +8,7 @@ import java.nio.file.Paths
 /** The host-side Docker socket a build container should talk to. */
 data class DockerSocket(
     val path: Path,
-    /** True for a rootless daemon socket (`/run/user/<uid>/docker.sock`); the container then runs as the host user. */
+    /** True for a rootless daemon socket (`/run/user/<uid>/docker.sock`); container root then maps to the host user. */
     val rootless: Boolean,
     /** Group id owning the socket, for `--group-add` on rootful daemons; null when unavailable. */
     val gid: Long?,

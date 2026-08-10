@@ -126,7 +126,7 @@ class DockerBuildRunnerTest : FunSpec() {
             script shouldContain "exit \$build_exit"
         }
 
-        test("a rootless socket runs the container as the host user without group-add") {
+        test("a rootless socket runs the container as root (the host user) without group-add or host-id chown") {
             every { socketLocator.locate("1000") } returns
                 DockerSocket(Paths.get("/run/user/1000/docker.sock"), rootless = true, gid = 998L)
 
@@ -134,8 +134,42 @@ class DockerBuildRunnerTest : FunSpec() {
 
             val args = captured.single()
             args shouldContain "/run/user/1000/docker.sock:/var/run/docker.sock"
-            args[args.indexOf("--user") + 1] shouldBe "1000"
+            args[args.indexOf("--user") + 1] shouldBe "0"
             args shouldNotContain "--group-add"
+            // container root already is the host user — the repair chown must not target the host ids,
+            // which would push the worktree files into the subuid range
+            args[args.size - 3] shouldBe "0"
+            args[args.size - 2] shouldBe "0"
+            verify {
+                commandRunner.runOrThrow(
+                    match { it.take(2) == listOf("docker", "run") && it.takeLast(2) == listOf("0", "0") },
+                    repoDir,
+                )
+            }
+        }
+
+        test("exposes git metadata read-only with the gittally dir masked for a worktree workspace") {
+            val gitDir = repoDir.resolve(".git")
+            val adminDir = gitDir.resolve("worktrees/workspace")
+            Files.createDirectories(adminDir)
+            Files.createDirectories(gitDir.resolve("gittally"))
+            Files.createDirectories(workspace)
+            Files.writeString(workspace.resolve(".git"), "gitdir: $adminDir\n")
+
+            runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, dockerBranchConfig())
+
+            val args = captured.single()
+            args shouldContain "$gitDir:$gitDir:ro"
+            args[args.indexOf("--tmpfs") + 1] shouldBe "${gitDir.resolve("gittally")}"
+            args shouldContain "$adminDir:$adminDir"
+        }
+
+        test("mounts no git metadata when the workspace is not a worktree") {
+            runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, dockerBranchConfig())
+
+            val args = captured.single()
+            args shouldNotContain "--tmpfs"
+            args.none { it.endsWith(":ro") } shouldBe true
         }
 
         test("host network keeps Testcontainers on localhost without add-host") {
