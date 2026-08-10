@@ -10,6 +10,10 @@ import java.nio.file.Path
 object SystemdServiceFiles {
     const val ENV_FILE_NAME = "gittally.env"
 
+    /** Host-global unit names of the nightly Docker cleanup — shared by all GitTally repositories on the host. */
+    const val PRUNE_SERVICE_NAME = "gittally-docker-prune.service"
+    const val PRUNE_TIMER_NAME = "gittally-docker-prune.timer"
+
     /** Per-repository unit name, because one GitTally instance serves exactly one repository. */
     fun unitName(repoRoot: Path): String = "gittally-${sanitize(repoRoot.fileName.toString())}.service"
 
@@ -35,6 +39,37 @@ object SystemdServiceFiles {
 
         [Install]
         WantedBy=default.target
+        """.trimIndent() + "\n"
+
+    /**
+     * Nightly Docker cleanup like the legacy `docker-prune.service`, but without `--volumes`:
+     * the per-repository Gradle cache volumes must survive the cleanup.
+     * Running containers and their images are never pruned, so an in-flight build is safe.
+     */
+    fun pruneServiceContent(): String =
+        """
+        [Unit]
+        Description=Clean up unused Docker containers and images (GitTally)
+
+        [Service]
+        Type=oneshot
+        # skipped (not failed) on hosts without a docker CLI
+        ExecCondition=sh -c 'command -v docker'
+        ExecStart=docker system prune -af
+        """.trimIndent() + "\n"
+
+    /** Fires before the usual auto-build slots, `Persistent=true` catches missed runs after downtime. */
+    fun pruneTimerContent(): String =
+        """
+        [Unit]
+        Description=Nightly Docker cleanup before the auto builds (GitTally)
+
+        [Timer]
+        OnCalendar=*-*-* 02:00:00
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
         """.trimIndent() + "\n"
 
     fun envFileContent(): String =

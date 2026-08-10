@@ -104,6 +104,26 @@ class InitCommandTest : FunSpec() {
             tempDir.resolve(".git/gittally/gittally.env").toFile().shouldExist()
         }
 
+        test("--systemd also generates the nightly Docker cleanup timer") {
+            val tempDir = Files.createTempDirectory("gittally-init-test")
+            initCommand.workingDir = tempDir
+            initCommand.systemd = true
+            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/gittally.jar") }
+            initCommand.javaExecutableResolver = { Paths.get("/usr/bin/java") }
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            val pruneService = tempDir.resolve(".git/gittally/gittally-docker-prune.service")
+            pruneService.toFile().shouldExist()
+            pruneService.toFile().readText() shouldContain "docker system prune -af"
+            val pruneTimer = tempDir.resolve(".git/gittally/gittally-docker-prune.timer")
+            pruneTimer.toFile().shouldExist()
+            pruneTimer.toFile().readText() shouldContain "OnCalendar=*-*-* 02:00:00"
+        }
+
         test("--systemd keeps an existing environment file") {
             val tempDir = Files.createTempDirectory("gittally-init-test")
             initCommand.workingDir = tempDir

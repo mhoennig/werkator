@@ -49,16 +49,28 @@ Generate the systemd user unit:
 java -jar ~/bin/gittally.jar init --systemd
 ```
 
-This writes `.git/gittally/gittally-<repo-name>.service` and `.git/gittally/gittally.env` and prints the install commands:
+This writes `.git/gittally/gittally-<repo-name>.service`, `.git/gittally/gittally.env`, and the nightly Docker cleanup units (`gittally-docker-prune.service`/`.timer`), and prints the install commands:
 
 ```bash
 ln -sf /path/to/repo/.git/gittally/gittally-<repo-name>.service ~/.config/systemd/user/gittally-<repo-name>.service
+ln -sf /path/to/repo/.git/gittally/gittally-docker-prune.service ~/.config/systemd/user/gittally-docker-prune.service
+ln -sf /path/to/repo/.git/gittally/gittally-docker-prune.timer ~/.config/systemd/user/gittally-docker-prune.timer
 systemctl --user daemon-reload
 systemctl --user enable --now gittally-<repo-name>.service
+systemctl --user enable --now gittally-docker-prune.timer
 ```
 
 The unit runs `java -jar ~/bin/gittally.jar server` with the repository as working directory and `Restart=always`.
 The unit name contains the repository name, so several repositories can be served by one host, each with its own service and port.
+
+### Nightly Docker Cleanup
+
+The `gittally-docker-prune.timer` runs `docker system prune -af` every night at 02:00 (host time), before the usual auto-build slots.
+It removes stopped containers, unused images, unused networks, and dangling build cache, so nightly builds start from freshly built images.
+Unlike the legacy cleanup it does **not** prune volumes — the per-repository Gradle cache volumes survive.
+The units are host-global (no repository name): with several GitTally instances on one host, every `init --systemd` generates the same files and the symlinks coincide.
+On hosts without a `docker` CLI the service is skipped, not failed (`ExecCondition`).
+`Persistent=true` catches up a missed run after downtime.
 
 Expect a burst of builds right after the very first start: in a fresh clone every origin branch counts as new, so each branch with commits younger than `watcher.newBranchMaxAge` (default 5d) is built once — one build per branch, executed serially up to `builds.maxConcurrent`.
 Lower `watcher.newBranchMaxAge` before the first start, or enable `requirePullRequest`, to limit the initial backlog.

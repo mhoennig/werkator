@@ -3,6 +3,7 @@ package de.hoennig.gittally.commands
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import java.nio.file.Paths
 
 class SystemdServiceFilesTest : FunSpec() {
@@ -44,6 +45,24 @@ class SystemdServiceFilesTest : FunSpec() {
             content shouldContain "WorkingDirectory=/srv/100%%-repo"
             content shouldContain "EnvironmentFile=-/srv/100%%-repo/gittally.env"
             content shouldContain """-jar "/srv/100%%-repo/gittally.jar" server"""
+        }
+
+        test("prune service cleans containers and images but never volumes") {
+            val content = SystemdServiceFiles.pruneServiceContent()
+
+            content shouldContain "Type=oneshot"
+            content shouldContain "ExecStart=docker system prune -af"
+            // the per-repository Gradle cache volumes must survive the cleanup
+            content shouldNotContain "--volumes"
+            content shouldContain "ExecCondition=sh -c 'command -v docker'"
+        }
+
+        test("prune timer fires nightly at 02:00 and catches up after downtime") {
+            val content = SystemdServiceFiles.pruneTimerContent()
+
+            content shouldContain "OnCalendar=*-*-* 02:00:00"
+            content shouldContain "Persistent=true"
+            content shouldContain "WantedBy=timers.target"
         }
 
         test("environment file template only tunes the JVM") {

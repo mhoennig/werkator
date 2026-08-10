@@ -7,6 +7,14 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.7 <span class="muted">— 2026-08-10</span></h2>
+        <ul>
+            <li><code>init --systemd</code> also installs a nightly Docker cleanup timer
+                (<code>gittally-docker-prune.timer</code>, 02:00 host time): stopped containers and unused
+                images are pruned before the auto builds — like the legacy host, but the per-repository
+                Gradle cache volumes survive.</li>
+        </ul>
+
         <h2>v0.9.6 <span class="muted">— 2026-08-10</span></h2>
         <ul>
             <li>This release-notes page, linked from the version in the footer.</li>

@@ -236,10 +236,22 @@ class InitCommand(
             println("created ${envFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
         }
 
-        println("install and start the service with:")
+        // the nightly Docker cleanup is host-global: every repository generates the same
+        // units, so with several GitTally instances the symlinks simply coincide
+        val pruneServiceFile = gittallyDir.resolve(SystemdServiceFiles.PRUNE_SERVICE_NAME)
+        val pruneTimerFile = gittallyDir.resolve(SystemdServiceFiles.PRUNE_TIMER_NAME)
+        pruneServiceFile.toFile().writeText(SystemdServiceFiles.pruneServiceContent())
+        println("created ${pruneServiceFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
+        pruneTimerFile.toFile().writeText(SystemdServiceFiles.pruneTimerContent())
+        println("created ${pruneTimerFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
+
+        println("install and start the service and the nightly Docker cleanup with:")
         println("  ln -sf $unitFile ~/.config/systemd/user/$unitName")
+        println("  ln -sf $pruneServiceFile ~/.config/systemd/user/${SystemdServiceFiles.PRUNE_SERVICE_NAME}")
+        println("  ln -sf $pruneTimerFile ~/.config/systemd/user/${SystemdServiceFiles.PRUNE_TIMER_NAME}")
         println("  systemctl --user daemon-reload")
         println("  systemctl --user enable --now $unitName")
+        println("  systemctl --user enable --now ${SystemdServiceFiles.PRUNE_TIMER_NAME}")
     }
 
     private data class DetectedValues(
