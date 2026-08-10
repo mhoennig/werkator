@@ -209,8 +209,9 @@ class UiController(
     /**
      * The browsable `index.html` pages under `reports/`, shallowest first; pages nested
      * below an already-listed report index are skipped — like the legacy artifact index.
+     * Each entry carries the report's failures counter for the failed-badge.
      */
-    private fun reportIndexes(artifactDir: Path): List<String> {
+    private fun reportIndexes(artifactDir: Path): List<ReportIndexView> {
         val reportsDir = artifactDir.resolve("reports")
         if (!Files.isDirectory(reportsDir)) {
             return emptyList()
@@ -234,6 +235,26 @@ class UiController(
             knownDirs += dir
             topmost += relativeIndex
         }
-        return topmost
+        return topmost.map { ReportIndexView(path = it, failures = reportFailures(reportsDir.resolve(it))) }
+    }
+
+    /**
+     * The failures counter of a Gradle-style HTML test report index
+     * (`<div class="infoBox" id="failures"><div class="counter">N</div>…`);
+     * null for report pages without one, e.g. Jacoco or profile reports.
+     */
+    private fun reportFailures(indexFile: Path): Int? =
+        try {
+            FAILURES_COUNTER
+                .find(Files.readString(indexFile))
+                ?.groupValues
+                ?.get(1)
+                ?.toIntOrNull()
+        } catch (_: Exception) {
+            null
+        }
+
+    companion object {
+        private val FAILURES_COUNTER = Regex("""id="failures">\s*<div class="counter">(\d+)""")
     }
 }

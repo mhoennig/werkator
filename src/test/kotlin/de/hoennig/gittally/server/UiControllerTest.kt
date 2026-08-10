@@ -15,6 +15,9 @@ import de.hoennig.gittally.metrics.MetricAggregate
 import de.hoennig.gittally.metrics.SystemMetrics
 import de.hoennig.gittally.metrics.SystemMetricsCollector
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.mockk.clearMocks
 import io.mockk.every
 import org.hamcrest.Matchers.containsString
@@ -231,6 +234,40 @@ class UiControllerTest : FunSpec() {
                 .andExpect(
                     content().string(containsString("""/artifacts/main-abc123-key/reports/tests/test/index.html" target="_blank"""")),
                 ).andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
+        }
+
+        test("report links carry a failed-badge from the report's failures counter") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("main-abc123-key"))
+            Files.createDirectories(artifactDir.resolve("reports/tests/test"))
+            Files.writeString(
+                artifactDir.resolve("reports/tests/test/index.html"),
+                """<div class="infoBox" id="failures">
+                <div class="counter">2</div>
+                <p>failures</p></div>""",
+            )
+            Files.createDirectories(artifactDir.resolve("reports/tests/unitTest"))
+            Files.writeString(
+                artifactDir.resolve("reports/tests/unitTest/index.html"),
+                """<div class="infoBox" id="failures">
+                <div class="counter">0</div>
+                <p>failures</p></div>""",
+            )
+            Files.createDirectories(artifactDir.resolve("reports/jacoco"))
+            Files.writeString(artifactDir.resolve("reports/jacoco/index.html"), "<html>no counter</html>")
+            every { repository.history() } returns listOf(successResult)
+            every { artifactStore.artifactDir("main-abc123-key") } returns artifactDir
+
+            val page =
+                mockMvc
+                    .perform(get("/builds/main-abc123-key"))
+                    .andExpect(status().isOk)
+                    .andReturn()
+                    .response.contentAsString
+
+            page shouldContain "2 failed"
+            page shouldNotContain "0 failed"
+            // exactly one badge: the report with failures, none for the clean or counter-less reports
+            Regex(""" failed</span>""").findAll(page).count() shouldBe 1
         }
 
         test("artifact index of a pruned build explains the missing artifacts") {

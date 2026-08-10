@@ -62,8 +62,10 @@
         <h2>Build Artifacts</h2>
         <ul th:if="${!#lists.isEmpty(reportIndexes)}">
             <li th:each="report : ${reportIndexes}">
-                <a th:href="${filesBase} + '/reports/' + ${report}" target="_blank"
-                   rel="noopener noreferrer" th:text="'reports/' + ${report}">reports/tests/index.html</a>
+                <a th:href="${filesBase} + '/reports/' + ${report.path}" target="_blank"
+                   rel="noopener noreferrer" th:text="'reports/' + ${report.path}">reports/tests/index.html</a>
+                <span th:if="${report.failures != null and report.failures > 0}" class="status status-failed"
+                      th:text="${report.failures} + ' failed'">2 failed</span>
             </li>
         </ul>
         <p th:if="${#lists.isEmpty(reportIndexes)}" class="muted">

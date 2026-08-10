@@ -126,6 +126,16 @@ data class BuildRowView(
     }
 }
 
+/**
+ * One report link of the artifact index. [failures] is the failures counter of a
+ * Gradle-style HTML report index page; null when the page declares none (e.g. Jacoco),
+ * so only real test reports get a failed-badge.
+ */
+data class ReportIndexView(
+    val path: String,
+    val failures: Int?,
+)
+
 /** One card of the current-builds view; the live log is fetched by `gittally.js`. */
 data class CurrentBuildView(
     val branch: String,
