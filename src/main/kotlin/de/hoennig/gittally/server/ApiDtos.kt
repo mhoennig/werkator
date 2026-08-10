@@ -17,18 +17,23 @@ data class BuildResultDto(
     val runningSince: Instant? = null,
     val durationSeconds: Long?,
     val artifactKey: String,
+    /** The permanent branch URL, set only on the build it resolves to — the branch's latest green build. */
+    val latestGreenUrl: String? = null,
 ) {
     companion object {
-        fun from(result: BuildResult) =
-            BuildResultDto(
-                branch = result.branch,
-                commit = result.commit,
-                status = result.status.jsonName,
-                startedAt = result.startedAt,
-                runningSince = result.runningSince,
-                durationSeconds = result.duration?.seconds,
-                artifactKey = result.artifactKey,
-            )
+        fun from(
+            result: BuildResult,
+            isLatestGreen: Boolean = false,
+        ) = BuildResultDto(
+            branch = result.branch,
+            commit = result.commit,
+            status = result.status.jsonName,
+            startedAt = result.startedAt,
+            runningSince = result.runningSince,
+            durationSeconds = result.duration?.seconds,
+            artifactKey = result.artifactKey,
+            latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(result.branch) else null,
+        )
     }
 }
 
@@ -36,7 +41,8 @@ data class BuildResultDto(
  * One entry of `GET /api/branches`, like a legacy branches-view row: an origin
  * branch with its latest build, or an `unknown` placeholder when never built.
  * [latestGreenUrl] is the permanent artifact URL of the branch's latest green
- * build; null while the branch has never built successfully.
+ * build; set only when this row's build is that green build, so the link appears
+ * where it resolves to.
  */
 data class BranchDto(
     val branch: String,
@@ -53,7 +59,7 @@ data class BranchDto(
             branch: String,
             headCommit: String,
             latest: BuildResult?,
-            hasGreenBuild: Boolean = false,
+            isLatestGreen: Boolean = false,
         ) = if (latest == null) {
             BranchDto(
                 branch = branch,
@@ -72,7 +78,7 @@ data class BranchDto(
                 runningSince = latest.runningSince,
                 durationSeconds = latest.duration?.seconds,
                 artifactKey = latest.artifactKey,
-                latestGreenUrl = if (hasGreenBuild) BranchPermalinks.permanentUrl(branch) else null,
+                latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(branch) else null,
             )
         }
     }

@@ -9,8 +9,13 @@
 
         <h2>v0.9.8 <span class="muted">— 2026-08-10</span></h2>
         <ul>
-            <li>The artifact index also links report pages of directories without an <code>index.html</code>,
-                such as Gradle's <code>--profile</code> report with its timestamped file name.</li>
+            <li>The artifact index also links report pages of directories without an <code>index.html</code>.
+                A directory holding a single page is linked as a directory, so Gradle's <code>--profile</code>
+                report keeps a stable URL although its file name carries the build timestamp.</li>
+            <li>The permanent <code>🔗</code> link now appears on the build it resolves to — the branch's
+                latest green build — instead of on every build of that branch, and on all build tables.</li>
+            <li>The <em>Current</em> tab gave way to a <code>📡</code> link in the artifacts column,
+                shown while a build runs.</li>
         </ul>
 
         <h2>v0.9.7 <span class="muted">— 2026-08-10</span></h2>

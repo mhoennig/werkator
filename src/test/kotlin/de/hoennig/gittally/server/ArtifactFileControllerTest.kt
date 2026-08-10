@@ -150,6 +150,30 @@ class ArtifactFileControllerTest : FunSpec() {
                 .andExpect(header().string("Cache-Control", "no-store, max-age=0"))
         }
 
+        test("directory URL serves the single page of an index-less report directory") {
+            val profileDir = Files.createDirectories(artifactDir.resolve("reports/profile"))
+            Files.writeString(profileDir.resolve("profile-2026-08-10-18-36-12.html"), "<html>profile</html>")
+
+            mockMvc
+                .perform(get("/branches/main/reports/profile/"))
+                .andExpect(status().isOk)
+                .andExpect(content().string("<html>profile</html>"))
+            mockMvc
+                .perform(get("/artifacts/known-key/reports/profile/"))
+                .andExpect(status().isOk)
+                .andExpect(content().string("<html>profile</html>"))
+        }
+
+        test("directory URL of an index-less report directory holding several pages answers 404") {
+            val pmdDir = Files.createDirectories(artifactDir.resolve("reports/pmd"))
+            Files.writeString(pmdDir.resolve("main.html"), "<html>main</html>")
+            Files.writeString(pmdDir.resolve("test.html"), "<html>test</html>")
+
+            mockMvc
+                .perform(get("/branches/main/reports/pmd/"))
+                .andExpect(status().isNotFound)
+        }
+
         test("permanent URL with a bare trailing slash redirects to the artifact index page") {
             mockMvc
                 .perform(get("/branches/main/"))

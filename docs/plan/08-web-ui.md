@@ -84,3 +84,7 @@ On polling pages it triggers an immediate data refresh via the page's poller; pa
 Addendum (2026-07-07): all links that leave the GitTally UI open in a new tab (`target="_blank" rel="noopener noreferrer"`).
 This already held for Gitea branch/commit links and the footer; it was added for the artifact page's log and report links, whose targets have no navigation.
 Links between GitTally pages (nav, artifact index) stay in the same tab.
+
+Addendum (2026-08-10): the artifacts column carries the whole build-reachability logic, and the nav lost its `Current` entry.
+The permanent `🔗` link is rendered on the build it resolves to — the branch's latest green build — on every build table, instead of on each row of a branch with any green build.
+A `📡` link to `/current` appears while a build runs; `/current` itself stays a routable page, it just has no tab of its own anymore.

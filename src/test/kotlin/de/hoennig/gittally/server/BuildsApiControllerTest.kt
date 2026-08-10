@@ -76,6 +76,7 @@ class BuildsApiControllerTest : FunSpec() {
         beforeEach {
             clearMocks(repository, buildExecutor, artifactStore, controlTokens, gitService, branchListing)
             every { controlTokens.matches(any()) } answers { firstArg<String?>() == "secret" }
+            every { repository.latestGreenFor(any()) } returns null
         }
 
         test("latest answers one entry per branch with lowercase status and duration in seconds") {
@@ -98,6 +99,18 @@ class BuildsApiControllerTest : FunSpec() {
                 .andExpect(status().isOk)
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[1].status").value("failed"))
+        }
+
+        test("history carries the permanent URL on the branch's latest green build only") {
+            val older = successResult.copy(artifactKey = "older-key")
+            every { repository.history() } returns listOf(successResult, older)
+            every { repository.latestGreenFor("main") } returns successResult
+
+            mockMvc
+                .perform(get("/api/builds/history"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$[0].latestGreenUrl").value("/branches/main"))
+                .andExpect(jsonPath("$[1].latestGreenUrl").doesNotExist())
         }
 
         test("current answers the running builds with live status and log size") {

@@ -2,6 +2,7 @@ package de.hoennig.gittally.server
 
 import de.hoennig.gittally.build.ArtifactStore
 import de.hoennig.gittally.build.BuildExecutor
+import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.git.GitService
@@ -38,14 +39,16 @@ class BuildsApiController(
     var workingDir: Path = Paths.get(".")
 
     @GetMapping("/api/builds/latest")
-    fun latest(): List<BuildResultDto> = repository.latestPerBranch().map { BuildResultDto.from(it) }
+    fun latest(): List<BuildResultDto> = repository.latestPerBranch().map { BuildResultDto.from(it, it.isLatestGreen()) }
 
     /** The legacy branches view: every origin branch with its latest build or `unknown`. */
     @GetMapping("/api/branches")
     fun branches(): List<BranchDto> = branchListing.branches(workingDir)
 
     @GetMapping("/api/builds/history")
-    fun history(): List<BuildResultDto> = repository.history().map { BuildResultDto.from(it) }
+    fun history(): List<BuildResultDto> = repository.history().map { BuildResultDto.from(it, it.isLatestGreen()) }
+
+    private fun BuildResult.isLatestGreen(): Boolean = repository.latestGreenFor(branch)?.artifactKey == artifactKey
 
     /** The currently executing builds — several are possible, up to `builds.maxConcurrent`. */
     @GetMapping("/api/builds/current")

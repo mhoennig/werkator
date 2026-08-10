@@ -24,11 +24,13 @@ class BranchListing(
             .entries
             .sortedWith(compareBy({ sortGroup(it.key) }, { it.key }))
             .map { (branch, headCommit) ->
+                val latest = repository.latestFor(branch)
                 BranchDto.from(
                     branch,
                     headCommit,
-                    repository.latestFor(branch),
-                    hasGreenBuild = repository.latestGreenFor(branch) != null,
+                    latest,
+                    // the permanent link belongs to the build it resolves to, not to every build of the branch
+                    isLatestGreen = latest != null && latest.artifactKey == repository.latestGreenFor(branch)?.artifactKey,
                 )
             }
 

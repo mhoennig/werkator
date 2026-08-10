@@ -90,7 +90,7 @@ object UiFormats {
     private const val UTILIZATION_CRIT = 0.90
 }
 
-/** One row of the latest/history build tables; [latestGreenUrl] only on the branches view. */
+/** One row of the build tables; [latestGreenUrl] only on the build that permanent link resolves to. */
 data class BuildRowView(
     val branch: String,
     val commit: String,
@@ -112,6 +112,7 @@ data class BuildRowView(
         fun from(
             result: BuildResult,
             links: GiteaWebLinks,
+            latestGreenUrl: String? = null,
         ) = BuildRowView(
             branch = result.branch,
             commit = result.commit,
@@ -124,6 +125,7 @@ data class BuildRowView(
             artifactKey = result.artifactKey,
             branchUrl = links.branchUrl(result.branch),
             commitUrl = links.commitUrl(result.commit),
+            latestGreenUrl = latestGreenUrl,
             inProgress = !result.status.isTerminal,
         )
 

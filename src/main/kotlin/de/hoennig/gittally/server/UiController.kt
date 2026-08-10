@@ -56,7 +56,7 @@ class UiController(
     @GetMapping("/")
     fun latest(model: Model): String {
         val links = baseModel(model, view = "latest", pageTitle = "Latest Builds")
-        model.addAttribute("rows", repository.latestPerBranch().map { BuildRowView.from(it, links) })
+        model.addAttribute("rows", repository.latestPerBranch().map { BuildRowView.from(it, links, permanentUrlOf(it)) })
         model.addAttribute("apiPath", "/api/builds/latest")
         model.addAttribute("allowRestart", true)
         model.addAttribute("emptyMessage", "No builds recorded yet.")
@@ -77,12 +77,20 @@ class UiController(
     @GetMapping("/history")
     fun history(model: Model): String {
         val links = baseModel(model, view = "history", pageTitle = "Build History")
-        model.addAttribute("rows", repository.history().map { BuildRowView.from(it, links) })
+        model.addAttribute("rows", repository.history().map { BuildRowView.from(it, links, permanentUrlOf(it)) })
         model.addAttribute("apiPath", "/api/builds/history")
         model.addAttribute("allowRestart", false)
         model.addAttribute("emptyMessage", "No builds archived yet.")
         return "builds"
     }
+
+    /** The permanent branch URL belongs to the build it resolves to — the branch's latest green build. */
+    private fun permanentUrlOf(result: BuildResult): String? =
+        if (repository.latestGreenFor(result.branch)?.artifactKey == result.artifactKey) {
+            BranchPermalinks.permanentUrl(result.branch)
+        } else {
+            null
+        }
 
     @GetMapping("/current")
     fun current(model: Model): String {
@@ -262,9 +270,10 @@ class UiController(
         knownDirs.any { known -> known.isEmpty() || this == known || this.startsWith("$known/") }
 
     /**
-     * Report pages of directories without an `index.html`, such as Gradle's `--profile` report
-     * with its timestamped file name. Only `reports/` itself and its direct sub-directories are
-     * scanned, so that a report tree cannot flood the artifact index with its inner pages.
+     * Report pages of directories without an `index.html`, such as Gradle's `--profile` report.
+     * A directory holding a single page is linked as a directory, so that a timestamped file name
+     * does not leak into the permanent `/branches/…` URLs. Only `reports/` itself and its direct
+     * sub-directories are scanned, so that a report tree cannot flood the artifact index.
      */
     private fun indexLessReportPages(
         reportsDir: Path,
@@ -280,13 +289,16 @@ class UiController(
         return candidateDirs
             .filterNot { reportsDir.relativize(it).toString().isCoveredBy(knownDirs) }
             .flatMap { dir ->
-                Files.list(dir).use { pages ->
-                    pages
-                        .asSequence()
-                        .filter { Files.isRegularFile(it) && it.name.endsWith(".html") }
-                        .map { reportsDir.relativize(it).toString() }
-                        .toList()
-                }
+                val pages =
+                    Files.list(dir).use { entries ->
+                        entries
+                            .asSequence()
+                            .filter { Files.isRegularFile(it) && it.name.endsWith(".html") }
+                            .map { reportsDir.relativize(it).toString() }
+                            .toList()
+                    }
+                val dirPath = reportsDir.relativize(dir).toString()
+                if (pages.size == 1 && dirPath.isNotEmpty()) listOf("$dirPath/") else pages
             }.sorted()
     }
 

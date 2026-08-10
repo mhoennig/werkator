@@ -66,16 +66,17 @@ class BranchListingTest : FunSpec() {
             branches[1].latestGreenUrl shouldBe null
         }
 
-        test("a failed latest build still links the older green build's permanent URL") {
+        test("a failed latest build carries no permanent URL — it belongs to the older green build") {
             every { gitService.originBranchHeads(any()) } returns mapOf("feature/x" to "aaa")
             every { repository.latestFor("feature/x") } returns
-                mainResult.copy(branch = "feature/x", status = BuildStatus.FAILED)
-            every { repository.latestGreenFor("feature/x") } returns mainResult.copy(branch = "feature/x")
+                mainResult.copy(branch = "feature/x", status = BuildStatus.FAILED, artifactKey = "failed-key")
+            every { repository.latestGreenFor("feature/x") } returns
+                mainResult.copy(branch = "feature/x", artifactKey = "green-key")
 
             val branches = listing.branches()
 
             branches[0].status shouldBe "failed"
-            branches[0].latestGreenUrl shouldBe "/branches/feature_x"
+            branches[0].latestGreenUrl shouldBe null
         }
     }
 }

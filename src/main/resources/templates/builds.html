@@ -58,6 +58,8 @@
                     <a th:if="${row.latestGreenUrl != null}" class="artifact-link"
                        th:href="${row.latestGreenUrl}"
                        title="Permanent link: artifacts of the latest green build">🔗</a>
+                    <a th:if="${row.inProgress}" class="artifact-link" href="/current"
+                       title="Watch this build live">📡</a>
                     <span th:if="${row.artifactKey == ''}">n/a</span>
                 </td>
                 <td class="actions-cell">

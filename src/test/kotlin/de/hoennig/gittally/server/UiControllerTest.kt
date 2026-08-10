@@ -113,9 +113,10 @@ class UiControllerTest : FunSpec() {
                     gitea = GiteaConfig(baseUrl = "https://git.example.org", owner = "acme", repo = "widget"),
                 )
             every { controlTokens.token() } returns "test-token"
+            every { repository.latestGreenFor(any()) } returns null
         }
 
-        test("latest view renders the empty state") {
+        test("latest view renders the empty state, and the nav no longer offers the current view") {
             every { repository.latestPerBranch() } returns emptyList()
 
             mockMvc
@@ -124,6 +125,7 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("No builds recorded yet.")))
                 .andExpect(content().string(containsString("""data-api="/api/builds/latest"""")))
                 .andExpect(content().string(containsString("""id="reload-button"""")))
+                .andExpect(content().string(not(containsString("""href="/current""""))))
         }
 
         test("latest view renders rows with badge, Gitea links, artifact link, actions, and token") {
@@ -147,7 +149,7 @@ class UiControllerTest : FunSpec() {
         test("branches view renders built and never-built branches with restart actions") {
             every { branchListing.branches(any()) } returns
                 listOf(
-                    BranchDto.from("main", "ignored-head", successResult, hasGreenBuild = true),
+                    BranchDto.from("main", "ignored-head", successResult, isLatestGreen = true),
                     BranchDto.from("feature/x", "fedcba9876543210fedcba9876543210fedcba98", null),
                 )
 
@@ -162,6 +164,23 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("""data-action="restart"""")))
                 .andExpect(content().string(containsString("""href="/branches/main"""")))
                 .andExpect(content().string(containsString("Permanent link")))
+        }
+
+        test("the permanent link shows on the branch's latest green build only, the live link while it runs") {
+            val running = successResult.copy(status = BuildStatus.RUNNING, duration = null, artifactKey = "running-key")
+            every { repository.history() } returns listOf(running, successResult)
+            every { repository.latestGreenFor("main") } returns successResult
+
+            val page =
+                mockMvc
+                    .perform(get("/history"))
+                    .andExpect(status().isOk)
+                    .andReturn()
+                    .response.contentAsString
+
+            Regex("""href="/branches/main"""").findAll(page).count() shouldBe 1
+            Regex("""href="/current"""").findAll(page).count() shouldBe 1
+            page shouldContain "Watch this build live"
         }
 
         test("history view renders mixed history without restart actions") {
@@ -237,7 +256,7 @@ class UiControllerTest : FunSpec() {
                 ).andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
         }
 
-        test("artifact index links report pages of directories without an index, but not their inner pages") {
+        test("artifact index links a single index-less report page as a directory, keeping the URL stable") {
             val artifactDir = Files.createDirectories(tempDir.resolve("main-abc123-key"))
             Files.createDirectories(artifactDir.resolve("reports/profile"))
             Files.writeString(artifactDir.resolve("reports/profile/profile-2026-08-10-18-36-12.html"), "<html></html>")
@@ -255,9 +274,29 @@ class UiControllerTest : FunSpec() {
                     .andReturn()
                     .response.contentAsString
 
-            page shouldContain "reports/profile/profile-2026-08-10-18-36-12.html"
+            page shouldContain "reports/profile/"
+            page shouldNotContain "profile-2026-08-10-18-36-12.html"
             page shouldContain "reports/tests/test/index.html"
             page shouldNotContain "SomeTest.html"
+        }
+
+        test("artifact index links the pages of an index-less report directory holding several") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("main-abc123-key"))
+            Files.createDirectories(artifactDir.resolve("reports/pmd"))
+            Files.writeString(artifactDir.resolve("reports/pmd/main.html"), "<html></html>")
+            Files.writeString(artifactDir.resolve("reports/pmd/test.html"), "<html></html>")
+            every { repository.history() } returns listOf(successResult)
+            every { artifactStore.artifactDir("main-abc123-key") } returns artifactDir
+
+            val page =
+                mockMvc
+                    .perform(get("/builds/main-abc123-key"))
+                    .andExpect(status().isOk)
+                    .andReturn()
+                    .response.contentAsString
+
+            page shouldContain "reports/pmd/main.html"
+            page shouldContain "reports/pmd/test.html"
         }
 
         test("report links carry a failed-badge from the report's failures counter") {
