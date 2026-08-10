@@ -2,12 +2,17 @@ package de.hoennig.gittally.gitea
 
 import de.hoennig.gittally.build.BuildStatus
 
-/** Gitea commit-status state published for this build status. */
+/**
+ * Gitea commit-status state published for this build status.
+ * INTERRUPTED publishes as `pending`, not `failure`: an interrupted build (e.g. a
+ * server shutdown) is re-enqueued by the startup recovery, so the commit must not
+ * turn red in between.
+ */
 fun BuildStatus.toGiteaState(): String =
     when (this) {
         BuildStatus.SUCCESS -> "success"
-        BuildStatus.FAILED, BuildStatus.INTERRUPTED, BuildStatus.CANCELLED -> "failure"
-        BuildStatus.PENDING, BuildStatus.RUNNING -> "pending"
+        BuildStatus.FAILED, BuildStatus.CANCELLED -> "failure"
+        BuildStatus.PENDING, BuildStatus.RUNNING, BuildStatus.INTERRUPTED -> "pending"
     }
 
 /**

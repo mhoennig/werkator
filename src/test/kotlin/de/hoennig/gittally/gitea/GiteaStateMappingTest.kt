@@ -11,10 +11,11 @@ class GiteaStateMappingTest :
         test("maps each build status to its Gitea state") {
             BuildStatus.SUCCESS.toGiteaState() shouldBe "success"
             BuildStatus.FAILED.toGiteaState() shouldBe "failure"
-            BuildStatus.INTERRUPTED.toGiteaState() shouldBe "failure"
             BuildStatus.CANCELLED.toGiteaState() shouldBe "failure"
             BuildStatus.PENDING.toGiteaState() shouldBe "pending"
             BuildStatus.RUNNING.toGiteaState() shouldBe "pending"
+            // interrupted builds are re-enqueued on startup, so the commit must not turn red
+            BuildStatus.INTERRUPTED.toGiteaState() shouldBe "pending"
         }
 
         test("maps Gitea states back to build statuses") {
