@@ -8,7 +8,7 @@ For hosts without one, an opt-in managed nginx/TLS container is available, see [
 ## Prerequisites
 
 - Linux with systemd.
-- Java runtime (JRE 21).
+- Java runtime (JRE 21) — or none, when using the self-contained runtime bundle, see [Hosts Without a Java Runtime](#hosts-without-a-java-runtime-runtime-bundle).
 - `git` CLI on the `PATH`.
 - `docker` CLI on the `PATH`, only if any branch uses `docker.enabled` (see [configuration.md](configuration.md)).
 - A checked-out working tree of the repository to watch, with a remote named `origin`.
@@ -123,6 +123,38 @@ sudo certbot --nginx -d ci.example.org
 ```
 
 This replaces the legacy script's managed nginx/Let's Encrypt Docker container for hosts that have their own web server.
+
+## Hosts Without a Java Runtime (Runtime Bundle)
+
+Some hosts provide git and Docker but no Java runtime and no way to install one, e.g. Hostsharing container servers.
+For these, GitTally ships as a self-contained runtime bundle: a jlink-trimmed JRE, `gittally.jar`, and a launcher script in one tarball (ADR 0006).
+
+Build the bundle on a Linux x86_64 machine whose glibc is not newer than the target's:
+
+```bash
+./gradlew runtimeBundle
+ls build/distributions/gittally-runtime-linux-x64.tar.gz
+```
+
+Copy and unpack it on the target host, by convention to `~/opt/gittally`:
+
+```bash
+scp build/distributions/gittally-runtime-linux-x64.tar.gz user@host:/tmp/
+ssh user@host 'mkdir -p ~/opt && tar -xzf /tmp/gittally-runtime-linux-x64.tar.gz -C ~/opt'
+```
+
+Then use `~/opt/gittally/bin/gittally` wherever this document says `java -jar ~/bin/gittally.jar`:
+
+```bash
+cd /path/to/repo
+~/opt/gittally/bin/gittally init
+~/opt/gittally/bin/gittally init --systemd
+```
+
+`init --systemd` detects the bundle automatically: the generated unit's `ExecStart` points at the bundle's `jre/bin/java` and `lib/gittally.jar`, so the install commands printed by `init --systemd` work unchanged.
+`JAVA_OPTS` from the environment file applies as usual.
+
+To update GitTally, stop the service, unpack the new bundle over `~/opt/gittally`, and restart the service.
 
 ## Hosts Without a Reverse Proxy (Managed nginx/TLS)
 

@@ -102,17 +102,11 @@ Or, when files already exist:
 .gittally.yml already exists — not overwritten
 ```
 
-## Future: Docker-based Deployment
+## Hosts Without a Java Runtime
 
-GitTally is intended to run on Hostsharing Container Server environments, which provide Docker
-but no Java runtime. A later development step will add a Docker image distribution where:
-
-- GitTally itself runs as a Docker container (image bundles the JRE + JAR)
-- Builds are spawned by mounting the host Docker socket (`/var/run/docker.sock`)
-- `init` then optionally generates a `docker-compose.yml`, a secrets env file, and a systemd unit
-  that starts the Compose stack at boot
-
-Until then, a Java runtime must be available on the host.
+GitTally is intended to run on Hostsharing Container Server environments, which provide Docker and git but no Java runtime.
+For these hosts, `./gradlew runtimeBundle` builds a self-contained runtime bundle (jlink-trimmed JRE + JAR + launcher) — see [deployment.md](deployment.md) and ADR 0006.
+A containerized GitTally runtime was considered and rejected there.
 
 ## Next Steps After `init`
 

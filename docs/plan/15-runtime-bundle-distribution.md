@@ -1,0 +1,107 @@
+# Step 15: Self-Contained Runtime Bundle Distribution
+
+Prerequisites: steps 12, 13.
+Read `README.md` first.
+This step revises the "Future: Docker-based Deployment" section of `docs/bootstrapping.md` — see the ADR requirement below.
+
+## Goal
+
+Deploy GitTally on hosts that provide Docker and git but no Java runtime (Hostsharing container servers, e.g. `tallyman@vm4006`).
+GitTally is distributed as a self-contained runtime bundle: a jlink-trimmed JRE plus `gittally.jar` plus a launcher script, packed as one tarball.
+The JAR stays the primary artifact for development and for hosts that already have a JRE.
+
+## Distribution Format Decision (ADR 0006)
+
+Three formats were considered; write ADR 0006 recording the decision and this rationale:
+
+- **jlink runtime bundle (chosen)** — no production-code changes, plain JVM semantics, one tarball to `scp`.
+  git and docker CLIs are used from the host, worktree paths stay host paths, and the `init --systemd` unit works unchanged because `java.home` and the running-jar path resolve into the bundle.
+- **GraalVM native image (rejected)** — Spring AOT evaluates bean conditions at build time.
+  GitTally's dual-context design (CLI context without web, second `SpringApplication` with the `server` profile and `WebApplicationType.SERVLET`, `@Profile("!server")` `CliRunner`, `@Profile("server")` lifecycles) cannot be represented in a single AOT arrangement.
+  Supporting it would require replacing the profile wiring with runtime guards and collapsing the two context shapes — an invasive rewrite with regression risk for the JVM path.
+- **Containerized GitTally runtime (rejected, was the `docs/bootstrapping.md` sketch)** — needs git and docker CLIs inside the image, a same-path `$HOME` mount plus docker-socket mount and uid/gid mapping so that `DockerBuildRunner`'s `--volume $workspace:$workspace` sibling mounts keep working, and a hand-edited systemd unit.
+  Kept as the documented fallback if the bundle approach ever becomes unworkable.
+
+## Target Host Facts (verified 2026-08-10)
+
+- `vm4006.hostsharing.net`: Debian 13, x86_64, glibc 2.41, git 2.47.3, docker 26.1.5, GNU make, systemd user session running with `Linger=yes`, no Java runtime.
+- The jlink image contains natively linked JVM libs, so it must be built on glibc ≤ 2.41 for the same architecture; the Ubuntu 24.04 dev machine (glibc 2.39, x86_64) qualifies.
+  For reproducible builds elsewhere, the bundle can be built inside an `eclipse-temurin:21-jdk` container (glibc 2.39 base).
+
+## Design
+
+Gradle:
+
+- Add a `runtimeBundle` task (depends on `bootJar`); the normal `./gradlew build` stays unchanged.
+- The task runs `jlink` from the configured Java toolchain (every JDK 21 ships jlink; no new toolchain requirement).
+- The JDK module list is pinned in the build script, computed once via `jdeps` on the exploded boot jar and its `BOOT-INF/lib`; document the jdeps command next to the list and re-check it when dependencies change.
+- Bundle layout: `gittally/jre/` (jlink image), `gittally/lib/gittally.jar`, `gittally/bin/gittally` (sh launcher: `exec "$DIR/../jre/bin/java" $JAVA_OPTS -jar "$DIR/../lib/gittally.jar" "$@"`).
+- Output: `build/distributions/gittally-runtime-linux-x64.tar.gz` with preserved execute permissions.
+
+Deployment (no code changes expected):
+
+- Unpack to `~/opt/gittally/` on the target host; run everything via `~/opt/gittally/bin/gittally`.
+- `init --systemd` already generates `ExecStart=<java> $JAVA_OPTS -jar <jar> server` from `java.home` and the running jar path — from the bundle both resolve into `~/opt/gittally/`, so the unit points at the bundle without changes.
+  Verify this instead of adapting code; adapt only if the resolution fails.
+- Updating GitTally = unpack a new bundle over `~/opt/gittally/` (or switch a symlink) and restart the service.
+
+Documentation:
+
+- `docs/deployment.md`: prerequisites become "JRE 21 **or** the runtime bundle"; add a section "Hosts Without a Java Runtime (Runtime Bundle)" with build, `scp`, unpack, and systemd setup.
+- `docs/bootstrapping.md`: replace the "Future: Docker-based Deployment" section with the runtime bundle and a pointer to ADR 0006.
+- `docs/adrs/0006-…`: the distribution-format decision (see above).
+- `docs/migration-from-legacy.md`: add a note that migrating to a different host allows parallel operation, with a distinct `gitea.statusContext` per instance so the two CIs do not overwrite each other's commit statuses.
+
+## Tests
+
+- No production code changes are expected, so no new unit tests; existing tests must stay green.
+- Smoke-verify the bundle manually: `bin/gittally --help`, `init` in a scratch repo, `config:print --full`, a short `server` run, and `init --systemd` unit content pointing into the bundle; document the results in this file.
+- Verify on vm4006 (which has no Java): copy the bundle, run `bin/gittally --help` and `config:print`; document the results in this file.
+
+## Acceptance Criteria
+
+- `./gradlew ktlintFormat` then `./gradlew build` is green, with unchanged toolchain requirements.
+- `./gradlew runtimeBundle` produces a tarball whose `bin/gittally` runs `--help`, `init`, and `server` on a machine without any Java runtime.
+- A fresh deployment to vm4006 following `docs/deployment.md` and `docs/migration-from-legacy.md` reaches a running service: web UI reachable, a Docker build succeeds, commit status arrives in Gitea, managed nginx/TLS works (`server.nginx.enabled: true`, DNS for `serverName` pointing at vm4006).
+- vm2176 (legacy) keeps running in parallel during the migration; the legacy service is only retired after vm4006 is verified.
+- Docs and ADR 0006 written as described; document deviations in this file.
+
+## Result (2026-08-10)
+
+Implemented as designed; no production-code change was needed.
+The step was originally drafted for a GraalVM native image; it was re-planned to the jlink bundle after the Spring-AOT build-time condition evaluation turned out to be incompatible with the dual-context CLI/server wiring (see ADR 0006).
+
+- `runtimeBundle` task in `build.gradle.kts` with the pinned module list (jdeps output plus java.logging, jdk.crypto.ec, jdk.management, jdk.zipfs); launcher script in `packaging/gittally`; tarball ~66 MB.
+- Smoke tests on the dev machine (with `JAVA_HOME` unset and a stripped `PATH`): `--help`, `init --systemd` in a scratch repo, `config:print --full`, and a `server` run all passed; `/` served HTTP 200 and `/api/branches` returned JSON.
+- The `init --systemd` unit generated from the bundle points at `<bundle>/jre/bin/java` and `<bundle>/lib/gittally.jar` as predicted — no detection code needed.
+- Verified on vm4006 (no Java installed): bundle unpacked to `~/opt/gittally`, `--version`, `--help`, and `status` in a scratch repo (host git via `GitCommandRunner`) all worked.
+
+Production deployment to vm4006 (2026-08-10, same session):
+
+- `hs.hsadmin.ng` cloned to `~/hs.hsadmin.ng` on vm4006; legacy configuration from vm2176 (repo `.gitTally` + `gitTally.env`) migrated to `.gittally.yml` per `docs/migration-from-legacy.md`; Gitea token moved (the token in vm2176's `gitTally.env` file was stale — the valid one came from the running legacy process environment).
+- `statusContext: GitTally@vm4006` for the parallel phase; rename to `GitTally` after vm2176 is retired.
+- systemd user service installed via `init --systemd` from the bundle and running; watcher fetches origin branches with the migrated credentials.
+- Managed nginx/TLS live: Let's Encrypt certificate for `vm4006.hostsharing.net` obtained, `https://vm4006.hostsharing.net/` serves the UI with a valid chain, HTTP 301s to HTTPS (Hostsharing routes public 80/443 to `httpPort`/`httpsPort`, same as on vm2176).
+- Fix discovered during rollout: certbot removed `ssl-dhparams.pem` from its repository, so the first nginx start failed with HTTP 404.
+  The DH parameters (RFC 7919 ffdhe2048) are now bundled as the classpath resource `nginx/ssl-dhparams.pem` instead of downloaded; the download seam and `NginxConfigFiles.DH_PARAMS_URL` were removed (revises the step-13 note about the download).
+  Legacy on vm2176 only kept working because its state dir cached the file.
+
+Second fix discovered by the first real build: under a **rootless** Docker daemon, `DockerBuildRunner` ran the build container as `--user <host-uid>` (ported from legacy).
+With rootless identity mapping the host user is container root, and the host uid inside the container falls into the subuid range — the container could not create `.gradle` in the freshly created worktree ("Failed to create parent directory").
+Legacy on vm2176 only worked because its ownership-repair chown had (unintentionally) moved `build/` and `.gradle/` into subuid ownership on the host (verified: owned by uid 166536 there) — a stable but wrong equilibrium tied to its reused primary checkout.
+The rewrite now always runs the build container as `--user 0`: under rootless that IS the unprivileged host user (files stay host-owned, the repair chown degenerates to `0:0`); under rootful daemons the behavior is unchanged (root + chown to the host ids).
+
+Third finding (config, not code): the hsadmin-ng Liquibase migration tests (`LiquibaseCompatibilityIntegrationTest`, `ImportHostingAssets.liquibaseMigrationForBookingAndHosting`) failed on vm4006 with "environment variable HSADMINNG_POSTGRES_ADMIN_USERNAME not set".
+These tests run Liquibase programmatically without Spring's `spring.liquibase.parameters`, so the changelog parameters resolve only via Liquibase's env-var substitution; the legacy script had a host-env passthrough for exactly these variables.
+The values `admin`/`restricted` are hsadmin-ng's committed defaults, but only for the other execution paths: `.tc-environment` for the documented dev workflow (`. .tc-environment; ./gradlew …`) and the `${…:admin}` fallbacks in `src/test/resources/application.yml` for the Spring-managed Liquibase path.
+The programmatic path deliberately has no fallback — `009-check-environment.sql` exists to verify the environment is configured — so a CI environment must export the variables itself.
+Fix: `HSADMINNG_POSTGRES_ADMIN_USERNAME=admin` and `HSADMINNG_POSTGRES_RESTRICTED_USERNAME=restricted` in `branches.default.docker.env` on vm4006 — the mechanism `docs/migration-from-legacy.md` prescribes for the legacy passthrough list; alternatively the build command could source `.tc-environment` like the dev workflow.
+Verified by running both test classes in the build container with the variables set: green.
+Open oddity: the same commit passed on vm2176 although neither its daemon environment, build image, Gradle volume, nor any build-script mechanism supplies these variables there (an unused git-ignored `.environment` file exists in its primary checkout, but nothing in the build reads it); the loading path on vm2176 remains unidentified.
+
+Fourth finding (GitTally limitation, worked around in config): with all tests green, the build then failed in hsadmin-ng's `:prQuickCheck` — "fatal: not a git repository".
+GitTally builds in a git worktree whose `.git` is a pointer file into the primary repository's `.git/worktrees/…`, and the Docker build container (deliberately, credentials live under `.git/gittally/`) only mounts the worktree — so build steps that call git fail; the legacy script avoided this by building in the primary checkout.
+Workaround: `prQuickCheck` removed from the vm4006 build command — it is a PR quality gate against a base branch and has no meaning in a post-merge master build (on vm2176 it only passed as an accidental no-op).
+The underlying question (safe git availability inside Docker build containers without exposing `.git/gittally/` secrets) is left as a follow-up design task.
+
+Still open: green completion of the first real build with its Gitea commit status, and — after a stable parallel phase — retiring the legacy service on vm2176.

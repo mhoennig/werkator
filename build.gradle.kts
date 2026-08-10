@@ -76,6 +76,96 @@ kotlin {
     }
 }
 
+// Self-contained runtime bundle for hosts without a Java runtime (plan step 15, ADR 0006):
+// a jlink-trimmed JRE plus gittally.jar plus the packaging/gittally launcher, packed as a tarball.
+// The JDK module list below was computed from the exploded boot jar via
+//   jdeps -q --ignore-missing-deps --multi-release 21 --print-module-deps \
+//     --class-path 'BOOT-INF/lib/*' BOOT-INF/classes BOOT-INF/lib/*.jar
+// plus runtime-only modules jdeps cannot detect: java.logging (Tomcat JULI),
+// jdk.crypto.ec (TLS ECDHE), jdk.management (extended OS MXBeans), jdk.zipfs (nested jar access).
+// Re-check the jdeps output when dependencies change.
+val runtimeBundleModules =
+    listOf(
+        "java.base",
+        "java.compiler",
+        "java.desktop",
+        "java.instrument",
+        "java.logging",
+        "java.management",
+        "java.naming",
+        "java.net.http",
+        "java.prefs",
+        "java.scripting",
+        "java.security.jgss",
+        "java.sql",
+        "jdk.crypto.ec",
+        "jdk.jfr",
+        "jdk.management",
+        "jdk.unsupported",
+        "jdk.zipfs",
+    ).joinToString(",")
+
+val runtimeBundle by tasks.registering {
+    group = "distribution"
+    description = "Builds the self-contained runtime bundle (jlink JRE + jar + launcher) as a tar.gz"
+    dependsOn(tasks.bootJar)
+
+    val jdkHome = javaToolchains.launcherFor(java.toolchain).map { it.metadata.installationPath.asFile }
+    val jarFile = tasks.bootJar.flatMap { it.archiveFile }
+    val launcherFile = layout.projectDirectory.file("packaging/gittally").asFile
+    val stagingDir =
+        layout.buildDirectory
+            .dir("runtime-bundle")
+            .get()
+            .asFile
+    val tarballFile =
+        layout.buildDirectory
+            .file("distributions/gittally-runtime-linux-x64.tar.gz")
+            .get()
+            .asFile
+
+    inputs.files(tasks.bootJar.map { it.outputs.files })
+    inputs.file(launcherFile)
+    inputs.property("modules", runtimeBundleModules)
+    outputs.file(tarballFile)
+
+    doLast {
+        val bundleRoot = stagingDir.resolve("gittally")
+        bundleRoot.deleteRecursively()
+        bundleRoot.parentFile.mkdirs()
+
+        val jlink = jdkHome.get().resolve("bin/jlink")
+        val jlinkProcess =
+            ProcessBuilder(
+                jlink.absolutePath,
+                "--add-modules",
+                runtimeBundleModules,
+                "--strip-debug",
+                "--no-header-files",
+                "--no-man-pages",
+                "--compress",
+                "zip-6",
+                "--output",
+                bundleRoot.resolve("jre").absolutePath,
+            ).redirectErrorStream(true).start()
+        val jlinkOutput = jlinkProcess.inputStream.bufferedReader().readText()
+        check(jlinkProcess.waitFor() == 0) { "jlink failed:\n$jlinkOutput" }
+
+        jarFile.get().asFile.copyTo(bundleRoot.resolve("lib/gittally.jar").also { it.parentFile.mkdirs() })
+        val launcher = launcherFile.copyTo(bundleRoot.resolve("bin/gittally").also { it.parentFile.mkdirs() })
+        check(launcher.setExecutable(true, false)) { "cannot make $launcher executable" }
+
+        tarballFile.parentFile.mkdirs()
+        // system tar preserves the execute bits of jre/bin/* and jre/lib/jspawnhelper
+        val tarProcess =
+            ProcessBuilder("tar", "-czf", tarballFile.absolutePath, "-C", stagingDir.absolutePath, "gittally")
+                .redirectErrorStream(true)
+                .start()
+        val tarOutput = tarProcess.inputStream.bufferedReader().readText()
+        check(tarProcess.waitFor() == 0) { "tar failed:\n$tarOutput" }
+    }
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
 }

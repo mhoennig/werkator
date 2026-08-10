@@ -63,6 +63,9 @@ Old artifacts under the legacy artifact root remain readable on disk until you d
 
 ## Manual Migration Steps
 
+When migrating to a **different host**, the legacy instance can keep running in parallel until the new one is verified — then skip step 1 here and stop the legacy service on the old host last.
+During parallel operation, give the new instance a distinct `gitea.statusContext`, so the two instances do not overwrite each other's commit statuses in Gitea.
+
 1. Stop and remove the legacy service:
 
    ```bash
