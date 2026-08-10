@@ -60,6 +60,7 @@ class BuildsApiController(
                     (results.firstOrNull { it.artifactKey == build.artifactKey }?.status ?: BuildStatus.RUNNING)
                         .jsonName,
                 startedAt = build.startedAt,
+                runningSince = build.runningSince,
                 logSize = liveLogSize(build.liveLogFile),
             )
         }

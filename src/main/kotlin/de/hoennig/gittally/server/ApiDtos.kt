@@ -13,6 +13,8 @@ data class BuildResultDto(
     val commit: String,
     val status: String,
     val startedAt: Instant,
+    /** When the build left the queue; the UI derives the live build time from this, the wait time from [startedAt]. */
+    val runningSince: Instant? = null,
     val durationSeconds: Long?,
     val artifactKey: String,
 ) {
@@ -23,6 +25,7 @@ data class BuildResultDto(
                 commit = result.commit,
                 status = result.status.jsonName,
                 startedAt = result.startedAt,
+                runningSince = result.runningSince,
                 durationSeconds = result.duration?.seconds,
                 artifactKey = result.artifactKey,
             )
@@ -40,6 +43,7 @@ data class BranchDto(
     val commit: String,
     val status: String,
     val startedAt: Instant?,
+    val runningSince: Instant? = null,
     val durationSeconds: Long?,
     val artifactKey: String,
     val latestGreenUrl: String? = null,
@@ -65,6 +69,7 @@ data class BranchDto(
                 commit = latest.commit,
                 status = latest.status.jsonName,
                 startedAt = latest.startedAt,
+                runningSince = latest.runningSince,
                 durationSeconds = latest.duration?.seconds,
                 artifactKey = latest.artifactKey,
                 latestGreenUrl = if (hasGreenBuild) BranchPermalinks.permanentUrl(branch) else null,
@@ -80,6 +85,7 @@ data class CurrentBuildDto(
     val artifactKey: String,
     val status: String,
     val startedAt: Instant,
+    val runningSince: Instant? = null,
     val logSize: Long,
 )
 

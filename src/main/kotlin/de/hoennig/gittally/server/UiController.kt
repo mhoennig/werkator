@@ -87,6 +87,7 @@ class UiController(
                             .jsonName,
                     startedAtIso = build.startedAt.toString(),
                     startedAt = UiFormats.timestamp(build.startedAt),
+                    runningSinceIso = build.runningSince?.toString() ?: "",
                     artifactKey = build.artifactKey,
                     branchUrl = links.branchUrl(build.branch),
                     commitUrl = links.commitUrl(build.commit),

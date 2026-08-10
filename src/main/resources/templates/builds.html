@@ -24,7 +24,7 @@
                 <td class="empty" colspan="7" th:text="${emptyMessage}">No builds recorded yet.</td>
             </tr>
             <tr th:each="row : ${rows}"
-                th:attr="data-artifact-key=${row.artifactKey},data-branch=${row.branch},data-started-at=${row.startedAtIso},data-status=${row.status}">
+                th:attr="data-artifact-key=${row.artifactKey},data-branch=${row.branch},data-started-at=${row.startedAtIso},data-running-since=${row.runningSinceIso},data-status=${row.status}">
                 <td data-label="Status">
                     <span th:class="'status status-' + ${row.status}" th:text="${row.status}">success</span>
                 </td>

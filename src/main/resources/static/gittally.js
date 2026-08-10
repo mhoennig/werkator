@@ -63,15 +63,24 @@ function elapsedSeconds(startedAtIso) {
 }
 
 /**
- * The duration to display for a build: the recorded duration once finished, the
- * live elapsed time while running or pending — so re-rendered rows never show an
- * empty cell that the once-per-second ticker fills back in (visible flicker).
+ * The duration to display for a build, computed at render time so re-rendered
+ * rows never show an empty cell that the ticker fills back in (visible flicker):
+ * the recorded build time once finished, the live build time (since the build
+ * left the queue) while running, and the wait time while pending — the latter
+ * is styled italic via `duration-wait` to distinguish it from build time.
  */
 function displayDurationSeconds(build) {
-    if (build.durationSeconds != null) {
-        return build.durationSeconds;
+    if (build.status === "running") {
+        return elapsedSeconds(build.runningSince || build.startedAt);
     }
-    return build.status === "running" || build.status === "pending" ? elapsedSeconds(build.startedAt) : null;
+    if (build.status === "pending") {
+        return elapsedSeconds(build.startedAt);
+    }
+    return build.durationSeconds;
+}
+
+function durationCellClass(status) {
+    return "duration-cell" + (status === "pending" ? " duration-wait" : "");
 }
 
 // ---- shared infrastructure -------------------------------------------------
@@ -197,6 +206,7 @@ function renderBuildRow(build, allowRestart) {
     row.dataset.artifactKey = build.artifactKey || "";
     row.dataset.branch = build.branch;
     row.dataset.startedAt = build.startedAt || "";
+    row.dataset.runningSince = build.runningSince || "";
     row.dataset.status = build.status || "unknown";
 
     const statusCell = elem("td");
@@ -234,7 +244,7 @@ function renderBuildRow(build, allowRestart) {
     startedCell.dataset.label = "Started";
     row.appendChild(startedCell);
 
-    const durationCell = elem("td", "duration-cell", formatDuration(displayDurationSeconds(build)));
+    const durationCell = elem("td", durationCellClass(build.status), formatDuration(displayDurationSeconds(build)));
     durationCell.dataset.label = "Duration";
     row.appendChild(durationCell);
 
@@ -309,6 +319,7 @@ function renderBuildCard(build) {
     const card = elem("section", "build-card");
     card.dataset.artifactKey = build.artifactKey;
     card.dataset.startedAt = build.startedAt || "";
+    card.dataset.runningSince = build.runningSince || "";
     card.dataset.status = build.status || "running";
 
     const header = elem("header", "build-card-header");
@@ -328,7 +339,9 @@ function renderBuildCard(build) {
     );
     header.appendChild(commitCode);
     header.appendChild(elem("span", "muted", "started " + formatTimestamp(build.startedAt)));
-    header.appendChild(elem("span", "duration-cell running-duration", formatDuration(displayDurationSeconds(build))));
+    header.appendChild(
+        elem("span", durationCellClass(build.status) + " running-duration", formatDuration(displayDurationSeconds(build))),
+    );
     const cardActions = elem("span", "build-card-actions");
     cardActions.appendChild(
         actionButton("× Cancel", "Cancel build", "cancel-button", {
@@ -398,6 +411,7 @@ function initCurrentBuilds() {
                 card = container.appendChild(renderBuildCard(build));
             } else {
                 card.dataset.status = build.status;
+                card.dataset.runningSince = build.runningSince || card.dataset.runningSince;
                 const badge = card.querySelector(".status");
                 badge.className = statusCssClass(build.status);
                 badge.textContent = build.status;
@@ -453,16 +467,20 @@ function initSystemTable() {
 // ---- running-duration ticking ------------------------------------------------
 
 function tickRunningDurations() {
-    const now = Date.now();
     document.querySelectorAll("[data-started-at]").forEach((element) => {
         const status = element.dataset.status;
         if (status !== "running" && status !== "pending") {
             return;
         }
-        const startedAt = new Date(element.dataset.startedAt).getTime();
+        // running: live build time since leaving the queue; pending: wait time (italic)
+        const basisIso = status === "running"
+            ? (element.dataset.runningSince || element.dataset.startedAt)
+            : element.dataset.startedAt;
+        const elapsed = elapsedSeconds(basisIso);
         const durationCell = element.querySelector(".duration-cell");
-        if (durationCell && !Number.isNaN(startedAt)) {
-            durationCell.textContent = formatDuration((now - startedAt) / 1000);
+        if (durationCell && elapsed != null) {
+            durationCell.textContent = formatDuration(elapsed);
+            durationCell.classList.toggle("duration-wait", status === "pending");
         }
     });
 }

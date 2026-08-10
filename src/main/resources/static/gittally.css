@@ -88,6 +88,8 @@ tbody tr:hover { background: color-mix(in srgb, var(--link) 8%, transparent); }
 tbody.is-stale { opacity: 0.55; }
 .branch { font-weight: 650; }
 .duration-cell { white-space: nowrap; }
+/* queue wait time of a pending build — italic to distinguish it from real build time */
+.duration-wait { font-style: italic; color: var(--muted); }
 .empty { padding: 28px 14px; color: var(--muted); text-align: center; }
 
 /* system metrics */

@@ -13,7 +13,11 @@ data class RunningBuild(
     val stagingDir: Path,
     /** Combined stdout+stderr log, written live while the build runs. */
     val liveLogFile: Path,
-)
+) {
+    /** Set by the executor when the build leaves the queue and starts executing. */
+    @Volatile
+    var runningSince: Instant? = null
+}
 
 /** Published via Spring's `ApplicationEventPublisher` on every persisted status transition. */
 data class BuildStatusChangedEvent(

@@ -10,7 +10,7 @@
             No build is currently running.
         </p>
         <section class="build-card" th:each="build : ${currentBuilds}"
-                 th:attr="data-artifact-key=${build.artifactKey},data-started-at=${build.startedAtIso},data-status=${build.status}">
+                 th:attr="data-artifact-key=${build.artifactKey},data-started-at=${build.startedAtIso},data-running-since=${build.runningSinceIso},data-status=${build.status}">
             <header class="build-card-header">
                 <span th:class="'status status-' + ${build.status}" th:text="${build.status}">running</span>
                 <span class="branch link-tools">

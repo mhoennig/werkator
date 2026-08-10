@@ -11,6 +11,8 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.longs.shouldBeGreaterThan
+import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -155,6 +157,51 @@ class BuildExecutorTest : FunSpec() {
 
             h.executor.cancel(build.artifactKey).shouldBeTrue()
             awaitStatus(h, "main", BuildStatus.CANCELLED)
+        }
+
+        test("the duration measures build time only, not the queue wait") {
+            // the first build sleeps, the second (queued behind it) finishes instantly
+            val h = harness("test -f slow-done || { touch slow-done; sleep 2; }")
+
+            h.executor.startBuild("main", "abc123", h.workingDir)
+            val second = h.executor.startBuild("main", "abc124", h.workingDir)
+
+            eventually(30.seconds) {
+                h.repository
+                    .history()
+                    .first { it.artifactKey == second.artifactKey }
+                    .status shouldBe BuildStatus.SUCCESS
+            }
+            val result = h.repository.history().first { it.artifactKey == second.artifactKey }
+            val runningSince = result.runningSince.shouldNotBeNull()
+            val waitMillis =
+                java.time.Duration
+                    .between(result.startedAt, runningSince)
+                    .toMillis()
+            waitMillis shouldBeGreaterThan 1000L
+            result.duration.shouldNotBeNull().toMillis() shouldBeLessThan waitMillis
+        }
+
+        test("a build cancelled while still queued records neither runningSince nor a duration") {
+            val h = harness("sleep 30")
+
+            val first = h.executor.startBuild("main", "abc123", h.workingDir)
+            val second = h.executor.startBuild("main", "abc124", h.workingDir)
+            eventually(30.seconds) {
+                h.executor.currentBuilds().map { it.artifactKey } shouldContain first.artifactKey
+            }
+            h.executor.cancel(second.artifactKey).shouldBeTrue()
+            h.executor.cancel(first.artifactKey).shouldBeTrue()
+
+            eventually(30.seconds) {
+                h.repository
+                    .history()
+                    .first { it.artifactKey == second.artifactKey }
+                    .status shouldBe BuildStatus.CANCELLED
+            }
+            val cancelled = h.repository.history().first { it.artifactKey == second.artifactKey }
+            cancelled.runningSince shouldBe null
+            cancelled.duration shouldBe null
         }
 
         test("a failing build command records FAILED with a duration") {

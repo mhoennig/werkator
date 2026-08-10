@@ -120,6 +120,7 @@ class BuildExecutor(
                 return
             }
             build.running = true
+            build.runningBuild.runningSince = Instant.now()
             transition(build, BuildStatus.RUNNING, duration = null)
             val preparedWorkspace =
                 workspaces.prepare(
@@ -140,7 +141,8 @@ class BuildExecutor(
             log.error("build of branch {} crashed", build.runningBuild.branch, e)
             appendToLiveLog(build, "\nbuild crashed: ${e.message}\n")
         } finally {
-            val duration = Duration.between(build.runningBuild.startedAt, Instant.now())
+            // pure build time, without the queue wait; null when the build never started executing
+            val duration = build.runningBuild.runningSince?.let { Duration.between(it, Instant.now()) }
             val result = transition(build, finalStatus, duration)
             try {
                 artifactStore.persist(result, build.runningBuild.stagingDir, workspace)
@@ -277,12 +279,17 @@ class BuildExecutor(
         val runningBuild = build.runningBuild
         val updated =
             repository.updateByArtifactKey(runningBuild.artifactKey) {
-                it.copy(status = status, duration = duration ?: it.duration)
+                it.copy(
+                    status = status,
+                    runningSince = runningBuild.runningSince ?: it.runningSince,
+                    duration = duration ?: it.duration,
+                )
             } ?: BuildResult(
                 branch = runningBuild.branch,
                 commit = runningBuild.commit,
                 status = status,
                 startedAt = runningBuild.startedAt,
+                runningSince = runningBuild.runningSince,
                 duration = duration,
                 artifactKey = runningBuild.artifactKey,
             ).also { repository.append(it) }
