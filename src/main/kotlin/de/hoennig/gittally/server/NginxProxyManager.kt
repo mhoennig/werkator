@@ -6,14 +6,9 @@ import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.git.GitCommandRunner
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.time.Duration
 
 /**
  * Manages the opt-in nginx+certbot Docker container that serves GitTally over
@@ -35,9 +30,6 @@ class NginxProxyManager(
     private val log = LoggerFactory.getLogger(NginxProxyManager::class.java)
 
     var workingDir: Path = Paths.get(".")
-
-    /** Replaceable for tests: fetches certbot's pinned DH parameters into [target]; throws on failure. */
-    internal var dhParamsDownloader: (target: Path) -> Unit = ::downloadDhParams
 
     /** Replaceable for tests: the wait between port-conflict re-checks. */
     internal var sleeper: (millis: Long) -> Unit = Thread::sleep
@@ -188,7 +180,7 @@ class NginxProxyManager(
         Files.writeString(settings.certbotConf.resolve("options-ssl-nginx.conf"), NginxConfigFiles.SSL_OPTIONS)
         val dhParams = settings.certbotConf.resolve("ssl-dhparams.pem")
         if (!Files.exists(dhParams)) {
-            dhParamsDownloader(dhParams)
+            writeBundledDhParams(dhParams)
         }
     }
 
@@ -424,19 +416,16 @@ class NginxProxyManager(
         fun defaultContainerName(repoDir: Path): String =
             "gittally-nginx-" + repoDir.fileName.toString().replace(Regex("[^A-Za-z0-9_.-]"), "-")
 
-        private fun downloadDhParams(target: Path) {
-            val response =
-                HttpClient
-                    .newBuilder()
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .followRedirects(HttpClient.Redirect.NORMAL)
-                    .build()
-                    .send(
-                        HttpRequest.newBuilder(URI.create(NginxConfigFiles.DH_PARAMS_URL)).GET().build(),
-                        HttpResponse.BodyHandlers.ofString(),
-                    )
-            check(response.statusCode() == 200) { "downloading ssl-dhparams.pem failed with HTTP ${response.statusCode()}" }
-            Files.writeString(target, response.body())
+        /**
+         * Certbot's pinned DH parameters (RFC 7919 ffdhe2048), bundled as a resource:
+         * certbot removed the file from its repository, so it can no longer be downloaded.
+         */
+        private fun writeBundledDhParams(target: Path) {
+            val resource =
+                checkNotNull(NginxProxyManager::class.java.getResourceAsStream("/nginx/ssl-dhparams.pem")) {
+                    "bundled nginx/ssl-dhparams.pem resource is missing"
+                }
+            resource.use { Files.copy(it, target) }
         }
     }
 }

@@ -77,7 +77,4 @@ object NginxConfigFiles {
             "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:" +
             "DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384\";\n" +
             "ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;\n"
-
-    /** Certbot's pinned DH parameters, downloaded once into the state dir (like legacy). */
-    const val DH_PARAMS_URL: String = "https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem"
 }

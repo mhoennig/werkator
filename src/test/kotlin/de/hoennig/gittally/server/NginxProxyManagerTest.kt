@@ -126,7 +126,6 @@ class NginxProxyManagerTest : FunSpec() {
             }
             manager = NginxProxyManager(commandRunner, configLoader)
             manager.workingDir = repoDir
-            manager.dhParamsDownloader = { Files.writeString(it, "dh-params") }
             manager.sleeper = { sleepCount++ }
         }
 
@@ -198,7 +197,8 @@ class NginxProxyManagerTest : FunSpec() {
                     "--register-unsafely-without-email",
                 )
             Files.readString(stateDir.resolve("certbot/conf/options-ssl-nginx.conf")) shouldBe NginxConfigFiles.SSL_OPTIONS
-            Files.readString(stateDir.resolve("certbot/conf/ssl-dhparams.pem")) shouldBe "dh-params"
+            // the bundled RFC 7919 ffdhe2048 parameters, vendored because certbot removed the download
+            Files.readString(stateDir.resolve("certbot/conf/ssl-dhparams.pem")) shouldContain "BEGIN DH PARAMETERS"
         }
 
         test("start with an existing certificate uses the full config immediately and renews") {
