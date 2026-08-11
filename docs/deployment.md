@@ -95,6 +95,7 @@ To update GitTally, replace `~/bin/gittally.jar` and restart the service.
 ## Control Token
 
 Viewing is public by design: build states, logs and artifacts are readable without any login, so they can be linked from Gitea, chats or tickets.
+That is safe as long as the builds themselves handle no real secrets — GitTally has no per-endpoint gating, so an installation whose build output could contain credentials must stay off the public internet (reverse proxy with access control, or `server.bindAddress: 127.0.0.1`).
 Only the three mutating actions — restart, cancel, delete — require the control token from `.git/gittally/control-token`, a random secret the server generates on first start (mode `0600`; delete the file to rotate it).
 
 The token is never embedded in a page.

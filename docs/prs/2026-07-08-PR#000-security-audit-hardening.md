@@ -89,7 +89,10 @@ There is no redaction and no masked default.
 
 #### TODO 5 — Reduce information disclosure on the unauthenticated read API
 
-- [ ] Decide whether build-log streaming ([`BuildsApiController`](../../src/main/kotlin/de/hoennig/gittally/server/BuildsApiController.kt) `/api/builds/current/{key}/log`), [`SystemApiController`](../../src/main/kotlin/de/hoennig/gittally/server/SystemApiController.kt), and [`WatcherApiController`](../../src/main/kotlin/de/hoennig/gittally/server/WatcherApiController.kt) should stay fully public, or be gated / scrubbed.
+- [x] Decide whether build-log streaming ([`BuildsApiController`](../../src/main/kotlin/de/hoennig/gittally/server/BuildsApiController.kt) `/api/builds/current/{key}/log`), [`SystemApiController`](../../src/main/kotlin/de/hoennig/gittally/server/SystemApiController.kt), and [`WatcherApiController`](../../src/main/kotlin/de/hoennig/gittally/server/WatcherApiController.kt) should stay fully public, or be gated / scrubbed.
+  **Decided: they stay fully public, no scrubbing.** The watched projects (GitTally itself and hs.hsadmin.ng) are open source, the repositories hold no secrets, and the builds run tests against test data — credentials appearing in a log are fixtures, not real ones. Builds neither deploy nor sign; the only planned artifact is a jar.
+  Public logs are also the point of the tool: a red build must be diagnosable from the link in the Gitea status without a login.
+  This is a property of the watched project, not of GitTally: an installation whose builds touch real credentials must keep its instance off the public internet (reverse proxy or `bindAddress: 127.0.0.1`), because GitTally offers no per-endpoint gating.
 
 **Background.**
 Every read endpoint is public.
@@ -154,7 +157,7 @@ A small TOCTOU gap; `GitAskPass`'s atomic-at-creation approach is the pattern to
 ## Open Questions
 
 - ~~TODO 2: full fix (gating the pages) versus documentation-only.~~ Settled by the operator: unauthenticated **read** access is a requirement — build states and artifacts must stay linkable without a login. So the pages are not gated; only the token distribution changed (v0.9.10).
-- TODO 5: settled for the endpoints as such — public reads are by design, as above and as in legacy. What remains open is build-log content: a build script echoing a secret publishes it. Scrubbing or gating just the log endpoint is the only part still worth deciding.
+- ~~TODO 5: whether public read access is acceptable by design (it matches legacy) or should change.~~ Settled by the operator: public reads are intended, and the watched open-source projects put no real secrets into their logs. See TODO 5 above.
 - TODO 6: the pinned set is settled (secrets + Gitea/server + `docker.enabled`/`docker.network`); the open point is whether `docker.env` should also be pinned, since a branch overriding it controls its own container's environment (currently proposed as worktree-overridable).
 - ~~TODO 7: changing the default `bindAddress` is a behavior change for existing installs that rely on `0.0.0.0`; needs a migration note.~~ Settled: the default changed in v0.9.9 and the migration note is in the release notes and both deployment docs.
 
