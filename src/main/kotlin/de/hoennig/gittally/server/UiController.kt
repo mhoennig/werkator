@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.view.RedirectView
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -188,7 +189,11 @@ class UiController(
         model.addAttribute("result", result?.let { BuildRowView.from(it, links) })
         model.addAttribute("hasArtifacts", artifactDir != null)
         model.addAttribute("buildCommand", result?.let { branchBuildCommand(it.branch) })
-        model.addAttribute("logs", artifactDir?.let { logFiles(it) } ?: emptyList<String>())
+        model.addAttribute(
+            "logs",
+            artifactDir?.let { logFiles(it, scanForFailure = result != null && result.status != BuildStatus.SUCCESS) }
+                ?: emptyList<LogFileView>(),
+        )
         model.addAttribute("reportIndexes", artifactDir?.let { reportIndexes(it) } ?: emptyList<String>())
         return "artifact"
     }
@@ -220,15 +225,37 @@ class UiController(
         return (branches[branch] ?: branches["default"])?.buildCommand ?: ""
     }
 
-    /** The stored log files: all top-level regular files of the artifact directory. */
-    private fun logFiles(artifactDir: Path): List<String> =
+    /**
+     * The stored log files: all top-level regular files of the artifact directory.
+     * With [scanForFailure] each one is searched for a failure line, so that a red build marks
+     * the logs that explain it — a build split over stdout/stderr logs usually leaves the
+     * failure in only some of them, and a failed test is reported far from `BUILD FAILED`.
+     */
+    private fun logFiles(
+        artifactDir: Path,
+        scanForFailure: Boolean,
+    ): List<LogFileView> =
         Files.list(artifactDir).use { children ->
             children
                 .asSequence()
                 .filter { Files.isRegularFile(it) }
-                .map { it.name }
-                .sorted()
+                .sortedBy { it.name }
+                .map { LogFileView(name = it.name, failed = scanForFailure && containsFailureMarker(it)) }
                 .toList()
+        }
+
+    /**
+     * Whether a log carries a build tool's failure line. Read as ISO-8859-1 and line by line:
+     * the markers are ASCII, so no byte sequence of a build log can fail to decode, and the
+     * scan stops at the first hit instead of pulling a multi-megabyte log into memory.
+     */
+    private fun containsFailureMarker(logFile: Path): Boolean =
+        try {
+            Files.newBufferedReader(logFile, StandardCharsets.ISO_8859_1).use { reader ->
+                reader.lineSequence().any { FAILURE_MARKER.containsMatchIn(it) }
+            }
+        } catch (_: Exception) {
+            false
         }
 
     /**
@@ -318,6 +345,13 @@ class UiController(
 
     companion object {
         private val FAILURES_COUNTER = Regex("""id="failures">\s*<div class="counter">(\d+)""")
+
+        /**
+         * A failure line of a build tool or of a single test — `BUILD FAILED`, `BUILD FAILURE`,
+         * `FAILURE: Build failed …`, and Gradle's per-test `SomeTest > works() FAILED`.
+         * Upper case only, on purpose: a prose "failed" says nothing, the shouted word does.
+         */
+        private val FAILURE_MARKER = Regex("""\b(FAILED|FAILURE)\b""")
 
         /** Legacy page name → new route; about/license had no successor pages and land on the start page. */
         private val LEGACY_PAGE_TARGETS =

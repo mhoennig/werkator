@@ -335,6 +335,46 @@ class UiControllerTest : FunSpec() {
             Regex(""" failed</span>""").findAll(page).count() shouldBe 1
         }
 
+        test("of a failed build, only the logs carrying a failure line get a failed-badge") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("failed-key"))
+            Files.writeString(artifactDir.resolve("build.log"), "compiling\nBUILD FAILED in 20s\n")
+            // a failed test, far away from any BUILD FAILED line
+            Files.writeString(artifactDir.resolve("build.stdout.log"), "SomeTest > works() FAILED\ncompiling\n")
+            Files.writeString(artifactDir.resolve("build.stderr.log"), "warning: this test has failed before\n")
+            every { repository.history() } returns
+                listOf(successResult.copy(status = BuildStatus.FAILED, artifactKey = "failed-key"))
+            every { artifactStore.artifactDir("failed-key") } returns artifactDir
+
+            val page =
+                mockMvc
+                    .perform(get("/builds/failed-key"))
+                    .andExpect(status().isOk)
+                    .andReturn()
+                    .response.contentAsString
+
+            // two badges for the logs, plus the one of the build status itself
+            Regex(""">failed</span>""").findAll(page).count() shouldBe 3
+            // lower-case prose about failing is not a failure line
+            page.substringAfter("build.stderr.log</a>").substringBefore("</li>") shouldNotContain "status-failed"
+        }
+
+        test("logs of a successful build are not scanned for failure lines") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("green-key"))
+            Files.writeString(artifactDir.resolve("build.log"), "BUILD FAILED in a nested build\nBUILD SUCCESSFUL\n")
+            every { repository.history() } returns listOf(successResult.copy(artifactKey = "green-key"))
+            every { artifactStore.artifactDir("green-key") } returns artifactDir
+
+            val page =
+                mockMvc
+                    .perform(get("/builds/green-key"))
+                    .andExpect(status().isOk)
+                    .andReturn()
+                    .response.contentAsString
+
+            page shouldContain "build.log"
+            page shouldNotContain "status-failed"
+        }
+
         test("legacy page names redirect permanently to the new routes") {
             mockMvc
                 .perform(get("/index.html"))

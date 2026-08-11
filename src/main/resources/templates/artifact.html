@@ -50,8 +50,10 @@
         <h2>Logs</h2>
         <ul th:if="${!#lists.isEmpty(logs)}">
             <li th:each="log : ${logs}">
-                <a th:href="${filesBase} + '/' + ${log}" target="_blank"
-                   rel="noopener noreferrer" th:text="${log}">build.log</a>
+                <a th:href="${filesBase} + '/' + ${log.name}" target="_blank"
+                   rel="noopener noreferrer" th:text="${log.name}">build.log</a>
+                <span th:if="${log.failed}" class="status status-failed"
+                      title="this log contains the build tool's failure line">failed</span>
             </li>
         </ul>
         <p th:if="${#lists.isEmpty(logs)}" class="muted">

@@ -161,6 +161,16 @@ data class ReportIndexView(
     val failures: Int?,
 )
 
+/**
+ * One log link of the artifact index. [failed] marks the logs that actually carry the
+ * build tool's failure line, so a red build points at the log worth opening; it stays
+ * false for successful builds, whose logs are not scanned at all.
+ */
+data class LogFileView(
+    val name: String,
+    val failed: Boolean,
+)
+
 /** One card of the current-builds view; the live log is fetched by `gittally.js`. */
 data class CurrentBuildView(
     val branch: String,
