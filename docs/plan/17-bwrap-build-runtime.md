@@ -43,9 +43,10 @@ The host runs `bubblewrap 0.8.0` on kernel `6.1.0-52-amd64`.
 Every option of the invocation below exists in 0.8.0 (`--die-with-parent` since 0.4.0, the rest is older), so the design stands as written.
 What 0.8.0 lacks is overlayfs (`--overlay`, added in 0.9.0): a future "throwaway writable rootfs per build" cannot be built from an overlay here, only from tmpfs mounts over the writable spots.
 
-**Consequence for the runtime bundle — verify before deploying:** kernel 6.1 means Debian 12 and therefore most likely glibc 2.36, while the dev machine builds the jlink bundle against glibc 2.39.
-ADR 0006 requires building on glibc ≤ the target's, which holds for vm4006 (2.41) but not for such a webspace — the JRE would fail to start.
-Confirm with `ldd --version` on the target and, if it is below 2.39, build the bundle in an older base image (e.g. `eclipse-temurin:21-jdk-jammy`, glibc 2.35) instead of on the dev machine.
+**The runtime bundle runs there — checked, not assumed.** The webspace has glibc 2.36 (Debian 12), below the dev machine's 2.39, which by ADR 0006's original wording would have ruled the bundle out.
+That wording was wrong and has been corrected: the bundle's highest required symbol version is `GLIBC_2.15`, because `jlink` copies Temurin's prebuilt binaries rather than compiling anything.
+So no container build and no second build machine are needed for this platform.
+The bundle's `java.desktop` module does carry X11, ALSA and freetype dependencies, but only in the AWT libraries, which a headless GitTally never loads — as on vm4006.
 
 ## Goal
 
