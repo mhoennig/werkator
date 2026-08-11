@@ -29,6 +29,18 @@ Expected output:
 
 If this fails (`bwrap` missing, "setting up uid map: Permission denied", or no user namespace support), the approach is dead on that host — record the result in this file either way.
 
+**Result: passed** on 2026-08-11, Hostsharing Managed Webspace `h68`, user `mih00`:
+
+```
+0
+         0     102147          1
+touch: cannot touch '/usr/ro-test': Read-only file system
+```
+
+All three signals as expected — root inside the namespace, mapped back to the unprivileged webspace uid, and the read-only root bind enforced.
+So unprivileged user namespaces are available on Hostsharing Managed Webspaces and the step can proceed.
+Not captured with it: the `bwrap` and kernel versions of that host — take them along when the implementation starts, in case a mount option turns out to need a minimum version.
+
 ## Goal
 
 A third build runtime behind the `BuildRunner` interface: `BwrapBuildRunner`, selected per branch via config, sandboxing the build in an unprivileged user namespace with a prepared Debian root filesystem.
