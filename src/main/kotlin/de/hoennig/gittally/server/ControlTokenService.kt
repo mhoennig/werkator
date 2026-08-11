@@ -1,8 +1,8 @@
 package de.hoennig.gittally.server
 
+import de.hoennig.gittally.SecretFiles
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 import java.security.SecureRandom
 
@@ -25,29 +25,26 @@ class ControlTokenService(
                 ?.let { return it }
         }
         val token = generateToken()
-        Files.createDirectories(tokenFile.parent)
-        Files.writeString(tokenFile, token + "\n")
-        restrictToOwner(tokenFile)
+        SecretFiles.createDirectoriesOwnerOnly(tokenFile.parent)
+        SecretFiles.writeOwnerOnly(tokenFile, token + "\n")
         return token
     }
 
-    /** Constant-time comparison; null or blank never matches. */
+    /**
+     * Constant-time comparison; null or blank never matches. Both sides are hashed first
+     * so the comparison always runs over two 32-byte buffers and cannot return early on a
+     * length mismatch — which would leak the token length.
+     */
     fun matches(submittedToken: String?): Boolean =
         !submittedToken.isNullOrBlank() &&
-            MessageDigest.isEqual(submittedToken.toByteArray(), token().toByteArray())
+            MessageDigest.isEqual(sha256(submittedToken), sha256(token()))
+
+    private fun sha256(value: String): ByteArray = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
 
     /** 24 random bytes as hex, like legacy `openssl rand -hex 24`. */
     private fun generateToken(): String {
         val bytes = ByteArray(24)
         SecureRandom().nextBytes(bytes)
         return bytes.joinToString("") { "%02x".format(it) }
-    }
-
-    private fun restrictToOwner(file: Path) {
-        try {
-            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"))
-        } catch (_: UnsupportedOperationException) {
-            // non-POSIX filesystem; the file stays with default permissions
-        }
     }
 }

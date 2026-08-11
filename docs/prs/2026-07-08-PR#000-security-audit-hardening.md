@@ -42,7 +42,8 @@ Each item is a TODO with the background that justifies it.
 
 #### TODO 1 — Restrict the Gitea-token config file to the owner at creation
 
-- [ ] In [`InitCommand.kt:86-106`](../../src/main/kotlin/de/hoennig/gittally/commands/InitCommand.kt), create `.git/gittally/.gittally.yml` and its parent `.git/gittally/` with `0600`/`0700`, atomically at creation (as [`GitAskPass`](../../src/main/kotlin/de/hoennig/gittally/git/GitAskPass.kt) does), not via plain `writeText` at the umask default.
+- [x] In [`InitCommand.kt:86-106`](../../src/main/kotlin/de/hoennig/gittally/commands/InitCommand.kt), create `.git/gittally/.gittally.yml` and its parent `.git/gittally/` with `0600`/`0700`, atomically at creation (as [`GitAskPass`](../../src/main/kotlin/de/hoennig/gittally/git/GitAskPass.kt) does), not via plain `writeText` at the umask default.
+  **Done:** both `init` paths now go through [`SecretFiles`](../../src/main/kotlin/de/hoennig/gittally/SecretFiles.kt), which sets the mode as a file attribute at creation.
 
 **Background.**
 `init` creates the file it labels "secrets" — where the operator pastes the Gitea API token — with `writeText` and no permission restriction, so it inherits the umask (typically `0644`, world-readable).
@@ -119,7 +120,7 @@ The deployment doc already recommends `127.0.0.1`; the default and template shou
 
 #### TODO 8 — Compare fixed-length hashes in the token check
 
-- [ ] In [`ControlTokenService.kt:35-37`](../../src/main/kotlin/de/hoennig/gittally/server/ControlTokenService.kt), compare `SHA-256(submitted)` against `SHA-256(secret)` with `MessageDigest.isEqual`, so the comparison is always over equal-length buffers.
+- [x] In [`ControlTokenService.kt:35-37`](../../src/main/kotlin/de/hoennig/gittally/server/ControlTokenService.kt), compare `SHA-256(submitted)` against `SHA-256(secret)` with `MessageDigest.isEqual`, so the comparison is always over equal-length buffers.
 
 **Background.**
 `MessageDigest.isEqual` returns early on a length mismatch, leaking the token length via timing.
@@ -127,7 +128,8 @@ Largely theoretical given the 192-bit CSPRNG token, but a cheap deviation from c
 
 #### TODO 9 — Add `--` before positional refnames in git calls
 
-- [ ] Insert `--` before the branch argument in `checkout`, `fetchBranch`, and `resetHardToOrigin` in [`GitService.kt:145,40,155`](../../src/main/kotlin/de/hoennig/gittally/git/GitService.kt) (e.g. `git switch -- <branch>`).
+- [x] Insert `--` before the branch argument in `checkout`, `fetchBranch`, and `resetHardToOrigin` in [`GitService.kt:145,40,155`](../../src/main/kotlin/de/hoennig/gittally/git/GitService.kt) (e.g. `git switch -- <branch>`).
+  **Done for `checkout` and `fetchBranch`.** `resetHardToOrigin` keeps its plain form: `git reset --hard -- <commit>` is rejected (`fatal: Cannot do hard reset with paths`), and its argument is already prefixed with `origin/`, so it can never start with `-`.
 
 **Background.**
 Git accepts refnames beginning with `-` (verified: `git check-ref-format 'refs/heads/-foo'` exits 0), so a pushed branch name could in principle be read as a git option.
@@ -135,7 +137,8 @@ These three methods currently have no production callers and the actively-used p
 
 #### TODO 10 — Create secret files restricted atomically
 
-- [ ] Set the mode at creation for the control-token file ([`ControlTokenService.kt:29-30`](../../src/main/kotlin/de/hoennig/gittally/server/ControlTokenService.kt)) and the setup-script YAML (`tools/setup-gittally-instance:253`), instead of `chmod 0600` after the write.
+- [x] Set the mode at creation for the control-token file ([`ControlTokenService.kt:29-30`](../../src/main/kotlin/de/hoennig/gittally/server/ControlTokenService.kt)) and the setup-script YAML (`tools/setup-gittally-instance:253`), instead of `chmod 0600` after the write.
+  **Done:** the control-token file via [`SecretFiles`](../../src/main/kotlin/de/hoennig/gittally/SecretFiles.kt), the setup script by writing the YAML in a `umask 077` subshell instead of `chmod`-ing afterwards.
 
 **Background.**
 Both currently write the file at the umask default and tighten it afterward, leaving a brief window where the secret exists world-readable.

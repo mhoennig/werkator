@@ -244,13 +244,19 @@ echo "== writing $project_yml (public host: $hostname, source: $config_source)"
 
 echo "== writing $machine_yml (secrets, mode 600)"
 mkdir -p "$(dirname "$machine_yml")"
-{
-    echo "# Machine-specific overrides and secrets. Keys here win over .gittally.yml."
-    echo "git:"
-    echo "  account: $(yaml_quote "$git_account")"
-    echo "  token: $(yaml_quote "$git_token")"
-} >"$machine_yml"
-chmod 600 "$machine_yml"
+# the umask in the subshell makes the file mode 600 at creation, so the token is
+# never world-readable — not even between the redirect and a follow-up chmod;
+# an existing file is removed first, because the redirect would keep its mode
+rm -f "$machine_yml"
+(
+    umask 077
+    {
+        echo "# Machine-specific overrides and secrets. Keys here win over .gittally.yml."
+        echo "git:"
+        echo "  account: $(yaml_quote "$git_account")"
+        echo "  token: $(yaml_quote "$git_token")"
+    } >"$machine_yml"
+)
 
 echo "== converted project config:"
 sed 's/^/    /' "$project_yml"

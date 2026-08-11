@@ -37,7 +37,8 @@ class GitService(
         workingDir: Path = Paths.get("."),
     ) {
         authenticated(workingDir) { environment ->
-            runner.runOrThrow(listOf("git", "fetch", "origin", branch), workingDir, environment)
+            // `--` guards against refnames starting with `-` being read as git options
+            runner.runOrThrow(listOf("git", "fetch", "origin", "--", branch), workingDir, environment)
         }
     }
 
@@ -142,7 +143,7 @@ class GitService(
         workingDir: Path = Paths.get("."),
     ) {
         if (refExists("refs/heads/$branch", workingDir)) {
-            runner.runOrThrow(listOf("git", "switch", branch), workingDir)
+            runner.runOrThrow(listOf("git", "switch", "--", branch), workingDir)
         } else {
             runner.runOrThrow(listOf("git", "switch", "--track", "-c", branch, "refs/remotes/origin/$branch"), workingDir)
         }
@@ -152,6 +153,8 @@ class GitService(
         branch: String,
         workingDir: Path = Paths.get("."),
     ) {
+        // no `--` here: with paths `git reset --hard` refuses to run; the `origin/` prefix
+        // already keeps the argument from looking like an option
         runner.runOrThrow(listOf("git", "reset", "--hard", "origin/$branch"), workingDir)
     }
 

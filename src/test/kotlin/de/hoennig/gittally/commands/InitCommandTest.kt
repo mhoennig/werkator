@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.nio.file.attribute.PosixFilePermissions
 
 class InitCommandTest : FunSpec() {
     private val gitService = mockk<GitService>()
@@ -35,6 +36,20 @@ class InitCommandTest : FunSpec() {
             repoConfig.toFile().shouldExist()
             val repoContent = repoConfig.toFile().readText()
             repoContent shouldContain "account: \"\"" // no user in https URL
+        }
+
+        test("creates the secrets config and its directory readable only by the owner") {
+            val tempDir = Files.createTempDirectory("gittally-init-test")
+            initCommand.workingDir = tempDir
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            val repoConfig = tempDir.resolve(".git/gittally/.gittally.yml")
+            PosixFilePermissions.toString(Files.getPosixFilePermissions(repoConfig)) shouldBe "rw-------"
+            PosixFilePermissions.toString(Files.getPosixFilePermissions(repoConfig.parent)) shouldBe "rwx------"
         }
 
         test("detects account from https url") {

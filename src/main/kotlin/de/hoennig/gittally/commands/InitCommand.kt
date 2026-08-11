@@ -1,5 +1,6 @@
 package de.hoennig.gittally.commands
 
+import de.hoennig.gittally.SecretFiles
 import de.hoennig.gittally.git.GitService
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
@@ -93,7 +94,7 @@ class InitCommand(
             println("${file.toFile().relativeTo(normalizedWorkingDir.toFile())} already exists — not overwritten")
             return
         }
-        file.parent.toFile().mkdirs()
+        SecretFiles.createDirectoriesOwnerOnly(file.parent)
         val content =
             """
             # Machine- or user-specific overrides and secrets. Keys here win over .gittally.yml.
@@ -101,7 +102,9 @@ class InitCommand(
               account: "${detected.account}"              # technical username for git HTTPS authentication
               token: ""                                   # Gitea API token — never commit this
             """.trimIndent()
-        file.toFile().writeText(content + "\n")
+        // this is where the operator pastes the Gitea token, so it must never exist
+        // world-readable — on a shared host that would hand out git push access
+        SecretFiles.writeOwnerOnly(file, content + "\n")
         println("created ${file.toFile().relativeTo(normalizedWorkingDir.toFile())}")
     }
 
@@ -214,7 +217,7 @@ class InitCommand(
             return
         }
         val gittallyDir = root.resolve(".git/gittally")
-        gittallyDir.toFile().mkdirs()
+        SecretFiles.createDirectoriesOwnerOnly(gittallyDir)
         val unitName = SystemdServiceFiles.unitName(root)
         val unitFile = gittallyDir.resolve(unitName)
         val envFile = gittallyDir.resolve(SystemdServiceFiles.ENV_FILE_NAME)

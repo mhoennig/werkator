@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldMatch
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.PosixFilePermissions
 
 class ControlTokenServiceTest : FunSpec() {
     private fun newTokenFile(): Path = Files.createTempDirectory("gittally-token-test").resolve("control-token")
@@ -19,6 +20,14 @@ class ControlTokenServiceTest : FunSpec() {
             token shouldMatch Regex("[0-9a-f]{48}")
             Files.readString(tokenFile).trim() shouldBe token
             service.token() shouldBe token
+        }
+
+        test("persists the token readable only by the owner") {
+            val tokenFile = newTokenFile()
+
+            ControlTokenService(tokenFile).token()
+
+            PosixFilePermissions.toString(Files.getPosixFilePermissions(tokenFile)) shouldBe "rw-------"
         }
 
         test("reuses an operator-provided token file") {
