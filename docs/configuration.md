@@ -38,6 +38,9 @@ java -jar build/libs/gittally.jar config:print         # only explicitly set val
 java -jar build/libs/gittally.jar config:print --full  # all values including defaults
 ```
 
+`git.token` is masked as `***` by default, so the output can safely be shared or pasted.
+Add `--show-secrets` to print it in clear text.
+
 ## `.gittally.yml`
 
 Values shown are the defaults.
@@ -48,8 +51,9 @@ server:
   publicBaseUrl: https://ci.example.org/
   # HTTP port of the `server` subcommand (default 18080, like legacy)
   port: 18080
-  # bind address of the `server` subcommand
-  bindAddress: 0.0.0.0
+  # bind address of the `server` subcommand; loopback only, because the UI and the API
+  # are unauthenticated — set 0.0.0.0 only deliberately (see the note below)
+  bindAddress: 127.0.0.1
   # optional Impressum (legal disclosure) link in the web UI footer; empty hides the link
   impressumUrl: ""
   # Opt-in managed nginx+certbot Docker container for HTTPS, for hosts without
@@ -171,6 +175,13 @@ branches:
       times:
         - "04:00"
 ```
+
+### Notes on `server.bindAddress`
+
+The default is `127.0.0.1`.
+Neither the web UI nor the JSON API authenticates read access, and every page carries the control token that unlocks the build controls, so GitTally is meant to sit behind the host's reverse proxy rather than on a public interface.
+Set `0.0.0.0` only deliberately — for the managed nginx container (which reaches GitTally over the Docker bridge, not over loopback), or when the proxy runs on another host.
+Installations created before v0.9.9 have `bindAddress: 0.0.0.0` written into their `.gittally.yml` and keep it; the new default only applies where the key is absent or `init` writes a fresh file.
 
 ### Notes on `server.nginx`
 

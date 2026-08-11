@@ -65,7 +65,7 @@ Blast radius is limited to build-lifecycle operations (a DoS/integrity concern, 
 
 #### TODO 3 — Accept the control token via header only
 
-- [ ] Remove the `token` query-parameter variant from the three mutating endpoints in [`BuildsApiController.kt:90,115,129`](../../src/main/kotlin/de/hoennig/gittally/server/BuildsApiController.kt); keep only the `X-GitTally-Token` header (which the bundled UI already uses).
+- [x] Remove the `token` query-parameter variant from the three mutating endpoints in [`BuildsApiController.kt:90,115,129`](../../src/main/kotlin/de/hoennig/gittally/server/BuildsApiController.kt); keep only the `X-GitTally-Token` header (which the bundled UI already uses).
 
 **Background.**
 Tokens in URLs are routinely written to access logs, reverse-proxy logs, browser history, and the `Referer` header on outbound navigation.
@@ -74,8 +74,9 @@ The query-param path exists only for legacy convenience.
 
 #### TODO 4 — Redact the Gitea token in `config:print`
 
-- [ ] Mask `git.token` (and any future secret) by default in [`ConfigPrintCommand.kt:20-31`](../../src/main/kotlin/de/hoennig/gittally/commands/ConfigPrintCommand.kt); gate the plaintext value behind an explicit `--show-secrets` flag.
-- [ ] Update `tools/setup-gittally-instance:272`, which currently steers the operator to run `config:print --full` to view the token.
+- [x] Mask `git.token` (and any future secret) by default in [`ConfigPrintCommand.kt:20-31`](../../src/main/kotlin/de/hoennig/gittally/commands/ConfigPrintCommand.kt); gate the plaintext value behind an explicit `--show-secrets` flag.
+  Masked as `***` on both the `--full` and the raw path, with a leading YAML comment naming the flag, so the output stays parseable when piped.
+- [x] Update `tools/setup-gittally-instance:272`, which currently steers the operator to run `config:print --full` to view the token.
 
 **Background.**
 Both the `--full` and default branches print the token verbatim to stdout, landing it in terminal scrollback, `script(1)` captures, screen-shares, or CI logs.
@@ -112,7 +113,8 @@ Before this PR all build config was loaded from the primary checkout via `config
 
 #### TODO 7 — Default `bindAddress` to `127.0.0.1`
 
-- [ ] Change the default in [`GitTallyConfig.kt:21`](../../src/main/kotlin/de/hoennig/gittally/config/GitTallyConfig.kt) and the `init` template ([`InitCommand.kt:126`](../../src/main/kotlin/de/hoennig/gittally/commands/InitCommand.kt)) from `0.0.0.0` to `127.0.0.1`; require operators to opt into all-interfaces.
+- [x] Change the default in [`GitTallyConfig.kt:21`](../../src/main/kotlin/de/hoennig/gittally/config/GitTallyConfig.kt) and the `init` template ([`InitCommand.kt:126`](../../src/main/kotlin/de/hoennig/gittally/commands/InitCommand.kt)) from `0.0.0.0` to `127.0.0.1`; require operators to opt into all-interfaces.
+  Shipped as v0.9.9 with the migration note in the release notes, `docs/configuration.md` ("Notes on `server.bindAddress`") and `docs/deployment.md`: existing configs keep their explicit value, and the managed nginx now needs `0.0.0.0` set deliberately.
 
 **Background.**
 The current default binds all interfaces, which — combined with the public read surface and token-in-HTML — exposes the whole UI and the control token to the network whenever the reverse proxy is forgotten.
@@ -149,7 +151,7 @@ A small TOCTOU gap; `GitAskPass`'s atomic-at-creation approach is the pattern to
 - TODO 2: full fix (gating the pages) versus documentation-only — the pages are the UI, so gating them needs a decision on how operators authenticate; the current implemented behavior is fully public.
 - TODO 5: whether public read access is acceptable by design (it matches legacy) or should change; current behavior leaves all reads public.
 - TODO 6: the pinned set is settled (secrets + Gitea/server + `docker.enabled`/`docker.network`); the open point is whether `docker.env` should also be pinned, since a branch overriding it controls its own container's environment (currently proposed as worktree-overridable).
-- TODO 7: changing the default `bindAddress` is a behavior change for existing installs that rely on `0.0.0.0`; needs a migration note.
+- ~~TODO 7: changing the default `bindAddress` is a behavior change for existing installs that rely on `0.0.0.0`; needs a migration note.~~ Settled: the default changed in v0.9.9 and the migration note is in the release notes and both deployment docs.
 
 ## Additional Changes
 

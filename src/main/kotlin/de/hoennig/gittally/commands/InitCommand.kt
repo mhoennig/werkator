@@ -125,8 +125,10 @@ class InitCommand(
               publicBaseUrl: ""
               # HTTP port of the `server` subcommand
               port: 18080
-              # bind address of the `server` subcommand
-              bindAddress: 0.0.0.0
+              # bind address of the `server` subcommand; loopback only, because the UI and the
+              # API are unauthenticated — use 0.0.0.0 only without a reverse proxy in front
+              # (and with the managed nginx below, which reaches GitTally from its container)
+              bindAddress: 127.0.0.1
               # optional Impressum (legal disclosure) link in the web UI footer; empty hides the link
               impressumUrl: ""
               # Opt-in managed nginx+certbot Docker container for HTTPS, for hosts without

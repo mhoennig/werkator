@@ -18,7 +18,12 @@ data class ServerConfig(
     val publicBaseUrl: String = "",
     /** HTTP port of the `server` subcommand; 18080 like the legacy artifact server. */
     val port: Int = 18080,
-    val bindAddress: String = "0.0.0.0",
+    /**
+     * Loopback by default: the UI and the API are unauthenticated, so reaching them should
+     * require the host's reverse proxy. Set `0.0.0.0` explicitly to expose all interfaces —
+     * which the managed nginx container needs (see `docs/deployment.md`).
+     */
+    val bindAddress: String = "127.0.0.1",
     /** Optional Impressum (legal disclosure) link shown in the web UI footer; empty hides the link. */
     val impressumUrl: String = "",
     val nginx: NginxConfig = NginxConfig(),

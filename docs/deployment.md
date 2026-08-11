@@ -101,7 +101,7 @@ All GitTally configuration lives in the YAML files described in [configuration.m
 
 ## Reverse Proxy (nginx)
 
-Bind GitTally to localhost and set the public URL in `.gittally.yml`:
+Bind GitTally to localhost — the default since v0.9.9 — and set the public URL in `.gittally.yml`:
 
 ```yaml
 server:
@@ -197,5 +197,5 @@ All nginx and certificate failures are non-fatal warnings — the plain HTTP ser
 
 `serverName` must be a public DNS name pointing at the host, reachable from the internet on port 80/443 (directly or via a port forward to `httpPort`/`httpsPort`), otherwise the ACME challenge fails.
 The nginx container cannot reach `localhost` of the host, so the proxy upstream defaults to `serverName`; set `server.nginx.upstreamHost` if the host is reachable under a different name from inside containers.
-With the managed nginx, keep `server.bindAddress: 0.0.0.0` (or an address reachable from the Docker network) — binding GitTally to `127.0.0.1` would make it unreachable for the proxy.
+With the managed nginx, set `server.bindAddress: 0.0.0.0` explicitly (or an address reachable from the Docker network) — the default `127.0.0.1` makes GitTally unreachable for the proxy container.
 See [configuration.md](configuration.md) for all `server.nginx.*` keys.

@@ -275,7 +275,8 @@ Done. GitTally config for $hostname is in place.
 Verify and start on this host:
 
     cd $REPO_DIR
-    java -jar $JAR_PATH config:print --full     # check the effective config + git.token
+    java -jar $JAR_PATH config:print --full     # check the effective config (git.token masked)
+    java -jar $JAR_PATH config:print --full --show-secrets   # ... including git.token in clear text
     java -jar $JAR_PATH server                  # or: java -jar $JAR_PATH init --systemd
 
 Note: GitTally binds to $hostname:${GITTALLY_ARTIFACT_SERVER_PORT:-18080} over plain HTTP.

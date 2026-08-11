@@ -24,8 +24,10 @@ import java.nio.file.StandardOpenOption
 
 /**
  * JSON API over build results and running builds, replacing the legacy
- * `/control/…` endpoints. Mutating endpoints are guarded by the control token
- * (header [TOKEN_HEADER] or parameter `token`), like the legacy cancel token.
+ * `/control/…` endpoints. Mutating endpoints are guarded by the control token,
+ * like the legacy cancel token — in the header [TOKEN_HEADER] only: a token in
+ * the query string would end up in access logs, browser history and `Referer`
+ * headers, and it never expires.
  */
 @RestController
 class BuildsApiController(
@@ -91,9 +93,8 @@ class BuildsApiController(
     fun restart(
         @RequestParam branch: String,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
-        @RequestParam(name = "token", required = false) paramToken: String?,
     ): ResponseEntity<Any> {
-        rejectBadToken(headerToken ?: paramToken)?.let { return it }
+        rejectBadToken(headerToken)?.let { return it }
         val commit =
             repository.latestFor(branch)?.commit
                 ?: gitService.originHeadCommit(branch, workingDir)
@@ -116,9 +117,8 @@ class BuildsApiController(
     fun cancel(
         @PathVariable artifactKey: String,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
-        @RequestParam(name = "token", required = false) paramToken: String?,
     ): ResponseEntity<Any> {
-        rejectBadToken(headerToken ?: paramToken)?.let { return it }
+        rejectBadToken(headerToken)?.let { return it }
         if (!buildExecutor.cancel(artifactKey)) {
             return notFound("no queued or running build with artifact key '$artifactKey'")
         }
@@ -130,9 +130,8 @@ class BuildsApiController(
     fun delete(
         @PathVariable artifactKey: String,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
-        @RequestParam(name = "token", required = false) paramToken: String?,
     ): ResponseEntity<Any> {
-        rejectBadToken(headerToken ?: paramToken)?.let { return it }
+        rejectBadToken(headerToken)?.let { return it }
         if (!repository.delete(artifactKey)) {
             return notFound("no build with artifact key '$artifactKey'")
         }

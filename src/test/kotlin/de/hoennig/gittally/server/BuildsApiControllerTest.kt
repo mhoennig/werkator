@@ -175,7 +175,7 @@ class BuildsApiControllerTest : FunSpec() {
                 runningBuild(liveLogFile).copy(branch = "fresh")
 
             mockMvc
-                .perform(post("/api/builds/restart").param("branch", "fresh").param("token", "secret"))
+                .perform(post("/api/builds/restart").param("branch", "fresh").header(BuildsApiController.TOKEN_HEADER, "secret"))
                 .andExpect(status().isAccepted)
                 .andExpect(jsonPath("$.status").value("pending"))
 
@@ -187,7 +187,7 @@ class BuildsApiControllerTest : FunSpec() {
             every { gitService.originHeadCommit("gone", any()) } returns null
 
             mockMvc
-                .perform(post("/api/builds/restart").param("branch", "gone").param("token", "secret"))
+                .perform(post("/api/builds/restart").param("branch", "gone").header(BuildsApiController.TOKEN_HEADER, "secret"))
                 .andExpect(status().isNotFound)
         }
 
@@ -227,12 +227,28 @@ class BuildsApiControllerTest : FunSpec() {
             every { buildExecutor.cancel("unknown-key") } returns false
 
             mockMvc
-                .perform(post("/api/builds/known-key/cancel").param("token", "secret"))
+                .perform(post("/api/builds/known-key/cancel").header(BuildsApiController.TOKEN_HEADER, "secret"))
                 .andExpect(status().isAccepted)
                 .andExpect(jsonPath("$.cancelled").value("known-key"))
             mockMvc
-                .perform(post("/api/builds/unknown-key/cancel").param("token", "secret"))
+                .perform(post("/api/builds/unknown-key/cancel").header(BuildsApiController.TOKEN_HEADER, "secret"))
                 .andExpect(status().isNotFound)
+        }
+
+        test("a token in the query string is not accepted — the header is the only way") {
+            mockMvc
+                .perform(post("/api/builds/restart").param("branch", "main").param("token", "secret"))
+                .andExpect(status().isForbidden)
+            mockMvc
+                .perform(post("/api/builds/some-key/cancel").param("token", "secret"))
+                .andExpect(status().isForbidden)
+            mockMvc
+                .perform(delete("/api/builds/some-key").param("token", "secret"))
+                .andExpect(status().isForbidden)
+
+            verify(exactly = 0) { buildExecutor.startBuild(any(), any(), any()) }
+            verify(exactly = 0) { buildExecutor.cancel(any()) }
+            verify(exactly = 0) { repository.delete(any()) }
         }
 
         test("cancel without token answers 403") {
@@ -260,7 +276,7 @@ class BuildsApiControllerTest : FunSpec() {
             every { repository.delete("unknown-key") } returns false
 
             mockMvc
-                .perform(delete("/api/builds/unknown-key").param("token", "secret"))
+                .perform(delete("/api/builds/unknown-key").header(BuildsApiController.TOKEN_HEADER, "secret"))
                 .andExpect(status().isNotFound)
 
             verify(exactly = 0) { artifactStore.prune(any()) }

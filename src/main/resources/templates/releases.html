@@ -7,6 +7,22 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.9 <span class="muted">— 2026-08-11</span></h2>
+        <ul>
+            <li><strong>Changed default:</strong> <code>server.bindAddress</code> is now <code>127.0.0.1</code>
+                instead of <code>0.0.0.0</code>, because neither the UI nor the API authenticates read access.
+                Existing <code>.gittally.yml</code> files keep whatever they set; with the managed nginx
+                container, <code>0.0.0.0</code> has to be set explicitly.</li>
+            <li>The control token is accepted in the <code>X-GitTally-Token</code> header only — the
+                <code>token</code> query parameter is gone, as URLs end up in access logs and browser history.</li>
+            <li><code>config:print</code> masks <code>git.token</code>; <code>--show-secrets</code> prints it.</li>
+            <li>Files holding secrets (the Gitea token written by <code>init</code>, the control token) are
+                created with mode <code>0600</code> right away instead of being <code>chmod</code>-ed afterwards,
+                the control token is compared in constant time, and git calls pass <code>--</code> before
+                branch names.</li>
+            <li>On narrow screens the page title and the repository name are stacked instead of wrapping.</li>
+        </ul>
+
         <h2>v0.9.8 <span class="muted">— 2026-08-10</span></h2>
         <ul>
             <li>The artifact index also links report pages of directories without an <code>index.html</code>.
