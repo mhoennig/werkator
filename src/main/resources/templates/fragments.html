@@ -13,7 +13,7 @@
 
 <h1 th:fragment="header(title)">
     <a class="title-home" href="/" aria-label="Open latest builds"><img src="/favicon.svg" alt=""></a>
-    <span th:text="${title}">Latest Builds</span>
+    <span class="title-text" th:text="${title}">Latest Builds</span>
     <span class="repo-name" th:unless="${#strings.isEmpty(repoName)}" th:text="${repoName}">owner/repo</span>
 </h1>
 

@@ -146,7 +146,17 @@ th.num { font-family: inherit; font-size: 12px; }
 /* small screens: stack table rows as cards, like legacy */
 @media (max-width: 680px) {
     main { margin: 16px auto; }
-    h1 { font-size: 22px; }
+    /* title on the first line, repo name below it, logo left of both */
+    h1 {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        column-gap: 10px;
+        row-gap: 1px;
+        font-size: 22px;
+    }
+    h1 .title-home { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+    h1 .title-text { grid-column: 2; grid-row: 1; align-self: end; }
+    h1 .repo-name { grid-column: 2; grid-row: 2; align-self: start; font-size: 15px; overflow-wrap: anywhere; }
     .view-row { flex-wrap: wrap; }
     .view-toggle a, .view-toggle span { min-width: 0; padding: 6px 9px; font-size: 13px; }
     /* the live indicator collapses to a colored state dot so it cannot squeeze the menu;
