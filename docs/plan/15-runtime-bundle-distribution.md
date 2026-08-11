@@ -112,3 +112,8 @@ GitTally answers the legacy static page names (`/index.html`, `/branches.html`, 
 Update to v0.9.8 (2026-08-10): the running build was awaited first (a restart would have killed it), then service stopped, `~/opt/gittally` backed up to `~/opt/gittally.v0.9.7.bak` and the new bundle unpacked over it, service started.
 Verified live: `/` reports v0.9.8, the nav has no `Current` entry, the permanent `🔗` link appears only on branches whose latest build is their latest green one, and the newly linked reports answer 200 — including the stable `/branches/<branch>/reports/profile/`.
 Master has no profile report yet because its `.gittally.yml` still carries the pre-PR#282 build command; it appears once that PR merges.
+
+Update to v0.9.9 (2026-08-11): no build was running, service stopped, `~/opt/gittally` backed up to `~/opt/gittally.v0.9.8.bak` and replaced by the new bundle, service started.
+The changed `server.bindAddress` default was harmless here because vm4006 sets `0.0.0.0` explicitly in `.git/gittally/.gittally.yml` — which the managed nginx container needs.
+Found and fixed on the host: `.git/gittally/.gittally.yml` (the Gitea token) was still `0644` and its directory `0755` from the pre-0.9.9 `init`; both were tightened to `0600`/`0700` manually, as the new code only sets the mode for files it creates.
+Verified live: `/` reports v0.9.9, HTTP 301s to HTTPS with a valid certificate, `/api/builds/latest` answers, a control token in the query string is rejected with 403, `config:print` masks `git.token`, and the mobile header stacks title over repository name.
