@@ -117,3 +117,7 @@ Update to v0.9.9 (2026-08-11): no build was running, service stopped, `~/opt/git
 The changed `server.bindAddress` default was harmless here because vm4006 sets `0.0.0.0` explicitly in `.git/gittally/.gittally.yml` — which the managed nginx container needs.
 Found and fixed on the host: `.git/gittally/.gittally.yml` (the Gitea token) was still `0644` and its directory `0755` from the pre-0.9.9 `init`; both were tightened to `0600`/`0700` manually, as the new code only sets the mode for files it creates.
 Verified live: `/` reports v0.9.9, HTTP 301s to HTTPS with a valid certificate, `/api/builds/latest` answers, a control token in the query string is rejected with 403, `config:print` masks `git.token`, and the mobile header stacks title over repository name.
+
+Update to v0.9.10 (2026-08-11): same procedure, `~/opt/gittally.v0.9.9.bak` as the rollback copy.
+Verified live: `/` reports v0.9.10, the pages no longer contain `gittally-control-token`, `/api/builds/latest` and `/branches` still answer 200 without any credential, and a mutation without the token is rejected with 403.
+The operator has to paste the token from `~/hs.hsadmin.ng/.git/gittally/control-token` once per browser now.
