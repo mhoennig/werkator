@@ -90,7 +90,48 @@ systemctl --user restart gittally-<repo-name>.service    # restart (e.g. after c
 systemctl --user stop gittally-<repo-name>.service       # stop
 ```
 
-To update GitTally, replace `~/bin/gittally.jar` and restart the service.
+## Updating an Existing Installation
+
+A restart is safe at any time: an in-flight build is recorded as `INTERRUPTED` and re-enqueued by the startup recovery.
+Waiting for an idle queue is still nicer, because the interrupted build starts over from scratch.
+
+```bash
+curl -s http://127.0.0.1:18080/api/builds/current      # ideally [] — nothing running
+```
+
+With a jar installation:
+
+```bash
+./gradlew build                                        # on the dev machine
+scp build/libs/gittally.jar <user>@<host>:~/bin/gittally.jar.new
+ssh <user>@<host>
+  systemctl --user stop gittally-<repo-name>.service
+  mv ~/bin/gittally.jar ~/bin/gittally.jar.bak         # rollback copy
+  mv ~/bin/gittally.jar.new ~/bin/gittally.jar
+  systemctl --user start gittally-<repo-name>.service
+  systemctl --user is-active gittally-<repo-name>.service
+```
+
+With a runtime bundle (hosts without Java, see below):
+
+```bash
+./gradlew runtimeBundle                                # on the dev machine
+scp build/distributions/gittally-runtime-linux-x64.tar.gz <user>@<host>:/tmp/gittally-new.tar.gz
+ssh <user>@<host>
+  systemctl --user stop gittally-<repo-name>.service
+  mv ~/opt/gittally ~/opt/gittally.bak                 # rollback copy
+  tar xzf /tmp/gittally-new.tar.gz -C /tmp/ && mv /tmp/gittally ~/opt/gittally
+  ~/opt/gittally/bin/gittally --version                # expected: the new version
+  systemctl --user start gittally-<repo-name>.service
+  systemctl --user is-active gittally-<repo-name>.service
+  rm -f /tmp/gittally-new.tar.gz
+```
+
+The tarball unpacks to a `gittally/` directory, so it must not be extracted over `~/opt` directly — unpack it in `/tmp` and move it into place, as above.
+Rollback is the reverse: stop, remove the new directory (or jar), move `.bak` back, start.
+
+Then check `https://<public-url>/` for the new version in the footer, and `journalctl --user -u gittally-<repo-name>.service -n 50` for a clean start.
+Config file changes are not needed for an update; new keys take their defaults.
 
 ## Control Token
 
