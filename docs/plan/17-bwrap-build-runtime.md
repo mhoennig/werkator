@@ -1,9 +1,14 @@
-# Step 17: Bubblewrap Build Runtime for Managed Webspaces
+# Step 17: Running GitTally on a Managed Webspace (bubblewrap builds + web access)
 
 Prerequisites: steps 11, 15, 16.
 Read `README.md` first.
 Motivated by running GitTally on Hostsharing **Managed Webspaces**: no root, no Docker daemon, but `bwrap` (bubblewrap) is available and unprivileged user namespaces are allowed.
 Target use case: GitTally builds GitTally itself on a Managed Webspace; builds needing special dependencies get them from a prepared root filesystem instead of the host.
+Projects that need Docker for their own tests (hs.hsadmin.ng with Testcontainers) stay on a container host like vm4006 — the webspace is for Docker-free builds only.
+
+The step covers two halves of the same deployment and is deliberately not split:
+the build sandbox (most of this document) and the web access under a domain (last section).
+Without the second half the first one only proves that sandboxed builds work somewhere; without the first one GitTally on a webspace would run builds unsandboxed on the host.
 
 ## Precondition Check (run on the target webspace first)
 
@@ -71,6 +76,51 @@ bwrap --unshare-user --unshare-pid --die-with-parent --uid 0 --gid 0 \
 - No Docker inside the sandbox, so no Testcontainers-based tests; build commands must select a Docker-free test subset.
   For GitTally's own build this means `TestcontainersSmokeTest` must become conditional (`enabledIf` docker present) — that change is part of this step.
 
+## Web Access under a Domain (no Docker, no managed nginx)
+
+The managed nginx/TLS container from ADR 0005 is for container hosts without a reverse proxy.
+A Managed Webspace does not need it: the platform provides Apache plus Let's Encrypt, and documents the reverse proxy to a self-hosted service.
+Three platform-side prerequisites, none of them code:
+
+1. **Book the "eigener Serverdienst" option** — a service user plus one reserved localhost port, requested from `service@hostsharing.net` stating the service user and the number of ports.
+   Surcharged on Managed Webspaces (RAM contingent in 128 MB steps), included on Managed Servers.
+   The port number is **assigned by Hostsharing** (wiki examples use 34567, 38005/38006), so it goes into `server.port` — GitTally's 18080 is not available by choice.
+   Sources: [Individuelle Serverdienste](https://www.hostsharing.net/features/individuelle-serverdienste/), [Apache](https://www.hostsharing.net/features/apache/).
+2. **Run the service as a systemd user unit** — mandatory on Managed Webspaces (no `nohup`, no supervisord); lingering needs a valid login shell configured in HSAdmin, and the account's RAM is capped by a slice (`systemctl status pacs-<account>.slice`).
+   `gittally init --systemd` already generates the unit and the `gittally.env`, whose `JAVA_OPTS=-Xmx…` is what keeps the JVM inside the slice.
+   Source: [Prozessmanagement mit systemd im Userspace](https://wiki.hostsharing.net/index.php/Prozessmanagement_mit_systemd_im_Userspace).
+3. **Let's Encrypt** is a domain option ticked in HSAdmin (free, automatic, includes the wildcard subdomain; requires the domain's nameservers to be delegated to Hostsharing), so TLS terminates in the managed Apache.
+   Source: [TLS](https://www.hostsharing.net/doc/managed-operations-platform/tls/).
+
+The proxy itself is one `.htaccess` in `~/doms/<domain>/htdocs-ssl/`, following Hostsharing's own Mattermost and Tomcat guides:
+
+```apache
+DirectoryIndex disabled
+RewriteEngine On
+RewriteBase /
+RewriteRule .* http://127.0.0.1:<assigned-port>%{REQUEST_URI} [proxy]
+```
+
+Sources: [Mattermost Installieren](https://wiki.hostsharing.net/index.php/Mattermost_Installieren), [Tomcat Installieren](https://wiki.hostsharing.net/index.php?title=Tomcat_Installieren).
+
+The matching GitTally configuration:
+
+```yaml
+server:
+  port: <assigned-port>
+  bindAddress: 127.0.0.1                   # the default since v0.9.9 — exactly right here
+  publicBaseUrl: "https://ci.example.de/"  # used for every link posted to Gitea
+  nginx:
+    enabled: false                         # the managed nginx container is not used on a webspace
+```
+
+**This half needs no code change.** GitTally never reconstructs absolute URLs from the request — everything external comes from `server.publicBaseUrl` and the UI links relatively — so the usual reverse-proxy fix `server.forward-headers-strategy` is not needed.
+
+Two claims could **not** be verified from a Hostsharing primary source; check them on the target webspace rather than relying on them:
+
+- the effective `AllowOverride` value — that `RewriteRule [P]`, `DirectoryIndex` and `RequestHeader` work in user `.htaccess` is evidenced by the wiki guides, but the literal token is undocumented;
+- whether an unassigned high port would bind at all — the documented contract is to use the assigned ones.
+
 ## ADR
 
 Write ADR 0007: bubblewrap user-namespace sandbox as the third build runtime (options considered: bwrap (chosen), proot/fakechroot (slow, fragile), plain native with hand-installed toolchains (no isolation, host pollution)).
@@ -86,4 +136,5 @@ Write ADR 0007: bubblewrap user-namespace sandbox as the third build runtime (op
 - The precondition command line above passes on the target webspace; its output is recorded in this file.
 - `./gradlew ktlintFormat` then `./gradlew build` is green — also on a machine without Docker (Testcontainers smoke test skipped, not failed).
 - On a Managed Webspace: GitTally (from the runtime bundle) builds a real branch of a repo inside the bwrap sandbox; git commands work in the worktree; `.git/gittally/` is not readable from the build; a write to `/usr` fails.
-- Docs updated: `docs/configuration.md` (bwrap section), architecture skill (third runtime), ADR 0007.
+- On the same webspace: the UI answers over HTTPS under the domain through the Apache `.htaccess` proxy, the service survives a logout and a reboot (systemd lingering), and Gitea statuses carry `publicBaseUrl` links that resolve.
+- Docs updated: `docs/configuration.md` (bwrap section), architecture skill (third runtime), ADR 0007, and `docs/deployment.md` gains "Hostsharing Managed Webspace" as a third deployment variant — written only once the setup above is verified on a real webspace, not from this plan.

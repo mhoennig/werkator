@@ -75,12 +75,12 @@ Added after the 2026-08-10 overhead measurements on vm2176:
 
 Added for the vm2176 → vm4006 migration (2026-08-10):
 
-- [ ] `15-runtime-bundle-distribution.md` — self-contained runtime bundle (jlink JRE + jar) for hosts without a Java runtime
-- [ ] `16-git-in-docker-builds.md` — read-only git metadata inside Docker build containers, with `.git/gittally/` masked
+- [x] `15-runtime-bundle-distribution.md` — self-contained runtime bundle (jlink JRE + jar) for hosts without a Java runtime
+- [x] `16-git-in-docker-builds.md` — read-only git metadata inside Docker build containers, with `.git/gittally/` masked
 
 Added for running GitTally on Hostsharing Managed Webspaces (2026-08-10):
 
-- [ ] `17-bwrap-build-runtime.md` — bubblewrap user-namespace build sandbox with a prepared rootfs, for hosts without Docker (precondition check first — see the step file)
+- [ ] `17-bwrap-build-runtime.md` — GitTally on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
 
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.
