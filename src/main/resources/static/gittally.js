@@ -95,8 +95,45 @@ function metaContent(name) {
     return element ? element.content : "";
 }
 
-const controlToken = metaContent("gittally-control-token");
 const giteaRepoUrl = metaContent("gittally-gitea-repo-url");
+
+// The control token is deliberately NOT embedded in the pages: reading them is
+// unauthenticated, so anyone could have read it out of the HTML. The operator
+// pastes it once per browser from `.git/gittally/control-token` on the server;
+// it is kept in localStorage and only ever sent as a request header.
+const CONTROL_TOKEN_KEY = "gittally.controlToken";
+
+function storedControlToken() {
+    try {
+        return window.localStorage.getItem(CONTROL_TOKEN_KEY) || "";
+    } catch (error) {
+        return ""; // localStorage unavailable (private mode, blocked cookies)
+    }
+}
+
+function rememberControlToken(token) {
+    try {
+        window.localStorage.setItem(CONTROL_TOKEN_KEY, token);
+    } catch (error) {
+        // not persistable — the token is asked for again on the next action
+    }
+}
+
+function forgetControlToken() {
+    try {
+        window.localStorage.removeItem(CONTROL_TOKEN_KEY);
+    } catch (error) {
+        // nothing to clean up when localStorage is unavailable
+    }
+}
+
+function askForControlToken() {
+    const answer = window.prompt(
+        "Control token — the content of .git/gittally/control-token on the GitTally host:",
+        "",
+    );
+    return answer ? answer.trim() : "";
+}
 
 async function fetchJson(url) {
     const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
@@ -106,15 +143,33 @@ async function fetchJson(url) {
     return response.json();
 }
 
+/** A rejected token is dropped and asked for once more, so a stale one is not a dead end. */
 async function sendAction(url, method) {
-    const response = await fetch(url, {
-        method,
-        headers: { "X-GitTally-Token": controlToken },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+    let token = storedControlToken() || askForControlToken();
+    if (!token) {
+        throw new Error("no control token");
+    }
+    let response = await sendWithToken(url, method, token);
+    if (response.status === 403) {
+        forgetControlToken();
+        token = askForControlToken();
+        if (!token) {
+            throw new Error("wrong control token");
+        }
+        response = await sendWithToken(url, method, token);
+    }
     if (!response.ok) {
         throw new Error("HTTP " + response.status);
     }
+    rememberControlToken(token);
+}
+
+function sendWithToken(url, method, token) {
+    return fetch(url, {
+        method,
+        headers: { "X-GitTally-Token": token },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
 }
 
 function setLiveIndicator(ok, detail) {

@@ -6,7 +6,6 @@
     <title th:text="${#strings.isEmpty(repoName)} ? ${title} + ' — GitTally' : ${title} + ' — ' + ${repoName} + ' — GitTally'">GitTally</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/gittally.css">
-    <meta name="gittally-control-token" th:content="${controlToken}">
     <meta name="gittally-gitea-repo-url" th:content="${giteaRepoUrl}">
 </head>
 <body>

@@ -141,7 +141,9 @@ class UiControllerTest : FunSpec() {
                 ).andExpect(content().string(containsString("/builds/main-abc123-key")))
                 .andExpect(content().string(containsString("""data-action="restart"""")))
                 .andExpect(content().string(containsString("""data-action="delete"""")))
-                .andExpect(content().string(containsString("""name="gittally-control-token" content="test-token"""")))
+                // the control token must never reach the browser: reading a page is unauthenticated
+                .andExpect(content().string(not(containsString("gittally-control-token"))))
+                .andExpect(content().string(not(containsString("test-token"))))
                 .andExpect(content().string(containsString("https://example.org/imprint")))
                 .andExpect(content().string(containsString("1:23")))
         }

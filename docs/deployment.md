@@ -92,6 +92,26 @@ systemctl --user stop gittally-<repo-name>.service       # stop
 
 To update GitTally, replace `~/bin/gittally.jar` and restart the service.
 
+## Control Token
+
+Viewing is public by design: build states, logs and artifacts are readable without any login, so they can be linked from Gitea, chats or tickets.
+Only the three mutating actions — restart, cancel, delete — require the control token from `.git/gittally/control-token`, a random secret the server generates on first start (mode `0600`; delete the file to rotate it).
+
+The token is never embedded in a page.
+The first time you press one of the control buttons, the browser asks for it once and keeps it in `localStorage` for that browser; a rejected token is dropped and asked for again.
+Read it on the host:
+
+```bash
+cat ~/<repo>/.git/gittally/control-token
+```
+
+For scripts, pass it as a header — it is not accepted as a query parameter, because URLs end up in access logs and browser history:
+
+```bash
+curl -X POST -H "X-GitTally-Token: $(cat .git/gittally/control-token)" \
+  "https://ci.example.org/api/builds/restart?branch=main"
+```
+
 ## Environment File
 
 `.git/gittally/gittally.env` is loaded by the unit as `EnvironmentFile`.

@@ -52,8 +52,13 @@ On a shared host (Hostsharing is a multi-tenant deployment target, per ADR 0005)
 
 #### TODO 2 — Stop handing the control token to every unauthenticated reader
 
-- [ ] Reconsider the token distribution in [`UiController.kt:186`](../../src/main/kotlin/de/hoennig/gittally/server/UiController.kt) and [`fragments.html:9`](../../src/main/resources/templates/fragments.html): do not embed the live token in public HTML, or gate the pages behind the same check as the mutations.
-- [ ] At minimum, document loudly that under the current design any read access equals full write access.
+- [x] Reconsider the token distribution in [`UiController.kt:186`](../../src/main/kotlin/de/hoennig/gittally/server/UiController.kt) and [`fragments.html:9`](../../src/main/resources/templates/fragments.html): do not embed the live token in public HTML, or gate the pages behind the same check as the mutations.
+  **Done in v0.9.10, without gating the pages.** Public read access is a requirement, not an oversight: build states, logs and artifacts must stay linkable without a login.
+  So the `<meta>` tag is gone and `gittally.js` keeps the token in `localStorage`, asking for it once per browser (the operator reads it from `.git/gittally/control-token`, which needs shell access to the host).
+  The token is a real secret again, and as a request header it stays inherently CSRF-safe — a foreign origin cannot set it without a CORS grant.
+  A login with a session cookie (the alternative that would also hide the buttons from visitors) stays possible later; it would revise ADR 0004 and needs its own PR.
+- [x] At minimum, document loudly that under the current design any read access equals full write access.
+  Superseded: read access no longer implies write access. `docs/deployment.md` gained a "Control Token" section describing the split.
 
 **Background.**
 Every server-rendered page embeds the live control token in `<meta name="gittally-control-token">` so [`gittally.js`](../../src/main/resources/static/gittally.js) can read it, but no GET is authenticated.
@@ -148,8 +153,8 @@ A small TOCTOU gap; `GitAskPass`'s atomic-at-creation approach is the pattern to
 
 ## Open Questions
 
-- TODO 2: full fix (gating the pages) versus documentation-only — the pages are the UI, so gating them needs a decision on how operators authenticate; the current implemented behavior is fully public.
-- TODO 5: whether public read access is acceptable by design (it matches legacy) or should change; current behavior leaves all reads public.
+- ~~TODO 2: full fix (gating the pages) versus documentation-only.~~ Settled by the operator: unauthenticated **read** access is a requirement — build states and artifacts must stay linkable without a login. So the pages are not gated; only the token distribution changed (v0.9.10).
+- TODO 5: settled for the endpoints as such — public reads are by design, as above and as in legacy. What remains open is build-log content: a build script echoing a secret publishes it. Scrubbing or gating just the log endpoint is the only part still worth deciding.
 - TODO 6: the pinned set is settled (secrets + Gitea/server + `docker.enabled`/`docker.network`); the open point is whether `docker.env` should also be pinned, since a branch overriding it controls its own container's environment (currently proposed as worktree-overridable).
 - ~~TODO 7: changing the default `bindAddress` is a behavior change for existing installs that rely on `0.0.0.0`; needs a migration note.~~ Settled: the default changed in v0.9.9 and the migration note is in the release notes and both deployment docs.
 

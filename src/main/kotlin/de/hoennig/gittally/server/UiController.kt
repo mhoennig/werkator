@@ -34,7 +34,6 @@ class UiController(
     private val repository: BuildResultRepository,
     private val buildExecutor: BuildExecutor,
     private val artifactStore: ArtifactStore,
-    private val controlTokens: ControlTokenService,
     private val configLoader: ConfigLoader,
     private val metricsCollector: SystemMetricsCollector,
     private val branchListing: BranchListing,
@@ -211,7 +210,6 @@ class UiController(
         model.addAttribute("repoName", repoName)
         model.addAttribute("version", buildProperties.getIfAvailable()?.version ?: "dev")
         model.addAttribute("impressumUrl", config.server.impressumUrl.trim())
-        model.addAttribute("controlToken", controlTokens.token())
         model.addAttribute("giteaRepoUrl", links.repoUrl ?: "")
         return links
     }

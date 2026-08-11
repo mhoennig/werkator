@@ -179,7 +179,7 @@ branches:
 ### Notes on `server.bindAddress`
 
 The default is `127.0.0.1`.
-Neither the web UI nor the JSON API authenticates read access, and every page carries the control token that unlocks the build controls, so GitTally is meant to sit behind the host's reverse proxy rather than on a public interface.
+Neither the web UI nor the JSON API authenticates read access — which is intended, so build states and artifacts can be linked from anywhere — so GitTally is meant to sit behind the host's reverse proxy rather than on a public interface.
 Set `0.0.0.0` only deliberately — for the managed nginx container (which reaches GitTally over the Docker bridge, not over loopback), or when the proxy runs on another host.
 Installations created before v0.9.9 have `bindAddress: 0.0.0.0` written into their `.gittally.yml` and keep it; the new default only applies where the key is absent or `init` writes a fresh file.
 

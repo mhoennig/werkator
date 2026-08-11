@@ -7,6 +7,14 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.10 <span class="muted">— 2026-08-11</span></h2>
+        <ul>
+            <li>The control token is no longer embedded in the pages — reading them is unauthenticated,
+                so anyone could have picked it out of the HTML. Viewing stays public; the first click on
+                a restart/cancel/delete button asks for the token once (it is in
+                <code>.git/gittally/control-token</code> on the host) and keeps it in the browser.</li>
+        </ul>
+
         <h2>v0.9.9 <span class="muted">— 2026-08-11</span></h2>
         <ul>
             <li><strong>Changed default:</strong> <code>server.bindAddress</code> is now <code>127.0.0.1</code>
