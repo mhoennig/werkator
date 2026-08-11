@@ -66,6 +66,16 @@ Old artifacts under the legacy artifact root remain readable on disk until you d
 When migrating to a **different host**, the legacy instance can keep running in parallel until the new one is verified — then skip step 1 here and stop the legacy service on the old host last.
 During parallel operation, give the new instance a distinct `gitea.statusContext`, so the two instances do not overwrite each other's commit statuses in Gitea.
 
+Rename the context back to the canonical one **while no build is running**.
+The Gitea client reads the config per call, so a rename between a build's `running` and its final status splits that build over two contexts: the old one keeps the `pending` "build running" entry forever, and Gitea's combined status of that commit stays *pending* although the build succeeded.
+Gitea has no API to delete a commit status; the only way out is to post a closing status for the abandoned context by hand:
+
+```bash
+curl -X POST -H "Authorization: token $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"state":"success","context":"<old context>","description":"superseded by <new context>"}' \
+  "$GITEA/api/v1/repos/<owner>/<repo>/statuses/<commit-sha>"
+```
+
 1. Stop and remove the legacy service:
 
    ```bash
