@@ -121,3 +121,7 @@ Verified live: `/` reports v0.9.9, HTTP 301s to HTTPS with a valid certificate, 
 Update to v0.9.10 (2026-08-11): same procedure, `~/opt/gittally.v0.9.9.bak` as the rollback copy.
 Verified live: `/` reports v0.9.10, the pages no longer contain `gittally-control-token`, `/api/builds/latest` and `/branches` still answer 200 without any credential, and a mutation without the token is rejected with 403.
 The operator has to paste the token from `~/hs.hsadmin.ng/.git/gittally/control-token` once per browser now.
+
+Update to v0.9.11 (2026-08-14): same procedure, no build was running, `~/opt/gittally.0.9.10.bak` as the rollback copy.
+Verified live: `bin/gittally --version` reports v0.9.11 before the start, the service is `active`, `/` answers 200 with v0.9.11 in the footer, `/releases` shows the v0.9.11 entry, and `/api/builds/current` is empty.
+The watcher's new local-ref fast-forward logged nothing, because `~/hs.hsadmin.ng` had already been reset to `origin/master` by hand — it only acts on a branch that actually lags behind.
