@@ -1,6 +1,7 @@
 package de.hoennig.gittally.git
 
 import de.hoennig.gittally.config.ConfigLoader
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -13,6 +14,8 @@ class GitService(
     private val runner: GitCommandRunner,
     private val configLoader: ConfigLoader,
 ) {
+    private val log = LoggerFactory.getLogger(GitService::class.java)
+
     fun getTopLevel(workingDir: Path = Paths.get(".")): Path {
         val result = runner.run(listOf("git", "rev-parse", "--show-toplevel"), workingDir)
         if (!result.isSuccess) {
@@ -148,6 +151,53 @@ class GitService(
             runner.runOrThrow(listOf("git", "switch", "--track", "-c", branch, "refs/remotes/origin/$branch"), workingDir)
         }
     }
+
+    /**
+     * Fast-forwards local branch refs to their origin counterparts and returns the
+     * branches whose ref moved. Build worktrees share the primary checkout's `.git`,
+     * so tools running inside a build see these refs — checks that compare a local
+     * branch against its origin counterpart (hs.hsadmin.ng's `prQuickCheck` compares
+     * `master` with `origin/master`) otherwise fail on every build once origin moves on.
+     *
+     * Strictly non-destructive: a local ref that is not an ancestor of its origin
+     * counterpart (diverged, or ahead) is left alone, the ref update is a
+     * compare-and-swap against the commit just read, and the branch checked out in
+     * [workingDir] is advanced with `merge --ff-only`, which refuses to run over
+     * conflicting uncommitted changes.
+     *
+     * Call this only *after* the poll cycle picked its due branches: a local ref lagging
+     * behind origin is the watcher's change signal ([hasNewCommits], `newOriginBranches`),
+     * so syncing beforehand would silence the branch instead of building it.
+     */
+    fun fastForwardLocalBranches(workingDir: Path = Paths.get(".")): List<String> {
+        val originHeads = originBranchHeads(workingDir)
+        val checkedOut = currentBranch(workingDir)
+        return localBranches(workingDir).filter { branch ->
+            val origin = originHeads[branch] ?: return@filter false
+            val local = localHeadCommit(branch, workingDir) ?: return@filter false
+            if (local == origin || !isAncestor(local, origin, workingDir)) {
+                return@filter false
+            }
+            // the `refs/` prefix keeps the refname from being read as a git option
+            val result =
+                if (branch == checkedOut) {
+                    runner.run(listOf("git", "merge", "--ff-only", "refs/remotes/origin/$branch"), workingDir)
+                } else {
+                    runner.run(listOf("git", "update-ref", "refs/heads/$branch", origin, local), workingDir)
+                }
+            if (!result.isSuccess) {
+                log.warn("not fast-forwarding local branch {}: {}", branch, result.stderr.trim())
+            }
+            result.isSuccess
+        }
+    }
+
+    /** True when [ancestor] is reachable from [descendant]; false for diverged or unrelated commits. */
+    private fun isAncestor(
+        ancestor: String,
+        descendant: String,
+        workingDir: Path,
+    ): Boolean = runner.run(listOf("git", "merge-base", "--is-ancestor", ancestor, descendant), workingDir).isSuccess
 
     fun resetHardToOrigin(
         branch: String,

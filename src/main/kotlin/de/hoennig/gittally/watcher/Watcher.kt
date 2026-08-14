@@ -27,7 +27,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Replaces the legacy blocking main loop: a non-blocking fixed-delay poll cycle that
  * fetches origin, enqueues due branches via the async [BuildExecutor], and prunes
- * retention — it never waits for a build and never touches the primary checkout.
+ * retention — it never waits for a build and never builds in the primary checkout
+ * (whose branch refs it does fast-forward, see [fastForwardLocalRefs]).
  * The loop only runs after an explicit [start] (server/watch mode, step 07);
  * nothing is scheduled during CLI commands or tests.
  */
@@ -111,8 +112,9 @@ class Watcher(
     /**
      * One poll cycle, never blocking on a build: fetch origin (on failure: log, expose
      * in [state], retry next cycle), enqueue due branches — changed local branches
-     * first, then recent new origin branches, then due auto-build slots — and finally
-     * prune results, artifacts, and worktrees of branches gone from origin.
+     * first, then recent new origin branches, then due auto-build slots — then
+     * fast-forward the local branch refs, and finally prune results, artifacts, and
+     * worktrees of branches gone from origin.
      */
     fun poll(workingDir: Path = Paths.get(".")) {
         val startedAt = clock.instant()
@@ -126,6 +128,9 @@ class Watcher(
         val config = configLoader.load(workingDir)
         val originBranches = gitService.originBranches(workingDir)
         enqueueDueBranches(config, originBranches.toSet(), workingDir)
+        if (config.watcher.fastForwardLocalRefs) {
+            fastForwardLocalRefs(workingDir)
+        }
         prune(config, originBranches, workingDir)
         state =
             state.copy(
@@ -146,6 +151,26 @@ class Watcher(
         } catch (e: Exception) {
             log.error("poll cycle failed", e)
             state = state.copy(lastPollAt = clock.instant(), lastPollError = e.message ?: e.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * Brings the primary checkout's local branch refs up to origin, because a build worktree
+     * shares that `.git`: a build tool comparing a local branch with its origin counterpart
+     * would otherwise see a ref frozen at the state of the last checkout.
+     *
+     * Deliberately the last step before pruning — the enqueue decision above reads a
+     * lagging local ref as "this branch has new commits", so syncing earlier in the cycle
+     * would suppress the very build it prepares. Never fatal for the poll cycle.
+     */
+    private fun fastForwardLocalRefs(workingDir: Path) {
+        try {
+            val moved = gitService.fastForwardLocalBranches(workingDir)
+            if (moved.isNotEmpty()) {
+                log.info("fast-forwarded local branch refs to origin: {}", moved.joinToString(", "))
+            }
+        } catch (e: Exception) {
+            log.warn("fast-forwarding local branch refs failed: {}", e.message)
         }
     }
 
@@ -171,8 +196,9 @@ class Watcher(
     /**
      * Enqueues a build of the branch's origin head unless one is already pending or
      * running, or that commit was already built. Builds run detached in worktrees and
-     * never move local branch refs, so "already built" is tracked via the result
-     * repository, not by resetting the local ref like legacy. A new commit for a
+     * move no branch ref themselves, so "already built" is tracked via the result
+     * repository, not by resetting the local ref like legacy; the cycle's
+     * [fastForwardLocalRefs] runs only after this decision. A new commit for a
      * branch that is still pending/running waits for a later cycle (queue-behind).
      * With `requirePullRequest`, the branch head must match a pull-request head on
      * origin (`refs/pull/<n>/head`); manual `build` commands bypass this gate, and

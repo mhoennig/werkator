@@ -29,6 +29,7 @@ import io.kotest.matchers.string.shouldContain
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
@@ -75,6 +76,7 @@ class WatcherTest : FunSpec() {
             every { gitService.originHeadCommit(any(), any()) } returns null
             every { gitService.pullRequestHeads(any()) } returns emptySet()
             every { gitService.worktreePrune(any()) } returns Unit
+            every { gitService.fastForwardLocalBranches(any()) } returns emptyList()
             every { buildExecutor.currentBuilds() } returns emptyList()
             every { buildExecutor.startBuild(any(), any(), any()) } answers {
                 val branch = firstArg<String>()
@@ -175,6 +177,47 @@ class WatcherTest : FunSpec() {
 
             harness.startedBuilds shouldContainExactly
                 listOf("main" to "commit-main", "feature/new" to "commit-feature")
+        }
+
+        test("poll fast-forwards local branch refs only after the enqueue decision was made") {
+            val harness = Harness()
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.localBranches(any()) } returns listOf("main")
+            every { harness.gitService.hasNewCommits("main", any()) } returns true
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
+            every { harness.gitService.fastForwardLocalBranches(any()) } returns listOf("main")
+
+            harness.watcher.poll(harness.workingDir)
+
+            // syncing the ref before the decision would hide the very commit being enqueued here
+            harness.startedBuilds shouldContainExactly listOf("main" to "commit-main")
+            verifyOrder {
+                harness.gitService.hasNewCommits("main", any())
+                harness.gitService.fastForwardLocalBranches(any())
+            }
+        }
+
+        test("a failing fast-forward does not abort the poll cycle") {
+            val harness = Harness()
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.fastForwardLocalBranches(any()) } throws RuntimeException("ref locked")
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.watcher
+                .state()
+                .lastPollError
+                .shouldBeNull()
+            verify { harness.artifactStore.prune(any()) }
+        }
+
+        test("poll leaves local branch refs alone when fastForwardLocalRefs is disabled") {
+            val harness = Harness(GitTallyConfig(watcher = WatcherConfig(fastForwardLocalRefs = false)))
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+
+            harness.watcher.poll(harness.workingDir)
+
+            verify(exactly = 0) { harness.gitService.fastForwardLocalBranches(any()) }
         }
 
         test("poll skips a branch whose build is already pending or running") {

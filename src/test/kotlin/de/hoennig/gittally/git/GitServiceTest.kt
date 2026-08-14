@@ -4,6 +4,7 @@ import de.hoennig.gittally.config.ConfigLoader
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldBeNull
@@ -166,6 +167,56 @@ class GitServiceTest : FunSpec() {
             val fixture = Fixture()
 
             service.hasNewCommits("no-such-branch", fixture.work).shouldBeFalse()
+        }
+
+        test("fastForwardLocalBranches advances the checked-out branch and its working tree") {
+            val fixture = Fixture()
+            fixture.commitFile(fixture.seed, "change.txt", "change")
+            fixture.git(fixture.seed, "push", "origin", "main")
+            service.fetchOrigin(fixture.work)
+
+            service.fastForwardLocalBranches(fixture.work) shouldContainExactly listOf("main")
+
+            service.localHeadCommit("main", fixture.work) shouldBe service.originHeadCommit("main", fixture.work)
+            Files.readString(fixture.work.resolve("change.txt")) shouldBe "change"
+            service.hasNewCommits("main", fixture.work).shouldBeFalse()
+        }
+
+        test("fastForwardLocalBranches advances a branch that is not checked out") {
+            val fixture = Fixture()
+            fixture.pushNewSeedBranch("feature/x")
+            service.fetchOrigin(fixture.work)
+            fixture.git(fixture.work, "branch", "feature/x", "refs/remotes/origin/feature/x")
+            fixture.git(fixture.seed, "switch", "feature/x")
+            fixture.commitFile(fixture.seed, "more.txt", "more")
+            fixture.git(fixture.seed, "push", "origin", "feature/x")
+            fixture.git(fixture.seed, "switch", "main")
+            service.fetchOrigin(fixture.work)
+
+            service.fastForwardLocalBranches(fixture.work) shouldContainExactly listOf("feature/x")
+
+            service.localHeadCommit("feature/x", fixture.work) shouldBe
+                service.originHeadCommit("feature/x", fixture.work)
+        }
+
+        test("fastForwardLocalBranches leaves a diverged local branch untouched") {
+            val fixture = Fixture()
+            fixture.commitFile(fixture.work, "local.txt", "local only")
+            val localHead = service.localHeadCommit("main", fixture.work)
+            fixture.commitFile(fixture.seed, "remote.txt", "remote only")
+            fixture.git(fixture.seed, "push", "origin", "main")
+            service.fetchOrigin(fixture.work)
+
+            service.fastForwardLocalBranches(fixture.work).shouldBeEmpty()
+
+            service.localHeadCommit("main", fixture.work) shouldBe localHead
+        }
+
+        test("fastForwardLocalBranches ignores branches without an origin counterpart") {
+            val fixture = Fixture()
+            fixture.git(fixture.work, "branch", "local-only")
+
+            service.fastForwardLocalBranches(fixture.work).shouldBeEmpty()
         }
 
         test("newOriginBranches lists recent origin-only branches") {

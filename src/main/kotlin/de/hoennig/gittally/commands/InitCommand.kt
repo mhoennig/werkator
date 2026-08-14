@@ -177,6 +177,9 @@ class InitCommand(
               # honor branches.<name>.requirePullRequest; set false for a plain git origin
               # without pull-request refs (refs/pull/*/head) — gated branches then build on new commits
               pullRequestGate: true
+              # after enqueueing, fast-forward the primary checkout's local branch refs to origin,
+              # so build tools reading the shared .git see the same refs (diverged branches stay untouched)
+              fastForwardLocalRefs: true
 
             # Per-branch build configuration.
             # Use "default" as the fallback for all branches not listed explicitly.

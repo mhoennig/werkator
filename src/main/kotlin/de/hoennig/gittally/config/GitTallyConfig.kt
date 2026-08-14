@@ -107,6 +107,13 @@ data class WatcherConfig(
      * `.git/gittally/.gittally.yml` when the committed config enables the gates.
      */
     val pullRequestGate: Boolean = true,
+    /**
+     * At the end of each poll cycle, fast-forward the primary checkout's local branch
+     * refs to their origin counterparts, so build tools reading the shared `.git` see
+     * the same refs as origin. Fast-forward only: diverged or ahead local branches are
+     * never touched. Set false to leave the local branch refs alone entirely.
+     */
+    val fastForwardLocalRefs: Boolean = true,
 )
 
 data class BranchConfig(

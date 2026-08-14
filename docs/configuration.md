@@ -122,6 +122,10 @@ watcher:
   # Set false for a plain git origin without pull-request refs (no Gitea/GitHub);
   # gated branches then build on new commits like any other branch.
   pullRequestGate: true
+  # At the end of each poll cycle, fast-forward the primary checkout's local branch refs
+  # to their origin counterparts (see notes below). Fast-forward only — a diverged or
+  # ahead local branch is never touched. Set false to leave refs/heads/* alone entirely.
+  fastForwardLocalRefs: true
 
 # Per-branch build configuration.
 # Use "default" as the fallback for all branches not listed explicitly.
@@ -219,6 +223,19 @@ Without the `main` override, direct pushes and merges to `main` would never buil
 
 A plain git origin (no Gitea/GitHub) serves no `refs/pull/*/head` at all, so gated branches would never build there.
 For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/gittally/.gittally.yml`, so the committed configuration keeps the gates for forge-backed environments.
+
+### Notes on `watcher.fastForwardLocalRefs`
+
+Builds run in worktrees that share the primary checkout's `.git`, so a build tool can read `refs/heads/*` there.
+GitTally itself never needs those refs to be current — it builds the commit `refs/remotes/origin/<branch>` points at — but build tools do.
+A common case is a check that refuses to run when the local main branch differs from its origin counterpart; without this key it would fail on every build once origin moved on, because nothing would ever advance the local ref.
+
+The fast-forward runs at the end of the poll cycle, after the due branches were enqueued.
+That order is required, not cosmetic: a local ref lagging behind origin is exactly how the watcher recognizes new commits, so a ref kept in sync earlier — by this key, a cron job, or a mirroring fetch refspec (`+refs/heads/*:refs/heads/*`) — would silently stop the branch from ever being built.
+
+Only fast-forwards are applied, as a compare-and-swap against the commit just read.
+A local branch that diverged from origin or is ahead of it stays untouched, so local work in the primary checkout is never lost.
+The branch checked out in the primary checkout is advanced with `git merge --ff-only`, which refuses to overwrite conflicting uncommitted changes; a refusal is logged and the cycle continues.
 
 ### Notes on `branches.<name>.docker`
 
