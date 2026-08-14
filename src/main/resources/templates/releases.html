@@ -7,6 +7,19 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.11 <span class="muted">— 2026-08-14</span></h2>
+        <ul>
+            <li>At the end of each poll cycle, the local branch refs of the watched repository are
+                fast-forwarded to their state on origin, so build steps that compare a branch with its
+                origin counterpart no longer fail once origin moved on. Only fast-forwards are applied —
+                a branch that diverged from origin or is ahead of it stays untouched. Switched off with
+                <code>watcher.fastForwardLocalRefs: false</code>.</li>
+            <li>On the artifact index of a failed build, the logs that actually contain the build tool's
+                failure line carry a <span class="status status-failed">failed</span> badge — with stdout
+                and stderr stored separately, that points straight at the log worth opening. Logs of a
+                green build are not scanned.</li>
+        </ul>
+
         <h2>v0.9.10 <span class="muted">— 2026-08-11</span></h2>
         <ul>
             <li>The control token is no longer embedded in the pages — reading them is unauthenticated,
