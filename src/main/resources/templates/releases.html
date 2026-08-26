@@ -7,6 +7,16 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.12 <span class="muted">— 2026-08-26</span></h2>
+        <ul>
+            <li>A build whose branch is deleted from origin mid-build (the usual fate of a merged
+                branch) no longer vanishes from the UI and history while it is still queued or
+                running — previously the queue looked stuck although a build was executing.</li>
+            <li>Triggering a build that is already queued or running for the same commit no longer
+                stacks a duplicate — an impatient double-click on <em>restart</em> now hits the
+                existing build. Re-running a finished build is unaffected.</li>
+        </ul>
+
         <h2>v0.9.11 <span class="muted">— 2026-08-14</span></h2>
         <ul>
             <li>At the end of each poll cycle, the local branch refs of the watched repository are
