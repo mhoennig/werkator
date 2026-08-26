@@ -125,3 +125,7 @@ The operator has to paste the token from `~/hs.hsadmin.ng/.git/gittally/control-
 Update to v0.9.11 (2026-08-14): same procedure, no build was running, `~/opt/gittally.0.9.10.bak` as the rollback copy.
 Verified live: `bin/gittally --version` reports v0.9.11 before the start, the service is `active`, `/` answers 200 with v0.9.11 in the footer, `/releases` shows the v0.9.11 entry, and `/api/builds/current` is empty.
 The watcher's new local-ref fast-forward logged nothing, because `~/hs.hsadmin.ng` had already been reset to `origin/master` by hand — it only acts on a branch that actually lags behind.
+
+Update to v0.9.12 (2026-08-26): same procedure, `~/opt/gittally.0.9.11.bak` as the rollback copy; a build was running — interrupted and re-enqueued by the startup recovery as designed.
+Verified live: `bin/gittally --version` reports v0.9.12 before the start, the service is `active`, `/` shows v0.9.12, and the recovery re-enqueued exactly one build per affected branch (the pre-fix duplicate queue entries were collapsed by `markStaleRunningAsInterrupted` + `latestPerBranch`).
+Shipped fixes: prune never removes queued/running results (a branch deleted mid-build stays visible), and manual triggers dedup against an already active build of the same branch and commit.
