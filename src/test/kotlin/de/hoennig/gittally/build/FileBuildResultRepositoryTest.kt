@@ -220,6 +220,31 @@ class FileBuildResultRepositoryTest : FunSpec() {
                 )
         }
 
+        test("prune never removes queued or running results, even of branches gone from origin") {
+            val repository = FileBuildResultRepository(newFile())
+            // a merged branch, deleted from origin while its last build still runs
+            repository.append(result(branch = "merged", status = BuildStatus.FAILED, startedOffsetSeconds = 0))
+            repository.append(result(branch = "merged", status = BuildStatus.RUNNING, startedOffsetSeconds = 60))
+            // a queued build beyond the retention count of its branch
+            repository.append(result(branch = "main", status = BuildStatus.PENDING, startedOffsetSeconds = 0))
+            repository.append(result(branch = "main", startedOffsetSeconds = 60))
+
+            val removed =
+                repository.prune(
+                    originBranches = listOf("main"),
+                    retentionPerBranch = 1,
+                    retentionCutoff = baseTime.plusSeconds(30),
+                )
+
+            removed shouldContainExactly listOf(result(branch = "merged", status = BuildStatus.FAILED, startedOffsetSeconds = 0))
+            repository.history() shouldContainExactlyInAnyOrder
+                listOf(
+                    result(branch = "merged", status = BuildStatus.RUNNING, startedOffsetSeconds = 60),
+                    result(branch = "main", status = BuildStatus.PENDING, startedOffsetSeconds = 0),
+                    result(branch = "main", startedOffsetSeconds = 60),
+                )
+        }
+
         test("prune drops entries older than the retention cutoff even within the retention count") {
             val repository = FileBuildResultRepository(newFile())
             repository.append(result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 0))

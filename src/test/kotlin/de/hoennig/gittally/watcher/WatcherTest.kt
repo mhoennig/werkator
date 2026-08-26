@@ -420,6 +420,20 @@ class WatcherTest : FunSpec() {
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-2")
         }
 
+        test("startup recovery closes out an orphaned PENDING build of a branch gone from origin") {
+            val harness = Harness()
+            val orphan = harness.seed("gone", BuildStatus.PENDING, commit = "commit-1")
+
+            harness.watcher.recoverOnStartup(harness.workingDir)
+
+            // PENDING is prune-immune; left as-is, the gone branch could never be pruned
+            harness.startedBuilds.shouldBeEmpty()
+            harness.repository
+                .history()
+                .first { it.artifactKey == orphan.artifactKey }
+                .status shouldBe BuildStatus.INTERRUPTED
+        }
+
         test("poll prunes results, artifacts, and worktrees of branches gone from origin") {
             val harness = Harness()
             harness.seed("main", BuildStatus.SUCCESS, commit = "commit-1")

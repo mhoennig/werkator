@@ -63,12 +63,24 @@ class BuildExecutor(
      * Persists a PENDING result and queues the build; returns immediately.
      * A build of the same branch waits until the branch's previous build finished;
      * builds of other branches run concurrently while slots are free.
+     * While a build of the same branch and commit is already queued or executing (and
+     * not cancel-requested), that build is returned instead of stacking a duplicate —
+     * a double-triggered UI restart must not queue the same commit twice. Re-running
+     * a *finished* build stays possible; this only guards the active queue.
      */
     fun startBuild(
         branch: String,
         commit: String,
         workingDir: Path = Paths.get("."),
     ): RunningBuild {
+        val duplicate =
+            builds.values.firstOrNull {
+                !it.cancelled.get() && it.runningBuild.branch == branch && it.runningBuild.commit == commit
+            }
+        if (duplicate != null) {
+            log.info("build of branch {} at commit {} is already queued or running; not queueing a duplicate", branch, commit)
+            return duplicate.runningBuild
+        }
         val startedAt = Instant.now()
         val stagingDir = Files.createTempDirectory("gittally-build-")
         val runningBuild =

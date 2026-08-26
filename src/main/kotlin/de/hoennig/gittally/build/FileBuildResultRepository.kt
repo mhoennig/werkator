@@ -129,26 +129,32 @@ class FileBuildResultRepository(
         synchronized(lock) {
             val results = load()
             val originBranchSet = originBranches.toSet()
+            // a queued or executing build belongs to the executor, never to retention:
+            // pruning its result would make the build invisible in UI and history — seen
+            // live when a merged branch was deleted from origin while its last build ran
+            val active =
+                results.filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }
             val kept =
-                results
-                    .filter { it.branch in originBranchSet }
-                    .groupBy { it.branch }
-                    .values
-                    .flatMap { entries ->
-                        val newest =
-                            entries
-                                .sortedByDescending { it.startedAt }
-                                .take(retentionPerBranch.coerceAtLeast(0))
-                                .filterIndexed { index, entry ->
-                                    // the branch's newest entry is never age-pruned
-                                    index == 0 || retentionCutoff == null || !entry.startedAt.isBefore(retentionCutoff)
-                                }
-                        val latestGreen =
-                            entries
-                                .filter { keepLatestGreen && it.status == BuildStatus.SUCCESS }
-                                .maxByOrNull { it.startedAt }
-                        newest + listOfNotNull(latestGreen)
-                    }.toSet()
+                active.toSet() +
+                    results
+                        .filter { it.branch in originBranchSet }
+                        .groupBy { it.branch }
+                        .values
+                        .flatMap { entries ->
+                            val newest =
+                                entries
+                                    .sortedByDescending { it.startedAt }
+                                    .take(retentionPerBranch.coerceAtLeast(0))
+                                    .filterIndexed { index, entry ->
+                                        // the branch's newest entry is never age-pruned
+                                        index == 0 || retentionCutoff == null || !entry.startedAt.isBefore(retentionCutoff)
+                                    }
+                            val latestGreen =
+                                entries
+                                    .filter { keepLatestGreen && it.status == BuildStatus.SUCCESS }
+                                    .maxByOrNull { it.startedAt }
+                            newest + listOfNotNull(latestGreen)
+                        }.toSet()
             val removed = results.filterNot { it in kept }
             if (removed.isNotEmpty()) {
                 save(results.filter { it in kept })

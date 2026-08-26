@@ -43,7 +43,11 @@ interface BuildResultRepository {
      * cutoff are dropped even within the retention count — except each branch's newest entry,
      * so dormant branches keep their last status. With [keepLatestGreen], the newest SUCCESS
      * entry of each surviving branch is kept even beyond both limits, so the permanent
-     * `/branches/…` artifact links stay valid while newer builds fail. Returns the removed entries.
+     * `/branches/…` artifact links stay valid while newer builds fail.
+     * PENDING and RUNNING entries are never removed, regardless of all limits and even
+     * when their branch is gone from [originBranches] — a queued or executing build
+     * belongs to the executor, and pruning its result would make it invisible in UI
+     * and history. Returns the removed entries.
      */
     fun prune(
         originBranches: Collection<String>,

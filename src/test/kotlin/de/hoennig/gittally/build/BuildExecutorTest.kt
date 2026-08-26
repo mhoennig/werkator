@@ -219,6 +219,31 @@ class BuildExecutorTest : FunSpec() {
             }
         }
 
+        test("startBuild returns the active build of the same branch and commit instead of stacking a duplicate") {
+            val h = harness("sleep 30")
+
+            val first = h.executor.startBuild("main", "abc123", h.workingDir)
+            // a double-triggered UI restart: same branch, same commit, while queued or running
+            val duplicate = h.executor.startBuild("main", "abc123", h.workingDir)
+            duplicate.artifactKey shouldBe first.artifactKey
+            h.repository.history().map { it.artifactKey } shouldContainExactly listOf(first.artifactKey)
+
+            // another commit of the branch is a distinct build, queued behind the first
+            val newerCommit = h.executor.startBuild("main", "abc124", h.workingDir)
+            newerCommit.artifactKey shouldNotBe first.artifactKey
+
+            // a cancel-requested build no longer blocks re-queueing its commit
+            h.executor.cancel(first.artifactKey).shouldBeTrue()
+            val again = h.executor.startBuild("main", "abc123", h.workingDir)
+            again.artifactKey shouldNotBe first.artifactKey
+
+            h.executor.cancel(newerCommit.artifactKey).shouldBeTrue()
+            h.executor.cancel(again.artifactKey).shouldBeTrue()
+            eventually(30.seconds) {
+                h.executor.currentBuilds().shouldBeEmpty()
+            }
+        }
+
         test("a build cancelled while still queued records neither runningSince nor a duration") {
             val h = harness("sleep 30")
 

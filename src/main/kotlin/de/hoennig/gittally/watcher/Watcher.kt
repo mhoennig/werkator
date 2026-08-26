@@ -97,6 +97,11 @@ class Watcher(
         for (result in restartable) {
             val commit = gitService.originHeadCommit(result.branch, workingDir)
             if (commit == null) {
+                if (result.status == BuildStatus.PENDING) {
+                    // a PENDING entry is prune-immune (it normally belongs to the executor);
+                    // close this orphan out so the gone branch can be pruned
+                    repository.updateByArtifactKey(result.artifactKey) { it.copy(status = BuildStatus.INTERRUPTED) }
+                }
                 log.info("not restarting build of branch {}: branch is gone from origin", result.branch)
                 continue
             }
