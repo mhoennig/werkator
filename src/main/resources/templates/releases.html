@@ -7,6 +7,15 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.15 <span class="muted">— 2026-08-28</span></h2>
+        <ul>
+            <li><strong>Changed:</strong> the build concurrency limit moved from
+                <code>builds.maxConcurrent</code> to <code>executor.maxConcurrent</code> (default 1,
+                no compatibility alias) — the <code>builds</code> section now holds build definitions
+                only. A leftover <code>builds.maxConcurrent</code> key is rejected as an invalid
+                build definition.</li>
+        </ul>
+
         <h2>v0.9.14 <span class="muted">— 2026-08-28</span></h2>
         <ul>
             <li>Named build definitions (ADR 0007): the <code>builds</code> section of
