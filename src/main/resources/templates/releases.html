@@ -7,6 +7,19 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.13 <span class="muted">— 2026-08-28</span></h2>
+        <ul>
+            <li>A scheduled auto-build slot (<code>autoBuild.times</code> entry) can carry its own
+                <code>buildCommand</code>, so a nightly slot runs a fuller check than the quick
+                on-commit builds of the same branch. Restart, retry, and the startup recovery repeat
+                a build with the command it originally ran.</li>
+            <li>A slot can also carry a <code>name</code> (e.g. <code>master@nightly</code>): its
+                builds then get their own row in the branches view, their own history and retention
+                pool, and their own permanent latest-green artifact link
+                (<code>/branches/master_nightly/…</code>) — the branch's regular builds no longer
+                displace the nightly build and its artifacts.</li>
+        </ul>
+
         <h2>v0.9.12 <span class="muted">— 2026-08-26</span></h2>
         <ul>
             <li>A build whose branch is deleted from origin mid-build (the usual fate of a merged
