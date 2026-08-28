@@ -15,8 +15,8 @@
                 <span th:class="'status status-' + ${build.status}" th:text="${build.status}">running</span>
                 <span class="branch link-tools">
                     <a th:if="${build.branchUrl != null}" th:href="${build.branchUrl}" target="_blank"
-                       rel="noopener noreferrer" th:text="${build.branch}">main</a>
-                    <span th:if="${build.branchUrl == null}" th:text="${build.branch}">main</span>
+                       rel="noopener noreferrer" th:text="${build.name}">main</a>
+                    <span th:if="${build.branchUrl == null}" th:text="${build.name}">main</span>
                 </span>
                 <code>
                     <a th:if="${build.commitUrl != null}" th:href="${build.commitUrl}" target="_blank"
@@ -30,7 +30,7 @@
                             th:attr="data-artifact-key=${build.artifactKey}" title="Cancel build">× Cancel</button>
                 </span>
             </header>
-            <pre class="live-log" th:attr="aria-label='live log of ' + ${build.branch}"></pre>
+            <pre class="live-log" th:attr="aria-label='live log of ' + ${build.name}"></pre>
         </section>
     </div>
 </main>

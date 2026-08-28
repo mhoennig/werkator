@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import de.hoennig.gittally.config.AutoBuildSlot
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
@@ -26,15 +27,15 @@ object AutoBuildSlots {
 
     /** The latest valid slot at or before [now], or null when no slot is due yet today. */
     fun latestDueSlot(
-        times: List<String>,
+        times: List<AutoBuildSlot>,
         now: LocalTime,
-    ): String? =
+    ): AutoBuildSlot? =
         times
             .mapNotNull { slot ->
                 try {
-                    LocalTime.parse(slot.trim()) to slot
+                    LocalTime.parse(slot.time.trim()) to slot
                 } catch (_: DateTimeParseException) {
-                    log.warn("skipping invalid auto-build time slot '{}': expected HH:MM", slot)
+                    log.warn("skipping invalid auto-build time slot '{}': expected HH:MM", slot.time)
                     null
                 }
             }.filter { (parsed, _) -> !parsed.isAfter(now) }

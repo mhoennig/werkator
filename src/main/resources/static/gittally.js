@@ -258,8 +258,9 @@ function actionButton(symbol, title, className, dataset) {
 
 function renderBuildRow(build, allowRestart) {
     const row = document.createElement("tr");
+    const displayName = build.name || build.branch;
     row.dataset.artifactKey = build.artifactKey || "";
-    row.dataset.branch = build.branch;
+    row.dataset.branch = displayName;
     row.dataset.startedAt = build.startedAt || "";
     row.dataset.runningSince = build.runningSince || "";
     row.dataset.status = build.status || "unknown";
@@ -274,8 +275,8 @@ function renderBuildRow(build, allowRestart) {
     const branchTools = elem("span", "link-tools");
     branchTools.appendChild(
         giteaRepoUrl
-            ? externalLink(giteaRepoUrl + "/src/branch/" + encodeBranchPath(build.branch), build.branch)
-            : elem("span", null, build.branch),
+            ? externalLink(giteaRepoUrl + "/src/branch/" + encodeBranchPath(build.branch), displayName)
+            : elem("span", null, displayName),
     );
     branchTools.appendChild(copyButton(build.branch, "branch name"));
     branchCell.appendChild(branchTools);
@@ -332,7 +333,7 @@ function renderBuildRow(build, allowRestart) {
     const actionsCell = elem("td", "actions-cell");
     const actions = elem("div", "actions");
     if (allowRestart) {
-        actions.appendChild(actionButton("↻", "Restart build", null, { action: "restart", branch: build.branch }));
+        actions.appendChild(actionButton("↻", "Restart build", null, { action: "restart", branch: displayName }));
     }
     if (build.artifactKey) {
         actions.appendChild(
@@ -386,10 +387,11 @@ function renderBuildCard(build) {
     const header = elem("header", "build-card-header");
     header.appendChild(statusBadge(build.status || "running"));
     const branchTools = elem("span", "branch link-tools");
+    const displayName = build.name || build.branch;
     branchTools.appendChild(
         giteaRepoUrl
-            ? externalLink(giteaRepoUrl + "/src/branch/" + encodeBranchPath(build.branch), build.branch)
-            : elem("span", null, build.branch),
+            ? externalLink(giteaRepoUrl + "/src/branch/" + encodeBranchPath(build.branch), displayName)
+            : elem("span", null, displayName),
     );
     header.appendChild(branchTools);
     const commitCode = elem("code");

@@ -219,6 +219,50 @@ class BuildExecutorTest : FunSpec() {
             }
         }
 
+        test("a build command override replaces the branch's build command and is recorded in the result") {
+            val h = harness(buildCommand = "echo regular-\$branch")
+
+            val nightly = h.executor.startBuild("main", "sha-1", h.workingDir, "echo nightly-\$branch")
+            awaitStatus(h, "main", BuildStatus.SUCCESS)
+            awaitIdle(h)
+
+            val stdoutLog = Files.readString(nightly.stagingDir.resolve("build.stdout.log"))
+            stdoutLog shouldContain "nightly-main"
+            stdoutLog shouldNotContain "regular-main"
+            Files.readString(nightly.liveLogFile) shouldContain "triggered by: auto-build slot"
+            h.repository
+                .latestFor("main")
+                .shouldNotBeNull()
+                .buildCommandOverride shouldBe "echo nightly-\$branch"
+
+            // the same branch without an override runs the regular command
+            val regular = h.executor.startBuild("main", "sha-2", h.workingDir)
+            awaitStatus(h, "main", BuildStatus.SUCCESS)
+            awaitIdle(h)
+            Files.readString(regular.stagingDir.resolve("build.stdout.log")) shouldContain "regular-main"
+            h.repository
+                .latestFor("main")
+                .shouldNotBeNull()
+                .buildCommandOverride shouldBe null
+        }
+
+        test("a named build is recorded under its name, keyed by the sanitized name") {
+            val h = harness(buildCommand = "echo regular-\$branch")
+
+            val build = h.executor.startBuild("main", "sha-1", h.workingDir, "echo nightly-\$branch", "main@nightly")
+            awaitStatus(h, "main@nightly", BuildStatus.SUCCESS)
+            awaitIdle(h)
+
+            val result = h.repository.latestFor("main@nightly").shouldNotBeNull()
+            result.branch shouldBe "main"
+            result.name shouldBe "main@nightly"
+            result.artifactKey shouldBe build.artifactKey
+            build.artifactKey shouldContain "main_nightly"
+            Files.readString(build.liveLogFile) shouldContain "build name: main@nightly"
+            // the branch's own pool stays empty — the named build does not shadow it
+            h.repository.latestFor("main") shouldBe null
+        }
+
         test("startBuild returns the active build of the same branch and commit instead of stacking a duplicate") {
             val h = harness("sleep 30")
 
@@ -227,6 +271,10 @@ class BuildExecutorTest : FunSpec() {
             val duplicate = h.executor.startBuild("main", "abc123", h.workingDir)
             duplicate.artifactKey shouldBe first.artifactKey
             h.repository.history().map { it.artifactKey } shouldContainExactly listOf(first.artifactKey)
+
+            // a build of the same commit with a command override runs a different command — not a duplicate
+            val nightly = h.executor.startBuild("main", "abc123", h.workingDir, "echo full-check")
+            nightly.artifactKey shouldNotBe first.artifactKey
 
             // another commit of the branch is a distinct build, queued behind the first
             val newerCommit = h.executor.startBuild("main", "abc124", h.workingDir)
@@ -237,6 +285,7 @@ class BuildExecutorTest : FunSpec() {
             val again = h.executor.startBuild("main", "abc123", h.workingDir)
             again.artifactKey shouldNotBe first.artifactKey
 
+            h.executor.cancel(nightly.artifactKey).shouldBeTrue()
             h.executor.cancel(newerCommit.artifactKey).shouldBeTrue()
             h.executor.cancel(again.artifactKey).shouldBeTrue()
             eventually(30.seconds) {

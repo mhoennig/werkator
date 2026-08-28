@@ -67,15 +67,27 @@ class BuildExecutor(
      * not cancel-requested), that build is returned instead of stacking a duplicate —
      * a double-triggered UI restart must not queue the same commit twice. Re-running
      * a *finished* build stays possible; this only guards the active queue.
+     * A [buildCommandOverride] (from an auto-build slot with its own command) replaces
+     * the branch's configured `buildCommand`; since the command differs, such a build
+     * never counts as a duplicate of a regular build of the same commit.
+     * A [name] (from a named auto-build slot) records the result under that name
+     * instead of the branch name, giving the slot its own history and retention pool;
+     * the build still runs in the branch's worktree, serialized with the branch's
+     * other builds.
      */
     fun startBuild(
         branch: String,
         commit: String,
         workingDir: Path = Paths.get("."),
+        buildCommandOverride: String? = null,
+        name: String = branch,
     ): RunningBuild {
         val duplicate =
             builds.values.firstOrNull {
-                !it.cancelled.get() && it.runningBuild.branch == branch && it.runningBuild.commit == commit
+                !it.cancelled.get() &&
+                    it.runningBuild.name == name &&
+                    it.runningBuild.commit == commit &&
+                    it.runningBuild.buildCommandOverride == buildCommandOverride
             }
         if (duplicate != null) {
             log.info("build of branch {} at commit {} is already queued or running; not queueing a duplicate", branch, commit)
@@ -86,19 +98,23 @@ class BuildExecutor(
         val runningBuild =
             RunningBuild(
                 branch = branch,
+                name = name,
                 commit = commit,
-                artifactKey = ArtifactKeys.buildKey(branch, startedAt),
+                artifactKey = ArtifactKeys.buildKey(name, startedAt),
                 startedAt = startedAt,
                 stagingDir = stagingDir,
                 liveLogFile = stagingDir.resolve(LIVE_LOG_FILE),
+                buildCommandOverride = buildCommandOverride,
             )
         val pending =
             BuildResult(
                 branch = branch,
+                name = name,
                 commit = commit,
                 status = BuildStatus.PENDING,
                 startedAt = startedAt,
                 duration = null,
+                buildCommandOverride = buildCommandOverride,
                 artifactKey = runningBuild.artifactKey,
             )
         repository.append(pending)
@@ -244,11 +260,12 @@ class BuildExecutor(
         workspace: Path,
     ): Int {
         val branchConfig = branchConfig(build.runningBuild.branch, build.workingDir, workspace)
+        val buildCommand = build.runningBuild.buildCommandOverride ?: branchConfig.buildCommand
         val stagingDir = build.runningBuild.stagingDir
         Files.newOutputStream(stagingDir.resolve(branchConfig.stdoutLog)).use { stdoutLog ->
             Files.newOutputStream(stagingDir.resolve(branchConfig.stderrLog)).use { stderrLog ->
                 Files.newOutputStream(build.runningBuild.liveLogFile).use { liveLog ->
-                    writeLiveLogHeader(liveLog, build.runningBuild, branchConfig, workspace)
+                    writeLiveLogHeader(liveLog, build.runningBuild, branchConfig, buildCommand, workspace)
                     if (branchConfig.cleanCommand.isNotBlank()) {
                         val cleanExitCode =
                             runCommand(build, branchConfig, branchConfig.cleanCommand, workspace, stdoutLog, stderrLog, liveLog)
@@ -259,7 +276,7 @@ class BuildExecutor(
                     if (build.cancelled.get() || shuttingDown.get()) {
                         return CANCELLED_EXIT_CODE
                     }
-                    return runCommand(build, branchConfig, branchConfig.buildCommand, workspace, stdoutLog, stderrLog, liveLog)
+                    return runCommand(build, branchConfig, buildCommand, workspace, stdoutLog, stderrLog, liveLog)
                 }
             }
         }
@@ -357,11 +374,13 @@ class BuildExecutor(
                 )
             } ?: BuildResult(
                 branch = runningBuild.branch,
+                name = runningBuild.name,
                 commit = runningBuild.commit,
                 status = status,
                 startedAt = runningBuild.startedAt,
                 runningSince = runningBuild.runningSince,
                 duration = duration,
+                buildCommandOverride = runningBuild.buildCommandOverride,
                 artifactKey = runningBuild.artifactKey,
             ).also { repository.append(it) }
         eventPublisher.publishEvent(BuildStatusChangedEvent(updated))
@@ -408,15 +427,22 @@ class BuildExecutor(
         liveLog: OutputStream,
         runningBuild: RunningBuild,
         branchConfig: BranchConfig,
+        buildCommand: String,
         workspace: Path,
     ) {
         val header =
             buildString {
                 appendLine("building branch: ${runningBuild.branch}")
+                if (runningBuild.name != runningBuild.branch) {
+                    appendLine("build name: ${runningBuild.name}")
+                }
                 appendLine("commit: ${runningBuild.commit}")
                 appendLine("started: ${runningBuild.startedAt}")
                 appendLine("workspace: $workspace")
-                appendLine("build command: ${branchConfig.buildCommand}")
+                if (runningBuild.buildCommandOverride != null) {
+                    appendLine("triggered by: auto-build slot with its own build command")
+                }
+                appendLine("build command: $buildCommand")
                 if (branchConfig.cleanCommand.isNotBlank()) {
                     appendLine("clean command: ${branchConfig.cleanCommand}")
                 }

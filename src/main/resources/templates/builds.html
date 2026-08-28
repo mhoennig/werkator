@@ -24,15 +24,15 @@
                 <td class="empty" colspan="7" th:text="${emptyMessage}">No builds recorded yet.</td>
             </tr>
             <tr th:each="row : ${rows}"
-                th:attr="data-artifact-key=${row.artifactKey},data-branch=${row.branch},data-started-at=${row.startedAtIso},data-running-since=${row.runningSinceIso},data-status=${row.status}">
+                th:attr="data-artifact-key=${row.artifactKey},data-branch=${row.name},data-started-at=${row.startedAtIso},data-running-since=${row.runningSinceIso},data-status=${row.status}">
                 <td data-label="Status">
                     <span th:class="'status status-' + ${row.status}" th:text="${row.status}">success</span>
                 </td>
                 <td class="branch" data-label="Branch">
                     <span class="link-tools">
                         <a th:if="${row.branchUrl != null}" th:href="${row.branchUrl}" target="_blank"
-                           rel="noopener noreferrer" th:text="${row.branch}">main</a>
-                        <span th:if="${row.branchUrl == null}" th:text="${row.branch}">main</span>
+                           rel="noopener noreferrer" th:text="${row.name}">main</a>
+                        <span th:if="${row.branchUrl == null}" th:text="${row.name}">main</span>
                         <button class="copy-button" type="button" th:attr="data-copy=${row.branch}"
                                 title="Copy branch name" aria-label="Copy branch name">⧉</button>
                     </span>
@@ -65,7 +65,7 @@
                 <td class="actions-cell">
                     <div class="actions">
                         <button th:if="${allowRestart}" class="action-button" type="button" data-action="restart"
-                                th:attr="data-branch=${row.branch}" title="Restart build"
+                                th:attr="data-branch=${row.name}" title="Restart build"
                                 aria-label="Restart build">↻</button>
                         <button th:if="${row.artifactKey != ''}" class="action-button delete-button" type="button"
                                 data-action="delete" th:attr="data-artifact-key=${row.artifactKey}"

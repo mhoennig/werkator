@@ -1,5 +1,8 @@
 package de.hoennig.gittally.config
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
+
 data class GitTallyConfig(
     val server: ServerConfig = ServerConfig(),
     val git: GitConfig = GitConfig(),
@@ -148,5 +151,30 @@ data class DockerConfig(
 
 data class AutoBuildConfig(
     val enabled: Boolean = false,
-    val times: List<String> = listOf("01:00"),
+    /**
+     * Daily UTC slots. Each entry is either a plain `HH:MM` time or an object with
+     * `time` and its own `buildCommand` — so a nightly slot can run a fuller check
+     * than the on-commit builds of the same branch.
+     */
+    val times: List<AutoBuildSlot> = listOf(AutoBuildSlot("01:00")),
+)
+
+/**
+ * One scheduled auto-build slot; in YAML either a plain `HH:MM` string or an object
+ * (`time` plus optional `buildCommand` and `name`) — see [AutoBuildSlotDeserializer].
+ */
+@JsonDeserialize(using = AutoBuildSlotDeserializer::class)
+@JsonSerialize(using = AutoBuildSlotSerializer::class)
+data class AutoBuildSlot(
+    /** UTC time of day, `HH:MM`. */
+    val time: String,
+    /** Command this slot's build runs; empty runs the branch's [BranchConfig.buildCommand]. */
+    val buildCommand: String = "",
+    /**
+     * Build name this slot's builds are recorded under (e.g. `master@nightly`); empty
+     * records them under the branch name. A named slot gets its own history, retention
+     * pool, latest status, and permanent latest-green artifact link, so its builds are
+     * not displaced by the branch's regular builds.
+     */
+    val name: String = "",
 )

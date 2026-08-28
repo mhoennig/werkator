@@ -199,7 +199,12 @@ class InitCommand(
                 requirePullRequest: false
                 autoBuild:
                   enabled: false        # whether to rebuild on schedule
-                  times: ["01:00"]      # UTC times HH:MM for scheduled builds
+                  # UTC times HH:MM for scheduled builds; an entry may carry its own
+                  # command and a name for a separate history/artifact pool:
+                  #   - time: "01:00"
+                  #     buildCommand: ./gradlew fullCheck
+                  #     name: main@nightly
+                  times: ["01:00"]
                 docker:
                   enabled: false        # run clean/build commands in a Docker container instead of natively
                   image: ""             # image for the build container; required when enabled

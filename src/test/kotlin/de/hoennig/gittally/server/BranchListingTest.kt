@@ -27,6 +27,10 @@ class BranchListingTest : FunSpec() {
         )
 
     init {
+        beforeEach {
+            every { repository.latestPerName() } returns emptyList()
+        }
+
         test("orders main/master first, then flat names, then hierarchical names") {
             every { gitService.originBranchHeads(any()) } returns
                 mapOf(
@@ -69,14 +73,36 @@ class BranchListingTest : FunSpec() {
         test("a failed latest build carries no permanent URL — it belongs to the older green build") {
             every { gitService.originBranchHeads(any()) } returns mapOf("feature/x" to "aaa")
             every { repository.latestFor("feature/x") } returns
-                mainResult.copy(branch = "feature/x", status = BuildStatus.FAILED, artifactKey = "failed-key")
+                mainResult.copy(branch = "feature/x", name = "feature/x", status = BuildStatus.FAILED, artifactKey = "failed-key")
             every { repository.latestGreenFor("feature/x") } returns
-                mainResult.copy(branch = "feature/x", artifactKey = "green-key")
+                mainResult.copy(branch = "feature/x", name = "feature/x", artifactKey = "green-key")
 
             val branches = listing.branches()
 
             branches[0].status shouldBe "failed"
             branches[0].latestGreenUrl shouldBe null
+        }
+
+        test("a named slot pool gets its own row right after its branch") {
+            val nightly =
+                mainResult.copy(name = "main@nightly", status = BuildStatus.FAILED, artifactKey = "nightly-key")
+            every { gitService.originBranchHeads(any()) } returns mapOf("main" to "head", "develop" to "d")
+            every { repository.latestFor("main") } returns mainResult
+            every { repository.latestFor("develop") } returns null
+            every { repository.latestGreenFor("main") } returns mainResult
+            every { repository.latestGreenFor("main@nightly") } returns null
+            every { repository.latestGreenFor("develop") } returns null
+            every { repository.latestPerName() } returns listOf(mainResult, nightly)
+
+            val rows = listing.branches()
+
+            rows.map { it.name } shouldBe listOf("main", "main@nightly", "develop")
+            rows[1].branch shouldBe "main"
+            rows[1].status shouldBe "failed"
+            rows[1].artifactKey shouldBe "nightly-key"
+            // the branch row keeps its own status and permanent link, untouched by the nightly
+            rows[0].status shouldBe "success"
+            rows[0].latestGreenUrl shouldBe "/branches/main"
         }
     }
 }

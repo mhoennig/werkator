@@ -117,7 +117,7 @@ class UiControllerTest : FunSpec() {
         }
 
         test("latest view renders the empty state, and the nav no longer offers the current view") {
-            every { repository.latestPerBranch() } returns emptyList()
+            every { repository.latestPerName() } returns emptyList()
 
             mockMvc
                 .perform(get("/"))
@@ -129,7 +129,7 @@ class UiControllerTest : FunSpec() {
         }
 
         test("latest view renders rows with badge, Gitea links, artifact link, actions, and token") {
-            every { repository.latestPerBranch() } returns listOf(successResult)
+            every { repository.latestPerName() } returns listOf(successResult)
 
             mockMvc
                 .perform(get("/"))
@@ -188,9 +188,15 @@ class UiControllerTest : FunSpec() {
         test("history view renders mixed history without restart actions") {
             every { repository.history() } returns
                 listOf(
-                    successResult.copy(branch = "main", status = BuildStatus.RUNNING, duration = null, artifactKey = "run-key"),
+                    successResult.copy(
+                        branch = "main",
+                        name = "main",
+                        status = BuildStatus.RUNNING,
+                        duration = null,
+                        artifactKey = "run-key",
+                    ),
                     successResult,
-                    successResult.copy(branch = "feature/x", status = BuildStatus.FAILED, artifactKey = "failed-key"),
+                    successResult.copy(branch = "feature/x", name = "feature/x", status = BuildStatus.FAILED, artifactKey = "failed-key"),
                 )
 
             mockMvc
@@ -479,7 +485,7 @@ class UiControllerTest : FunSpec() {
 
         test("branch names with HTML metacharacters render escaped") {
             val nasty = "feat/<script>alert('x')</script>"
-            every { repository.latestPerBranch() } returns listOf(successResult.copy(branch = nasty))
+            every { repository.latestPerName() } returns listOf(successResult.copy(branch = nasty, name = nasty))
 
             mockMvc
                 .perform(get("/"))

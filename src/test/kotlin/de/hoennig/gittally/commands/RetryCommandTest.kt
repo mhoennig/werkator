@@ -44,7 +44,7 @@ class RetryCommandTest : FunSpec() {
         }
 
         test("retries every branch whose latest build failed, but no others") {
-            every { repository.latestPerBranch() } returns
+            every { repository.latestPerName() } returns
                 listOf(
                     result("main", BuildStatus.FAILED),
                     result("feature/ok", BuildStatus.SUCCESS),
@@ -52,19 +52,19 @@ class RetryCommandTest : FunSpec() {
                 )
             every { gitService.originHeadCommit("main", dir) } returns "head-main"
             every { gitService.originHeadCommit("feature/y", dir) } returns "head-y"
-            every { consoleBuildRunner.buildAndStream(any(), any(), dir) } returns BuildStatus.SUCCESS
+            every { consoleBuildRunner.buildAndStream(any(), any(), dir, anyNullable(), any()) } returns BuildStatus.SUCCESS
 
             var exitCode = -1
             captureConsole { exitCode = command().call() }
 
             exitCode shouldBe 0
-            verify { consoleBuildRunner.buildAndStream("main", "head-main", dir) }
-            verify { consoleBuildRunner.buildAndStream("feature/y", "head-y", dir) }
-            verify(exactly = 0) { consoleBuildRunner.buildAndStream("feature/ok", any(), dir) }
+            verify { consoleBuildRunner.buildAndStream("main", "head-main", dir, null, "main") }
+            verify { consoleBuildRunner.buildAndStream("feature/y", "head-y", dir, null, "feature/y") }
+            verify(exactly = 0) { consoleBuildRunner.buildAndStream("feature/ok", any(), dir, anyNullable(), any()) }
         }
 
         test("exits with code 1 when a retried build fails again") {
-            every { repository.latestPerBranch() } returns listOf(result("main", BuildStatus.FAILED))
+            every { repository.latestPerName() } returns listOf(result("main", BuildStatus.FAILED))
             every { gitService.originHeadCommit("main", dir) } returns "head-main"
             every { consoleBuildRunner.buildAndStream("main", "head-main", dir) } returns BuildStatus.FAILED
 
@@ -75,7 +75,7 @@ class RetryCommandTest : FunSpec() {
         }
 
         test("skips failed branches that are gone from origin") {
-            every { repository.latestPerBranch() } returns listOf(result("gone", BuildStatus.FAILED))
+            every { repository.latestPerName() } returns listOf(result("gone", BuildStatus.FAILED))
             every { gitService.originHeadCommit("gone", dir) } returns null
 
             var exitCode = -1
@@ -87,7 +87,7 @@ class RetryCommandTest : FunSpec() {
         }
 
         test("prints a hint when there is nothing to retry") {
-            every { repository.latestPerBranch() } returns
+            every { repository.latestPerName() } returns
                 listOf(
                     result("main", BuildStatus.SUCCESS),
                     result("feature/x", BuildStatus.INTERRUPTED),

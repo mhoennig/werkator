@@ -41,7 +41,7 @@ class BuildsApiController(
     var workingDir: Path = Paths.get(".")
 
     @GetMapping("/api/builds/latest")
-    fun latest(): List<BuildResultDto> = repository.latestPerBranch().map { BuildResultDto.from(it, it.isLatestGreen()) }
+    fun latest(): List<BuildResultDto> = repository.latestPerName().map { BuildResultDto.from(it, it.isLatestGreen()) }
 
     /** The legacy branches view: every origin branch with its latest build or `unknown`. */
     @GetMapping("/api/branches")
@@ -50,7 +50,7 @@ class BuildsApiController(
     @GetMapping("/api/builds/history")
     fun history(): List<BuildResultDto> = repository.history().map { BuildResultDto.from(it, it.isLatestGreen()) }
 
-    private fun BuildResult.isLatestGreen(): Boolean = repository.latestGreenFor(branch)?.artifactKey == artifactKey
+    private fun BuildResult.isLatestGreen(): Boolean = repository.latestGreenFor(name)?.artifactKey == artifactKey
 
     /** The currently executing builds — several are possible, up to `builds.maxConcurrent`. */
     @GetMapping("/api/builds/current")
@@ -59,6 +59,7 @@ class BuildsApiController(
         return buildExecutor.currentBuilds().map { build ->
             CurrentBuildDto(
                 branch = build.branch,
+                name = build.name,
                 commit = build.commit,
                 artifactKey = build.artifactKey,
                 status =
@@ -84,9 +85,11 @@ class BuildsApiController(
     }
 
     /**
-     * Re-enqueues the branch's last recorded commit — or its origin head for a branch
-     * never built, so the branches view can trigger first builds like legacy.
-     * The branch is a parameter, not a path variable, because branch names may contain
+     * Re-enqueues the last recorded commit of the build name [branch] — or the origin
+     * head for a branch never built, so the branches view can trigger first builds like
+     * legacy. A restarted auto-slot build re-runs the command its slot dictated, under
+     * the slot's name.
+     * The name is a parameter, not a path variable, because branch names may contain
      * slashes (Tomcat rejects encoded slashes in the path by default).
      */
     @PostMapping("/api/builds/restart")
@@ -95,14 +98,23 @@ class BuildsApiController(
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
     ): ResponseEntity<Any> {
         rejectBadToken(headerToken)?.let { return it }
+        val latest = repository.latestFor(branch)
         val commit =
-            repository.latestFor(branch)?.commit
+            latest?.commit
                 ?: gitService.originHeadCommit(branch, workingDir)
                 ?: return notFound("branch '$branch' has no recorded build and no origin counterpart")
-        val running = buildExecutor.startBuild(branch, commit)
+        // a restarted build repeats what it originally ran: same branch, name, and command
+        val running =
+            buildExecutor.startBuild(
+                branch = latest?.branch ?: branch,
+                commit = commit,
+                buildCommandOverride = latest?.buildCommandOverride,
+                name = latest?.name ?: branch,
+            )
         return ResponseEntity.accepted().body(
             BuildResultDto(
                 branch = running.branch,
+                name = running.name,
                 commit = running.commit,
                 status = BuildStatus.PENDING.jsonName,
                 startedAt = running.startedAt,

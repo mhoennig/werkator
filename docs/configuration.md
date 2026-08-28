@@ -17,7 +17,7 @@ The repo install config (`.git/gittally/.gittally.yml`) wins on any key present 
 When a branch builds, its build config is resolved with an extra layer: the `.gittally.yml`
 committed on the branch being built (read from its build worktree) overrides the two layers
 above, giving the precedence **worktree > repo install > project**. So a branch can change its
-own `buildCommand`, `cleanCommand`, `artifactDirs`, log file names, `autoBuild`, and
+own `buildCommand`, `cleanCommand`, `artifactDirs`, log file names, and
 `docker.image`/`dockerfile`/`context`/`env`.
 
 This layer applies **only** to the build itself. A pinned set is always taken from the repo
@@ -27,9 +27,9 @@ install/project config and can never be set from the worktree:
 - the container sandbox policy: `docker.enabled` and `docker.network`.
 
 This keeps a branch from disabling its own build container, changing its network mode, or
-reaching credentials. Watcher decisions that happen before a build exists — `autoBuild`
-scheduling and the `requirePullRequest` gate — are still read from the repo install/project
-config, because there is no worktree at that point.
+reaching credentials. Watcher decisions that happen before a build exists — the whole
+`autoBuild` section (schedule and slot commands) and the `requirePullRequest` gate — are
+read from the repo install/project config, because there is no worktree at that point.
 
 ## Inspect the Effective Config
 
@@ -147,7 +147,13 @@ branches:
     requirePullRequest: false
     autoBuild:
       enabled: false        # whether to rebuild on schedule
-      times: ["01:00"]      # UTC times HH:MM for scheduled builds
+      # UTC times HH:MM for scheduled builds. An entry may carry its own build
+      # command, so a nightly slot can run a fuller check than the on-commit
+      # builds, and a name recording its builds in a separate pool (see notes below):
+      #   - time: "01:00"
+      #     buildCommand: ./gradlew fullCheck
+      #     name: main@nightly
+      times: ["01:00"]
     # Optional Docker build runtime; when enabled, the clean and build commands
     # run inside a container instead of natively (see notes below).
     docker:
@@ -169,8 +175,15 @@ branches:
       enabled: true
 
   master:
+    buildCommand: ./gradlew --console=plain --no-daemon quickCheck
     autoBuild:
       enabled: true
+      times:
+        # the nightly rebuild runs the full check instead of the quick on-commit
+        # one, recorded separately as master@nightly
+        - time: "01:00"
+          buildCommand: ./gradlew --console=plain --no-daemon completeCheck
+          name: master@nightly
 
   release:
     buildCommand: ./gradlew --console=plain --no-daemon --no-build-cache test jacocoReport
@@ -223,6 +236,25 @@ Without the `main` override, direct pushes and merges to `main` would never buil
 
 A plain git origin (no Gitea/GitHub) serves no `refs/pull/*/head` at all, so gated branches would never build there.
 For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/gittally/.gittally.yml`, so the committed configuration keeps the gates for forge-backed environments.
+
+### Notes on `branches.<name>.autoBuild.times`
+
+Each entry is either a plain `HH:MM` string or an object with `time` and optional `buildCommand` and `name`; both forms mix freely in one list.
+A slot without its own command runs the branch's regular `buildCommand`.
+The typical use is a quick check on every commit and a fuller, slower check in the nightly slot of the same branch.
+
+A slot's command is recorded in the build result.
+Restarting such a build from the UI re-runs it with the slot's command, and the startup recovery re-enqueues an interrupted one likewise — a build is always repeated with the command it originally ran.
+Manual `gittally build <branch>` runs and watcher builds for new commits always use the regular `buildCommand`.
+
+Without a `name`, a slot's builds share the branch's history, retention pool, and permanent latest-green link — on a busy branch, the regular builds can displace the nightly build and its artifacts within a day.
+A slot `name` (e.g. `master@nightly`) records the slot's builds in their own pool instead: an own row in the branches view (sorted after its branch), an own `retentionPerBranch` count, an own latest status, and an own permanent artifact link.
+The URL key is the sanitized name — `master@nightly` is served as `/branches/master_nightly/…`.
+The builds still run in the branch's worktree, one build per branch at a time, and the Gitea commit status is still reported per commit in the shared status context, so the last build of a commit wins there regardless of its name.
+Do not name a slot like an existing branch — the pools would merge.
+The name's results live as long as the underlying branch exists on origin.
+
+The whole `autoBuild` section is a watcher decision made before a build worktree exists, so — unlike `buildCommand` itself — it is read from the repo install/project config and cannot be changed by the `.gittally.yml` committed on the branch being built.
 
 ### Notes on `watcher.fastForwardLocalRefs`
 

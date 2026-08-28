@@ -39,7 +39,7 @@ class FileBuildResultRepositoryTest : FunSpec() {
             val repository = FileBuildResultRepository(newFile())
 
             repository.history().shouldBeEmpty()
-            repository.latestPerBranch().shouldBeEmpty()
+            repository.latestPerName().shouldBeEmpty()
             repository.latestFor("main").shouldBeNull()
         }
 
@@ -99,17 +99,50 @@ class FileBuildResultRepositoryTest : FunSpec() {
             repository.latestGreenFor("unknown").shouldBeNull()
         }
 
-        test("latestPerBranch returns one entry per branch, newest first") {
+        test("latestPerName returns one entry per build name, newest first") {
             val repository = FileBuildResultRepository(newFile())
             repository.append(result(branch = "main", startedOffsetSeconds = 0))
             repository.append(result(branch = "main", startedOffsetSeconds = 60))
             repository.append(result(branch = "feature/x", startedOffsetSeconds = 120))
 
-            repository.latestPerBranch() shouldContainExactly
+            repository.latestPerName() shouldContainExactly
                 listOf(
                     result(branch = "feature/x", startedOffsetSeconds = 120),
                     result(branch = "main", startedOffsetSeconds = 60),
                 )
+        }
+
+        test("a named result forms its own pool for latest, green, supersession, and retention") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0))
+            repository.append(
+                result(branch = "main", status = BuildStatus.FAILED, startedOffsetSeconds = 10, artifactKey = "nightly-10")
+                    .copy(name = "main@nightly"),
+            )
+            repository.append(result(branch = "main", status = BuildStatus.SUCCESS, startedOffsetSeconds = 20))
+
+            repository.latestFor("main")!!.artifactKey shouldBe "main-20"
+            repository.latestFor("main@nightly")!!.artifactKey shouldBe "nightly-10"
+            // the branch pool's green build does not leak into the nightly pool
+            repository.latestGreenFor("main@nightly").shouldBeNull()
+            repository.latestPerName().map { it.name } shouldContainExactlyInAnyOrder listOf("main", "main@nightly")
+
+            // retention counts per name: retention 1 keeps the nightly although the branch built more recently
+            val removed = repository.prune(listOf("main"), retentionPerBranch = 1)
+            removed.map { it.artifactKey } shouldContainExactly listOf("main-0")
+            repository.history().map { it.artifactKey } shouldContainExactlyInAnyOrder listOf("main-20", "nightly-10")
+        }
+
+        test("prune drops a named pool once its underlying branch is gone from origin") {
+            val repository = FileBuildResultRepository(newFile())
+            repository.append(
+                result(branch = "gone", status = BuildStatus.SUCCESS, startedOffsetSeconds = 0, artifactKey = "nightly-key")
+                    .copy(name = "gone@nightly"),
+            )
+
+            val removed = repository.prune(listOf("main"), retentionPerBranch = 3)
+
+            removed.map { it.artifactKey } shouldContainExactly listOf("nightly-key")
         }
 
         test("updateLatest transforms only the newest entry of the branch") {

@@ -36,7 +36,7 @@ class StatusCommandTest : FunSpec() {
         }
 
         test("prints the latest build per branch as a table with short commits and legacy duration format") {
-            every { repository.latestPerBranch() } returns
+            every { repository.latestPerName() } returns
                 listOf(
                     result("main", BuildStatus.SUCCESS),
                     result("feature/x", BuildStatus.FAILED, duration = null),
@@ -75,7 +75,7 @@ class StatusCommandTest : FunSpec() {
         }
 
         test("prints a hint when no builds are recorded yet") {
-            every { repository.latestPerBranch() } returns emptyList()
+            every { repository.latestPerName() } returns emptyList()
 
             var exitCode = -1
             val console = captureConsole { exitCode = StatusCommand(repository).call() }

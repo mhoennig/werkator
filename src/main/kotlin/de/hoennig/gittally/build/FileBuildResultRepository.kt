@@ -38,12 +38,12 @@ class FileBuildResultRepository(
     }
 
     override fun updateLatest(
-        branch: String,
+        name: String,
         transform: (BuildResult) -> BuildResult,
     ): BuildResult? {
         synchronized(lock) {
             val results = load()
-            val index = indexOfLatest(results, branch) ?: return null
+            val index = indexOfLatest(results, name) ?: return null
             val updated = transform(results[index])
             save(results.toMutableList().also { it[index] = updated })
             return updated
@@ -66,19 +66,19 @@ class FileBuildResultRepository(
         }
     }
 
-    override fun latestFor(branch: String): BuildResult? {
+    override fun latestFor(name: String): BuildResult? {
         val results = load()
-        return indexOfLatest(results, branch)?.let { results[it] }
+        return indexOfLatest(results, name)?.let { results[it] }
     }
 
-    override fun latestGreenFor(branch: String): BuildResult? =
+    override fun latestGreenFor(name: String): BuildResult? =
         load()
-            .filter { it.branch == branch && it.status == BuildStatus.SUCCESS }
+            .filter { it.name == name && it.status == BuildStatus.SUCCESS }
             .maxByOrNull { it.startedAt }
 
-    override fun latestPerBranch(): List<BuildResult> =
+    override fun latestPerName(): List<BuildResult> =
         load()
-            .groupBy { it.branch }
+            .groupBy { it.name }
             .values
             .map { entries -> entries.reduce(::laterOf) }
             .sortedByDescending { it.startedAt }
@@ -104,7 +104,7 @@ class FileBuildResultRepository(
             val updated =
                 results.map { result ->
                     val superseded =
-                        results.any { it.branch == result.branch && it.startedAt.isAfter(result.startedAt) }
+                        results.any { it.name == result.name && it.startedAt.isAfter(result.startedAt) }
                     if (result.status == BuildStatus.RUNNING ||
                         (result.status == BuildStatus.PENDING && superseded)
                     ) {
@@ -138,7 +138,7 @@ class FileBuildResultRepository(
                 active.toSet() +
                     results
                         .filter { it.branch in originBranchSet }
-                        .groupBy { it.branch }
+                        .groupBy { it.name }
                         .values
                         .flatMap { entries ->
                             val newest =
@@ -146,7 +146,7 @@ class FileBuildResultRepository(
                                     .sortedByDescending { it.startedAt }
                                     .take(retentionPerBranch.coerceAtLeast(0))
                                     .filterIndexed { index, entry ->
-                                        // the branch's newest entry is never age-pruned
+                                        // the name's newest entry is never age-pruned
                                         index == 0 || retentionCutoff == null || !entry.startedAt.isBefore(retentionCutoff)
                                     }
                             val latestGreen =
@@ -163,14 +163,14 @@ class FileBuildResultRepository(
         }
     }
 
-    /** The index of the newest entry of [branch]; on equal timestamps the later appended entry wins. */
+    /** The index of the newest entry recorded under [name]; on equal timestamps the later appended entry wins. */
     private fun indexOfLatest(
         results: List<BuildResult>,
-        branch: String,
+        name: String,
     ): Int? {
         var latest: Int? = null
         results.forEachIndexed { index, result ->
-            if (result.branch == branch &&
+            if (result.name == name &&
                 (latest == null || !result.startedAt.isBefore(results[latest].startedAt))
             ) {
                 latest = index

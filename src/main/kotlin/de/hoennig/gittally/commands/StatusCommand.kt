@@ -26,7 +26,7 @@ class StatusCommand(
     var history: Boolean = false
 
     override fun call(): Int {
-        val results = if (history) repository.history() else repository.latestPerBranch()
+        val results = if (history) repository.history() else repository.latestPerName()
         if (results.isEmpty()) {
             println("(no builds recorded)")
         } else {
@@ -40,7 +40,7 @@ class StatusCommand(
         val rows =
             results.map {
                 listOf(
-                    it.branch,
+                    it.name,
                     it.status.name.lowercase(),
                     it.commit.take(12),
                     UiFormats.timestamp(it.startedAt),

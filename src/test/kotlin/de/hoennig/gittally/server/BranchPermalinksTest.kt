@@ -33,21 +33,21 @@ class BranchPermalinksTest : FunSpec() {
 
     init {
         test("resolves the hash-free permanent key to the branch's latest green build") {
-            every { repository.latestPerBranch() } returns listOf(result("feature/x"), result("main"))
+            every { repository.latestPerName() } returns listOf(result("feature/x"), result("main"))
             every { repository.latestGreenFor("feature/x") } returns result("feature/x")
 
             permalinks.latestGreenBuild("feature_x") shouldBe result("feature/x")
         }
 
         test("resolves the full branch key with hash suffix") {
-            every { repository.latestPerBranch() } returns listOf(result("feature/x"))
+            every { repository.latestPerName() } returns listOf(result("feature/x"))
             every { repository.latestGreenFor("feature/x") } returns result("feature/x")
 
             permalinks.latestGreenBuild(ArtifactKeys.branchKey("feature/x")) shouldBe result("feature/x")
         }
 
         test("an unknown branch key answers 404") {
-            every { repository.latestPerBranch() } returns listOf(result("main"))
+            every { repository.latestPerName() } returns listOf(result("main"))
 
             val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild("gone") }
 
@@ -55,7 +55,7 @@ class BranchPermalinksTest : FunSpec() {
         }
 
         test("a branch without a green build answers 404") {
-            every { repository.latestPerBranch() } returns listOf(result("main", status = BuildStatus.FAILED))
+            every { repository.latestPerName() } returns listOf(result("main", status = BuildStatus.FAILED))
             every { repository.latestGreenFor("main") } returns null
 
             val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild("main") }
@@ -64,7 +64,7 @@ class BranchPermalinksTest : FunSpec() {
         }
 
         test("a permanent key matching several branches answers 409 and names the candidates") {
-            every { repository.latestPerBranch() } returns listOf(result("feature/x"), result("feature_x"))
+            every { repository.latestPerName() } returns listOf(result("feature/x"), result("feature_x"))
 
             val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild("feature_x") }
 
@@ -73,7 +73,7 @@ class BranchPermalinksTest : FunSpec() {
         }
 
         test("with ambiguous permanent keys the full branch key still resolves") {
-            every { repository.latestPerBranch() } returns listOf(result("feature/x"), result("feature_x"))
+            every { repository.latestPerName() } returns listOf(result("feature/x"), result("feature_x"))
             every { repository.latestGreenFor("feature/x") } returns result("feature/x")
 
             permalinks.latestGreenBuild(ArtifactKeys.branchKey("feature/x")) shouldBe result("feature/x")
@@ -81,6 +81,15 @@ class BranchPermalinksTest : FunSpec() {
 
         test("permanentUrl uses the hash-free branch key") {
             BranchPermalinks.permanentUrl("feature/x") shouldBe "/branches/feature_x"
+        }
+
+        test("resolves a named slot pool to its own latest green build") {
+            val nightly = result("main").copy(name = "main@nightly", artifactKey = "nightly-key")
+            every { repository.latestPerName() } returns listOf(result("main"), nightly)
+            every { repository.latestGreenFor("main@nightly") } returns nightly
+
+            // sanitized like any branch key: the '@' becomes '_' in the URL
+            permalinks.latestGreenBuild("main_nightly") shouldBe nightly
         }
     }
 }

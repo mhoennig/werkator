@@ -56,7 +56,7 @@ class UiController(
     @GetMapping("/")
     fun latest(model: Model): String {
         val links = baseModel(model, view = "latest", pageTitle = "Latest Builds")
-        model.addAttribute("rows", repository.latestPerBranch().map { BuildRowView.from(it, links, permanentUrlOf(it)) })
+        model.addAttribute("rows", repository.latestPerName().map { BuildRowView.from(it, links, permanentUrlOf(it)) })
         model.addAttribute("apiPath", "/api/builds/latest")
         model.addAttribute("allowRestart", true)
         model.addAttribute("emptyMessage", "No builds recorded yet.")
@@ -84,10 +84,10 @@ class UiController(
         return "builds"
     }
 
-    /** The permanent branch URL belongs to the build it resolves to — the branch's latest green build. */
+    /** The permanent branch URL belongs to the build it resolves to — the name's latest green build. */
     private fun permanentUrlOf(result: BuildResult): String? =
-        if (repository.latestGreenFor(result.branch)?.artifactKey == result.artifactKey) {
-            BranchPermalinks.permanentUrl(result.branch)
+        if (repository.latestGreenFor(result.name)?.artifactKey == result.artifactKey) {
+            BranchPermalinks.permanentUrl(result.name)
         } else {
             null
         }
@@ -100,6 +100,7 @@ class UiController(
             buildExecutor.currentBuilds().map { build ->
                 CurrentBuildView(
                     branch = build.branch,
+                    name = build.name,
                     commit = build.commit,
                     commitAbbrev = build.commit.take(12),
                     status =

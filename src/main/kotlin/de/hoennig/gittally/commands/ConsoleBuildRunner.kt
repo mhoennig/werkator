@@ -37,8 +37,10 @@ class ConsoleBuildRunner(
         branch: String,
         commit: String,
         workingDir: Path = Paths.get("."),
+        buildCommandOverride: String? = null,
+        name: String = branch,
     ): BuildStatus {
-        val build = buildExecutor.startBuild(branch, commit, workingDir)
+        val build = buildExecutor.startBuild(branch, commit, workingDir, buildCommandOverride, name)
         var printed = 0L
         var result: BuildResult? = null
         while (result?.status?.isTerminal != true) {

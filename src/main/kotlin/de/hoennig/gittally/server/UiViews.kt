@@ -92,7 +92,10 @@ object UiFormats {
 
 /** One row of the build tables; [latestGreenUrl] only on the build that permanent link resolves to. */
 data class BuildRowView(
+    /** The git branch — target of the Gitea link and the copy button. */
     val branch: String,
+    /** The displayed build name; = [branch] unless a named auto-build slot recorded the build. */
+    val name: String,
     val commit: String,
     val commitAbbrev: String,
     val status: String,
@@ -115,6 +118,7 @@ data class BuildRowView(
             latestGreenUrl: String? = null,
         ) = BuildRowView(
             branch = result.branch,
+            name = result.name,
             commit = result.commit,
             commitAbbrev = result.commit.take(12),
             status = result.status.jsonName,
@@ -135,6 +139,7 @@ data class BuildRowView(
             links: GiteaWebLinks,
         ) = BuildRowView(
             branch = entry.branch,
+            name = entry.name,
             commit = entry.commit,
             commitAbbrev = entry.commit.take(12),
             status = entry.status,
@@ -174,6 +179,8 @@ data class LogFileView(
 /** One card of the current-builds view; the live log is fetched by `gittally.js`. */
 data class CurrentBuildView(
     val branch: String,
+    /** The displayed build name; = [branch] unless a named auto-build slot triggered the build. */
+    val name: String,
     val commit: String,
     val commitAbbrev: String,
     val status: String,

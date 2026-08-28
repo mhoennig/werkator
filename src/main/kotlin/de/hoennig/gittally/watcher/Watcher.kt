@@ -92,7 +92,7 @@ class Watcher(
         }
         val restartable =
             repository
-                .latestPerBranch()
+                .latestPerName()
                 .filter { it.status == BuildStatus.INTERRUPTED || it.status == BuildStatus.PENDING }
         for (result in restartable) {
             val commit = gitService.originHeadCommit(result.branch, workingDir)
@@ -110,7 +110,8 @@ class Watcher(
                 repository.updateByArtifactKey(result.artifactKey) { it.copy(status = BuildStatus.INTERRUPTED) }
             }
             log.info("restarting unfinished build of branch {}", result.branch)
-            buildExecutor.startBuild(result.branch, commit, workingDir)
+            // an interrupted auto-slot build re-runs the command its slot dictated, under its name
+            buildExecutor.startBuild(result.branch, commit, workingDir, result.buildCommandOverride, result.name)
         }
     }
 
@@ -144,9 +145,9 @@ class Watcher(
                 lastPollError = null,
                 queuedBranches =
                     repository
-                        .latestPerBranch()
+                        .latestPerName()
                         .filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }
-                        .map { it.branch },
+                        .map { it.name },
             )
     }
 
@@ -216,8 +217,10 @@ class Watcher(
         config: GitTallyConfig,
         pullRequestHeads: Lazy<Set<String>>,
         workingDir: Path,
+        buildCommandOverride: String? = null,
+        name: String = branch,
     ): Boolean {
-        val latest = repository.latestFor(branch)
+        val latest = repository.latestFor(name)
         if (latest?.status == BuildStatus.PENDING || latest?.status == BuildStatus.RUNNING) {
             return false
         }
@@ -233,7 +236,7 @@ class Watcher(
             return false
         }
         log.info("enqueueing build of branch {} at commit {}", branch, commit)
-        buildExecutor.startBuild(branch, commit, workingDir)
+        buildExecutor.startBuild(branch, commit, workingDir, buildCommandOverride, name)
         return true
     }
 
@@ -261,16 +264,27 @@ class Watcher(
         val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
         for ((branch, branchConfig) in autoBuildBranches) {
             val slot = AutoBuildSlots.latestDueSlot(branchConfig.autoBuild.times, timeOfDay) ?: continue
-            if (autoBuildState.isTriggered(branch, today, slot)) {
+            if (autoBuildState.isTriggered(branch, today, slot.time)) {
                 continue
             }
             if (branch !in originBranches) {
                 log.warn("skipping auto build of branch {}: branch is not on origin", branch)
                 continue
             }
-            // rebuilding the already-built commit is the point of an auto build
-            if (startBuildIfDue(branch, allowSameCommit = true, config, pullRequestHeads, workingDir)) {
-                autoBuildState.markTriggered(branch, today, slot)
+            // rebuilding the already-built commit is the point of an auto build; a slot
+            // with its own command dictates it, and a named slot records under its name
+            val started =
+                startBuildIfDue(
+                    branch,
+                    allowSameCommit = true,
+                    config,
+                    pullRequestHeads,
+                    workingDir,
+                    slot.buildCommand.ifBlank { null },
+                    slot.name.ifBlank { branch },
+                )
+            if (started) {
+                autoBuildState.markTriggered(branch, today, slot.time)
             }
         }
     }
@@ -307,7 +321,7 @@ class Watcher(
         // never delete under a build that is still queued or executing
         buildExecutor.currentBuilds().forEach { keep += ArtifactKeys.branchKey(it.branch) }
         repository
-            .latestPerBranch()
+            .latestPerName()
             .filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }
             .forEach { keep += ArtifactKeys.branchKey(it.branch) }
         var removed = false

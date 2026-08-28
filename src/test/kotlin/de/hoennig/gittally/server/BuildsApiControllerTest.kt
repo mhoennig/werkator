@@ -80,7 +80,7 @@ class BuildsApiControllerTest : FunSpec() {
         }
 
         test("latest answers one entry per branch with lowercase status and duration in seconds") {
-            every { repository.latestPerBranch() } returns listOf(successResult)
+            every { repository.latestPerName() } returns listOf(successResult)
 
             mockMvc
                 .perform(get("/api/builds/latest"))
@@ -151,9 +151,9 @@ class BuildsApiControllerTest : FunSpec() {
 
         test("restart enqueues the branch's last recorded commit, also for branch names with slashes") {
             val liveLogFile = tempDir.resolve("restart.log")
-            every { repository.latestFor("feature/topic") } returns successResult.copy(branch = "feature/topic")
+            every { repository.latestFor("feature/topic") } returns successResult.copy(branch = "feature/topic", name = "feature/topic")
             every { buildExecutor.startBuild("feature/topic", successResult.commit) } returns
-                runningBuild(liveLogFile).copy(branch = "feature/topic")
+                runningBuild(liveLogFile).copy(branch = "feature/topic", name = "feature/topic")
 
             mockMvc
                 .perform(
@@ -167,12 +167,58 @@ class BuildsApiControllerTest : FunSpec() {
             verify { buildExecutor.startBuild("feature/topic", successResult.commit) }
         }
 
+        test("restart of an auto-slot build repeats its recorded build command") {
+            val liveLogFile = tempDir.resolve("auto-restart.log")
+            every { repository.latestFor("main") } returns successResult.copy(buildCommandOverride = "./gradlew fullCheck")
+            every { buildExecutor.startBuild("main", successResult.commit, buildCommandOverride = "./gradlew fullCheck") } returns
+                runningBuild(liveLogFile).copy(buildCommandOverride = "./gradlew fullCheck")
+
+            mockMvc
+                .perform(post("/api/builds/restart").param("branch", "main").header(BuildsApiController.TOKEN_HEADER, "secret"))
+                .andExpect(status().isAccepted)
+                .andExpect(jsonPath("$.status").value("pending"))
+
+            // so a restarted nightly build repeats its slot's command, not the regular one
+            verify { buildExecutor.startBuild("main", successResult.commit, buildCommandOverride = "./gradlew fullCheck") }
+        }
+
+        test("restart of a named slot build re-runs under its name on its real branch") {
+            val liveLogFile = tempDir.resolve("named-restart.log")
+            every { repository.latestFor("main@nightly") } returns
+                successResult.copy(name = "main@nightly", buildCommandOverride = "./gradlew fullCheck")
+            every {
+                buildExecutor.startBuild(
+                    "main",
+                    successResult.commit,
+                    buildCommandOverride = "./gradlew fullCheck",
+                    name = "main@nightly",
+                )
+            } returns runningBuild(liveLogFile).copy(name = "main@nightly")
+
+            mockMvc
+                .perform(
+                    post("/api/builds/restart")
+                        .param("branch", "main@nightly")
+                        .header(BuildsApiController.TOKEN_HEADER, "secret"),
+                ).andExpect(status().isAccepted)
+                .andExpect(jsonPath("$.name").value("main@nightly"))
+
+            verify {
+                buildExecutor.startBuild(
+                    "main",
+                    successResult.commit,
+                    buildCommandOverride = "./gradlew fullCheck",
+                    name = "main@nightly",
+                )
+            }
+        }
+
         test("restart of a never-built branch enqueues its origin head commit") {
             val liveLogFile = tempDir.resolve("first-build.log")
             every { repository.latestFor("fresh") } returns null
             every { gitService.originHeadCommit("fresh", any()) } returns successResult.commit
             every { buildExecutor.startBuild("fresh", successResult.commit) } returns
-                runningBuild(liveLogFile).copy(branch = "fresh")
+                runningBuild(liveLogFile).copy(branch = "fresh", name = "fresh")
 
             mockMvc
                 .perform(post("/api/builds/restart").param("branch", "fresh").header(BuildsApiController.TOKEN_HEADER, "secret"))

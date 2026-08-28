@@ -9,7 +9,10 @@ val BuildStatus.jsonName: String
     get() = name.lowercase()
 
 data class BuildResultDto(
+    /** The git branch that was built; the UI links this to Gitea. */
     val branch: String,
+    /** The build name the result is recorded under; the UI displays and restarts by this (= [branch] unless a named auto-build slot). */
+    val name: String = branch,
     val commit: String,
     val status: String,
     val startedAt: Instant,
@@ -17,7 +20,7 @@ data class BuildResultDto(
     val runningSince: Instant? = null,
     val durationSeconds: Long?,
     val artifactKey: String,
-    /** The permanent branch URL, set only on the build it resolves to — the branch's latest green build. */
+    /** The permanent branch URL, set only on the build it resolves to — the name's latest green build. */
     val latestGreenUrl: String? = null,
 ) {
     companion object {
@@ -26,13 +29,14 @@ data class BuildResultDto(
             isLatestGreen: Boolean = false,
         ) = BuildResultDto(
             branch = result.branch,
+            name = result.name,
             commit = result.commit,
             status = result.status.jsonName,
             startedAt = result.startedAt,
             runningSince = result.runningSince,
             durationSeconds = result.duration?.seconds,
             artifactKey = result.artifactKey,
-            latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(result.branch) else null,
+            latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(result.name) else null,
         )
     }
 }
@@ -45,7 +49,10 @@ data class BuildResultDto(
  * where it resolves to.
  */
 data class BranchDto(
+    /** The git branch; the UI links this to Gitea. */
     val branch: String,
+    /** The row's build name; = [branch], except for the extra rows of named auto-build slots. */
+    val name: String = branch,
     val commit: String,
     val status: String,
     val startedAt: Instant?,
@@ -60,9 +67,11 @@ data class BranchDto(
             headCommit: String,
             latest: BuildResult?,
             isLatestGreen: Boolean = false,
+            name: String = branch,
         ) = if (latest == null) {
             BranchDto(
                 branch = branch,
+                name = name,
                 commit = headCommit,
                 status = CommitStatusDto.UNKNOWN_STATUS,
                 startedAt = null,
@@ -72,13 +81,14 @@ data class BranchDto(
         } else {
             BranchDto(
                 branch = branch,
+                name = name,
                 commit = latest.commit,
                 status = latest.status.jsonName,
                 startedAt = latest.startedAt,
                 runningSince = latest.runningSince,
                 durationSeconds = latest.duration?.seconds,
                 artifactKey = latest.artifactKey,
-                latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(branch) else null,
+                latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(name) else null,
             )
         }
     }
@@ -87,6 +97,8 @@ data class BranchDto(
 /** One entry of `GET /api/builds/current`; the log grows while the build runs. */
 data class CurrentBuildDto(
     val branch: String,
+    /** The build name; = [branch] unless a named auto-build slot triggered this build. */
+    val name: String = branch,
     val commit: String,
     val artifactKey: String,
     val status: String,

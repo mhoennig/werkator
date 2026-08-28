@@ -34,7 +34,7 @@ class RetryCommand(
         val failed: List<BuildResult>
         try {
             fetchBestEffort()
-            failed = repository.latestPerBranch().filter { it.status == BuildStatus.FAILED }
+            failed = repository.latestPerName().filter { it.status == BuildStatus.FAILED }
         } catch (e: Exception) {
             System.err.println("error: ${e.message}")
             return ExitCode.USAGE
@@ -51,7 +51,8 @@ class RetryCommand(
                 continue
             }
             println("retrying branch ${result.branch} at commit ${commit.take(12)}")
-            val status = consoleBuildRunner.buildAndStream(result.branch, commit, workingDir)
+            // a failed auto-slot build retries with its recorded command, under its name
+            val status = consoleBuildRunner.buildAndStream(result.branch, commit, workingDir, result.buildCommandOverride, result.name)
             if (status != BuildStatus.SUCCESS) {
                 anyFailed = true
             }

@@ -47,6 +47,39 @@ class ConfigLoaderTest : FunSpec() {
             loader.load(dir).builds.maxConcurrent shouldBe 3
         }
 
+        test("autoBuild.times accepts plain HH:MM entries and slot objects with their own build command, mixed") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                branches:
+                  main:
+                    autoBuild:
+                      enabled: true
+                      times:
+                        - "01:00"
+                        - time: "04:00"
+                          buildCommand: ./gradlew fullCheck
+                          name: main@nightly
+                """.trimIndent(),
+            )
+
+            val times =
+                loader
+                    .load(dir)
+                    .branches
+                    .getValue("main")
+                    .autoBuild.times
+
+            times shouldBe
+                listOf(
+                    AutoBuildSlot("01:00"),
+                    AutoBuildSlot("04:00", "./gradlew fullCheck", "main@nightly"),
+                )
+            // config:print round-trip: a slot without its own command serializes back to the plain string
+            loader.toYaml(times) shouldBe
+                "- \"01:00\"\n- time: \"04:00\"\n  buildCommand: \"./gradlew fullCheck\"\n  name: \"main@nightly\"\n"
+        }
+
         test("repo install config overrides project config for same keys") {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(
