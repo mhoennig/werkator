@@ -129,3 +129,7 @@ The watcher's new local-ref fast-forward logged nothing, because `~/hs.hsadmin.n
 Update to v0.9.12 (2026-08-26): same procedure, `~/opt/gittally.0.9.11.bak` as the rollback copy; a build was running — interrupted and re-enqueued by the startup recovery as designed.
 Verified live: `bin/gittally --version` reports v0.9.12 before the start, the service is `active`, `/` shows v0.9.12, and the recovery re-enqueued exactly one build per affected branch (the pre-fix duplicate queue entries were collapsed by `markStaleRunningAsInterrupted` + `latestPerBranch`).
 Shipped fixes: prune never removes queued/running results (a branch deleted mid-build stays visible), and manual triggers dedup against an already active build of the same branch and commit.
+
+Update to v0.9.13 (2026-08-28): same procedure, no build was running, `~/opt/gittally.0.9.12.bak` as the rollback copy.
+Verified live: `bin/gittally --version` reports v0.9.13 before the start, the service is `active`, `/` answers 200 with v0.9.13 in the footer, `/api/builds/latest` carries the new `name` field, and the watcher polls without errors.
+Shipped feature: an `autoBuild.times` entry can carry its own `buildCommand` and `name` — a named nightly slot (e.g. `master@nightly`) gets its own branches-view row, retention pool, and permanent latest-green link; restart/retry/recovery repeat a build with its original command and name.
