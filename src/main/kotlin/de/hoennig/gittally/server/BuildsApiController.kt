@@ -53,7 +53,7 @@ class BuildsApiController(
 
     private fun BuildResult.isLatestGreen(): Boolean = repository.latestGreenFor(name)?.artifactKey == artifactKey
 
-    /** The currently executing builds — several are possible, up to `builds.maxConcurrent`. */
+    /** The currently executing builds — several are possible, up to `executor.maxConcurrent`. */
     @GetMapping("/api/builds/current")
     fun current(): List<CurrentBuildDto> {
         val results = repository.history()
@@ -88,8 +88,8 @@ class BuildsApiController(
     /**
      * Re-enqueues the last recorded commit of the build name [branch] — or the origin
      * head for a branch never built, so the branches view can trigger first builds like
-     * legacy. A restarted auto-slot build re-runs the command its slot dictated, under
-     * the slot's name.
+     * legacy. A restarted build re-runs its recorded build definition, with the
+     * settings from the current configuration.
      * The name is a parameter, not a path variable, because branch names may contain
      * slashes (Tomcat rejects encoded slashes in the path by default).
      */

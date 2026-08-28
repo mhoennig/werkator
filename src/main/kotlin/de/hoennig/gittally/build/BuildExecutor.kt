@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
- * Runs builds asynchronously: up to `builds.maxConcurrent` branches at the same time
+ * Runs builds asynchronously: up to `executor.maxConcurrent` branches at the same time
  * (default 1), but never more than one build per branch. Each branch builds in its
  * own git worktree via [BranchWorkspaces], never in the primary checkout.
  * Every status transition is persisted via the [BuildResultRepository], published
@@ -50,7 +50,7 @@ class BuildExecutor(
     /** All accepted, not yet finished builds by artifact key — queued and running. */
     private val builds = ConcurrentHashMap<String, ActiveBuild>()
 
-    /** Global concurrency limit; sized from `builds.maxConcurrent` on first use. */
+    /** Global concurrency limit; sized from `executor.maxConcurrent` on first use. */
     @Volatile
     private var slots: Semaphore? = null
 
@@ -116,12 +116,12 @@ class BuildExecutor(
             )
         repository.append(pending)
         eventPublisher.publishEvent(BuildStatusChangedEvent(pending))
-        val build = ActiveBuild(runningBuild, workingDir)
-        builds[runningBuild.artifactKey] = build
-        publishGiteaStatus(build, BuildStatus.PENDING, duration = null)
+        val activeBuild = ActiveBuild(runningBuild, workingDir)
+        builds[runningBuild.artifactKey] = activeBuild
+        publishGiteaStatus(activeBuild, BuildStatus.PENDING, duration = null)
         branchWorkers
             .computeIfAbsent(branch) { serialWorker(it) }
-            .submit { execute(build) }
+            .submit { execute(activeBuild) }
         return runningBuild
     }
 
@@ -232,7 +232,7 @@ class BuildExecutor(
 
     /**
      * The semaphore is sized once from the first build's config;
-     * changing `builds.maxConcurrent` requires a restart.
+     * changing `executor.maxConcurrent` requires a restart.
      */
     private fun slotsFor(workingDir: Path): Semaphore {
         slots?.let { return it }
@@ -241,7 +241,7 @@ class BuildExecutor(
             val maxConcurrent =
                 configLoader
                     .load(workingDir)
-                    .builds.maxConcurrent
+                    .executor.maxConcurrent
                     .coerceAtLeast(1)
             return Semaphore(maxConcurrent, true).also { slots = it }
         }

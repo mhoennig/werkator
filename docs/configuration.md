@@ -24,13 +24,13 @@ This layer applies **only** to the build itself. A pinned set is always taken fr
 install/project config and can never be set from the worktree:
 
 - secrets and server-side settings: the whole `git`, `gitea`, and `server` sections;
-- the whole `builds` section: build definitions and `maxConcurrent`;
+- the whole `builds` (build definitions) and `executor` sections;
 - the container sandbox policy: `docker.enabled` and `docker.network`.
 
 This keeps a branch from disabling its own build container, changing its network mode, or
-reaching credentials. The whole `builds` section (build definitions and `maxConcurrent`)
-and the deprecated `autoBuild` schedules are pinned too — jobs and their triggers are
-server-side decisions made before a build worktree exists.
+reaching credentials. Jobs and their triggers are server-side decisions made before a
+build worktree exists, so the deprecated `autoBuild` schedules are read from the repo
+install/project config as well.
 
 ## Inspect the Effective Config
 
@@ -85,14 +85,17 @@ gitea:
   repo: my-repo                      # repository name
   statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
 
-# Build execution and named build definitions (jobs, see notes below).
-# "maxConcurrent" is a reserved key; every other key names a build definition.
-builds:
-  # How many branches may build at the same time.
+# Build execution settings, enforced for all builds regardless of their trigger
+# (watcher, UI restart, CLI build/retry).
+executor:
+  # How many builds may run at the same time.
   # At most one build per branch runs regardless; each branch builds in its own
   # git worktree under .git/gittally/worktrees/, never in the primary checkout.
   # Changing this value requires a restart.
   maxConcurrent: 1
+
+# Named build definitions (jobs, see notes below); every key names a build.
+builds:
   # Implicit unless overridden: the default build runs on push over all branches
   # with the branch's regular settings — exactly the behavior without any
   # build definitions. Set onPush: false here to disable on-push builds.
@@ -245,7 +248,7 @@ For such origins, disable all gates globally with `watcher.pullRequestGate: fals
 
 ### Notes on `builds` (build definitions)
 
-Next to the reserved execution key `maxConcurrent`, every key of the `builds` section names a build definition (a job) over the branches — ADR 0007.
+Every key of the `builds` section names a build definition (a job) over the branches — ADR 0007.
 A build definition has triggers, a branch selector, and build-setting overrides.
 
 Triggers: `onPush: true` builds every new commit of the selected branches; `atTimes: ["HH:MM", …]` rebuilds their heads once per day and slot (UTC).
@@ -259,7 +262,7 @@ The `branches.<name>.requirePullRequest` gate stays a branch property and gates 
 Overrides: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, and the docker image keys (`image`, `dockerfile`, `context`, `env`).
 The effective settings of one build on one branch merge in this order: defaults → `branches.default` → `branches.<branch>` → the worktree's committed `.gittally.yml` → the build definition's overrides.
 Unset keys fall back; the definition wins last because it is the job.
-The whole `builds` section is pinned: it always comes from the repo install/project config, and the `.gittally.yml` committed on a branch can neither define jobs nor change `maxConcurrent`.
+The `builds` and `executor` sections are pinned: they always come from the repo install/project config, and the `.gittally.yml` committed on a branch can neither define jobs nor change the concurrency.
 
 The implicit `default` build (`onPush: true`, all branches) preserves the behavior without any definitions; defining other builds does not disable it, `builds.default.onPush: false` does.
 The `default` build records under the plain branch name; every other build records under `<branch>@<name>` with its own row in the branches view (sorted after its branch), its own `retentionPerBranch` count, latest status, and permanent latest-green artifact link.
@@ -270,6 +273,7 @@ The builds still run in their branch's worktree, one build per branch at a time,
 
 `branches.<name>.autoBuild` (`enabled` + `times`) is the deprecated pre-ADR-0007 schedule, kept for compatibility: it rebuilds the branch's own pool with its regular command and logs a deprecation warning.
 `autoBuild.times` entries carrying their own `buildCommand`/`name` (a short-lived v0.9.13 syntax) are no longer supported — use a build definition.
+The concurrency limit that used to live in this section moved to `executor.maxConcurrent` without an alias — a leftover `builds.maxConcurrent` key is rejected as an invalid build definition.
 
 ### Notes on `watcher.fastForwardLocalRefs`
 

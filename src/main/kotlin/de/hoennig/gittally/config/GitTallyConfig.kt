@@ -1,18 +1,21 @@
 package de.hoennig.gittally.config
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class GitTallyConfig(
     val server: ServerConfig = ServerConfig(),
     val git: GitConfig = GitConfig(),
     val gitea: GiteaConfig = GiteaConfig(),
-    val builds: BuildsConfig = BuildsConfig(),
+    val executor: ExecutorConfig = ExecutorConfig(),
     val artifacts: ArtifactsConfig = ArtifactsConfig(),
     val watcher: WatcherConfig = WatcherConfig(),
     val branches: Map<String, BranchConfig> = mapOf("default" to BranchConfig()),
     /**
-     * Named build definitions (jobs) over the branches (ADR 0007). The implicit
-     * [BuildDefinition.DEFAULT] build (`onPush` over all branches) applies unless this
-     * map overrides it; see [effectiveBuildDefinitions].
+     * Named build definitions (jobs) over the branches (ADR 0007), the YAML `builds`
+     * section. The implicit [BuildDefinition.DEFAULT] build (`onPush` over all
+     * branches) applies unless this map overrides it; see [effectiveBuildDefinitions].
      */
+    @JsonProperty("builds")
     val buildDefinitions: Map<String, BuildDefinition> = emptyMap(),
 ) {
     /** The configured [buildDefinitions] plus the implicit `default` build unless overridden. */
@@ -76,11 +79,6 @@ data class GiteaConfig(
     val owner: String = "",
     val repo: String = "",
     val statusContext: String = "GitTally",
-)
-
-data class BuildsConfig(
-    /** How many branches may build at the same time; at most one build per branch regardless. */
-    val maxConcurrent: Int = 1,
 )
 
 data class ArtifactsConfig(
@@ -154,6 +152,12 @@ data class DockerConfig(
     val network: String = "",
     /** Additional environment variables set inside the build container. */
     val env: Map<String, String> = emptyMap(),
+)
+
+/** Build execution settings, enforced by the executor for all builds regardless of their trigger. */
+data class ExecutorConfig(
+    /** How many builds may run at the same time; at most one build per branch runs regardless. */
+    val maxConcurrent: Int = 1,
 )
 
 /**

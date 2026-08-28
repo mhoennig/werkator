@@ -150,11 +150,13 @@ class InitCommand(
               repo: ${detected.repo}                      # repository name
               statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
 
-            # Build execution and named build definitions (jobs); "maxConcurrent" is a
-            # reserved key, every other key names a build definition over the branches.
-            builds:
-              # how many branches may build at the same time (at most one build per branch regardless)
+            # Build execution settings, enforced for all builds regardless of their trigger.
+            executor:
+              # how many builds may run at the same time (at most one build per branch regardless)
               maxConcurrent: 1
+
+            # Named build definitions (jobs) over the branches; every key names a build.
+            builds:
               # Example definition — triggers (onPush/atTimes), branch selector
               # (branches/activeWithin), and overrides of the branch settings:
               # pitest:

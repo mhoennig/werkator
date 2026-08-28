@@ -51,28 +51,9 @@ class ConfigLoader {
             if (raw.isEmpty()) {
                 GitTallyConfig()
             } else {
-                yaml.convertValue(splitBuildsSection(mergeBranchDefaults(raw)), GitTallyConfig::class.java)
+                yaml.convertValue(mergeBranchDefaults(raw), GitTallyConfig::class.java)
             }
         return defaultPublicBaseUrl(config)
-    }
-
-    /**
-     * The YAML `builds` section carries the reserved execution key `maxConcurrent`
-     * next to the named build definitions (ADR 0007); the schema separates them into
-     * [GitTallyConfig.builds] and [GitTallyConfig.buildDefinitions].
-     */
-    @Suppress("UNCHECKED_CAST")
-    private fun splitBuildsSection(raw: Map<String, Any?>): Map<String, Any?> {
-        val builds = raw["builds"] as? Map<String, Any?> ?: return raw
-        val definitions = builds.filterKeys { it !in RESERVED_BUILDS_KEYS }
-        if (definitions.isEmpty()) {
-            return raw
-        }
-        return raw +
-            mapOf(
-                "builds" to builds.filterKeys { it in RESERVED_BUILDS_KEYS },
-                "buildDefinitions" to definitions,
-            )
     }
 
     /**
@@ -163,13 +144,10 @@ class ConfigLoader {
     companion object {
         /**
          * Top-level sections a build worktree must never override: secrets, server-side
-         * settings, and the build definitions with their execution settings (a branch
-         * must not be able to redefine jobs or raise concurrency).
+         * settings, the build definitions, and the concurrency limit (a branch must not
+         * be able to redefine jobs or raise concurrency).
          */
-        private val PINNED_TOP_LEVEL_KEYS = setOf("git", "gitea", "server", "builds")
-
-        /** Keys of the YAML `builds` section that are execution settings, not build definitions. */
-        private val RESERVED_BUILDS_KEYS = setOf("maxConcurrent")
+        private val PINNED_TOP_LEVEL_KEYS = setOf("git", "gitea", "server", "builds", "executor")
 
         /** Per-branch `docker` keys the worktree must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")

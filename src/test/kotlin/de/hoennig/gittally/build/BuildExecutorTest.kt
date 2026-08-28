@@ -77,7 +77,7 @@ class BuildExecutorTest : FunSpec() {
         buildRunner: BuildRunner? = null,
     ) = Harness(
         """
-        builds:
+        executor:
           maxConcurrent: $maxConcurrent
         branches:
           default:
@@ -477,7 +477,7 @@ class BuildExecutorTest : FunSpec() {
             val h =
                 Harness(
                     """
-                    builds:
+                    executor:
                       maxConcurrent: 1
                     branches:
                       branch-a:
