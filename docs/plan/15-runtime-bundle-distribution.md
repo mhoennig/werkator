@@ -133,3 +133,7 @@ Shipped fixes: prune never removes queued/running results (a branch deleted mid-
 Update to v0.9.13 (2026-08-28): same procedure, no build was running, `~/opt/gittally.0.9.12.bak` as the rollback copy.
 Verified live: `bin/gittally --version` reports v0.9.13 before the start, the service is `active`, `/` answers 200 with v0.9.13 in the footer, `/api/builds/latest` carries the new `name` field, and the watcher polls without errors.
 Shipped feature: an `autoBuild.times` entry can carry its own `buildCommand` and `name` — a named nightly slot (e.g. `master@nightly`) gets its own branches-view row, retention pool, and permanent latest-green link; restart/retry/recovery repeat a build with its original command and name.
+
+Update to v0.9.14 (2026-08-28): same procedure, `~/opt/gittally.0.9.13.bak` as the rollback copy; a build was running — interrupted and re-enqueued by the startup recovery as designed (now under its recorded build definition `default`).
+Verified live: `bin/gittally --version` reports v0.9.14 before the start, the service is `active`, `/` answers 200 with v0.9.14 in the footer, the watcher polls without errors, and the deprecation warning for `branches.master.autoBuild` appears once in the log.
+Shipped feature: named build definitions (ADR 0007) — the `builds` section defines jobs with `onPush`/`atTimes` triggers, branch selectors (globs, `activeWithin`), and setting overrides; named builds record under `<branch>@<build>` pools; the v0.9.13 per-slot syntax was removed again.
