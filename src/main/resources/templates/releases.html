@@ -7,6 +7,22 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.14 <span class="muted">— 2026-08-28</span></h2>
+        <ul>
+            <li>Named build definitions (ADR 0007): the <code>builds</code> section of
+                <code>.gittally.yml</code> now defines jobs with <code>onPush</code>/<code>atTimes</code>
+                triggers, branch selectors (name globs, <code>activeWithin</code> age filter), and
+                overrides of the branch settings — e.g. a nightly <code>pitest</code> build running a
+                fuller check than the quick on-push builds. A named build records under its own
+                <code>&lt;branch&gt;@&lt;build&gt;</code> pool with its own branches-view row, retention
+                count, and permanent latest-green artifact link.</li>
+            <li>Restart, <code>gittally retry</code>, and the startup recovery re-run a build under its
+                recorded definition, resolving the settings from the current configuration.</li>
+            <li><strong>Changed:</strong> the v0.9.13 per-slot <code>buildCommand</code>/<code>name</code>
+                syntax in <code>autoBuild.times</code> is gone again — use a build definition instead.
+                <code>branches.*.autoBuild</code> with plain times keeps working but is deprecated.</li>
+        </ul>
+
         <h2>v0.9.13 <span class="muted">— 2026-08-28</span></h2>
         <ul>
             <li>A scheduled auto-build slot (<code>autoBuild.times</code> entry) can carry its own
