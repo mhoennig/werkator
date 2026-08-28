@@ -7,6 +7,7 @@ import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.build.GitWorktreeWorkspaces
 import de.hoennig.gittally.config.BranchConfig
+import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.DurationParser
 import de.hoennig.gittally.config.GitTallyConfig
@@ -17,6 +18,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
@@ -47,6 +49,10 @@ class Watcher(
 
     @Volatile
     private var state = WatcherState()
+
+    /** The branches.*.autoBuild deprecation is logged once per watcher instance, not once per poll. */
+    @Volatile
+    private var warnedDeprecatedAutoBuild = false
 
     fun state(): WatcherState = state
 
@@ -109,9 +115,9 @@ class Watcher(
                 // the executor queue did not survive the restart; the re-enqueued build supersedes the stale entry
                 repository.updateByArtifactKey(result.artifactKey) { it.copy(status = BuildStatus.INTERRUPTED) }
             }
-            log.info("restarting unfinished build of branch {}", result.branch)
-            // an interrupted auto-slot build re-runs the command its slot dictated, under its name
-            buildExecutor.startBuild(result.branch, commit, workingDir, result.buildCommandOverride, result.name)
+            log.info("restarting unfinished build {} of branch {}", result.build, result.branch)
+            // the re-run resolves its settings from the current config by the recorded build name
+            buildExecutor.startBuild(result.branch, commit, workingDir, result.build)
         }
     }
 
@@ -187,17 +193,30 @@ class Watcher(
     ) {
         // one ls-remote per poll cycle at most, and only when a due branch requires a pull request
         val pullRequestHeads = lazy { gitService.pullRequestHeads(workingDir) }
+        // one for-each-ref per cycle at most, and only when a definition filters by activeWithin
+        val headCommitTimes = lazy { gitService.originBranchCommitTimes(workingDir) }
+        val definitions = config.effectiveBuildDefinitions()
         val changedLocal =
             gitService
                 .localBranches(workingDir)
                 .filter { it in originBranches && gitService.hasNewCommits(it, workingDir) }
         val newOrigin =
             gitService.newOriginBranches(DurationParser.parse(config.watcher.newBranchMaxAge), workingDir)
-        for (branch in (changedLocal + newOrigin).distinct()) {
-            startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir)
+        val changed = (changedLocal + newOrigin).distinct()
+        for ((buildName, definition) in definitions.filterValues { it.onPush }) {
+            for (branch in changed.filter { selects(definition, it, headCommitTimes) }) {
+                startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir, buildName)
+            }
         }
-        enqueueAutoBuilds(config, originBranches, pullRequestHeads, workingDir)
+        enqueueScheduledBuilds(definitions, config, originBranches, pullRequestHeads, headCommitTimes, workingDir)
+        enqueueDeprecatedAutoBuilds(config, originBranches, pullRequestHeads, workingDir)
     }
+
+    private fun selects(
+        definition: BuildDefinition,
+        branch: String,
+        headCommitTimes: Lazy<Map<String, Instant>>,
+    ): Boolean = definition.selects(branch, { headCommitTimes.value[branch] }, clock.instant())
 
     /**
      * Enqueues a build of the branch's origin head unless one is already pending or
@@ -217,10 +236,9 @@ class Watcher(
         config: GitTallyConfig,
         pullRequestHeads: Lazy<Set<String>>,
         workingDir: Path,
-        buildCommandOverride: String? = null,
-        name: String = branch,
+        build: String = BuildDefinition.DEFAULT,
     ): Boolean {
-        val latest = repository.latestFor(name)
+        val latest = repository.latestFor(BuildDefinition.poolName(branch, build))
         if (latest?.status == BuildStatus.PENDING || latest?.status == BuildStatus.RUNNING) {
             return false
         }
@@ -235,8 +253,8 @@ class Watcher(
             log.info("not enqueueing branch {}: no pull request has head commit {}", branch, commit)
             return false
         }
-        log.info("enqueueing build of branch {} at commit {}", branch, commit)
-        buildExecutor.startBuild(branch, commit, workingDir, buildCommandOverride, name)
+        log.info("enqueueing build {} of branch {} at commit {}", build, branch, commit)
+        buildExecutor.startBuild(branch, commit, workingDir, build)
         return true
     }
 
@@ -245,7 +263,47 @@ class Watcher(
         branch: String,
     ): BranchConfig = config.branches[branch] ?: config.branches["default"] ?: BranchConfig()
 
-    private fun enqueueAutoBuilds(
+    /**
+     * Fires the due `atTimes` slot of every build definition for its selected branches,
+     * once per day and slot per result pool. Rebuilding the already-built commit is
+     * the point of a scheduled build.
+     */
+    private fun enqueueScheduledBuilds(
+        definitions: Map<String, BuildDefinition>,
+        config: GitTallyConfig,
+        originBranches: Set<String>,
+        pullRequestHeads: Lazy<Set<String>>,
+        headCommitTimes: Lazy<Map<String, Instant>>,
+        workingDir: Path,
+    ) {
+        val scheduled = definitions.filterValues { it.atTimes.isNotEmpty() }
+        if (scheduled.isEmpty()) {
+            return
+        }
+        val autoBuildState = FileAutoBuildState(workingDir.resolve(AUTO_BUILDS_FILE))
+        val now = clock.instant()
+        val today = LocalDate.ofInstant(now, ZoneOffset.UTC)
+        val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
+        for ((buildName, definition) in scheduled) {
+            val slot = AutoBuildSlots.latestDueSlot(definition.atTimes, timeOfDay) ?: continue
+            for (branch in originBranches.filter { selects(definition, it, headCommitTimes) }) {
+                val pool = BuildDefinition.poolName(branch, buildName)
+                if (autoBuildState.isTriggered(pool, today, slot)) {
+                    continue
+                }
+                if (startBuildIfDue(branch, allowSameCommit = true, config, pullRequestHeads, workingDir, buildName)) {
+                    autoBuildState.markTriggered(pool, today, slot)
+                }
+            }
+        }
+    }
+
+    /**
+     * The pre-ADR-0007 `branches.<name>.autoBuild` schedule, kept for compatibility:
+     * a daily rebuild of the branch's own pool with its regular command — exactly a
+     * `builds` entry with `atTimes` and a single-branch selector would do.
+     */
+    private fun enqueueDeprecatedAutoBuilds(
         config: GitTallyConfig,
         originBranches: Set<String>,
         pullRequestHeads: Lazy<Set<String>>,
@@ -258,33 +316,28 @@ class Watcher(
         if (autoBuildBranches.isEmpty()) {
             return
         }
+        if (!warnedDeprecatedAutoBuild) {
+            warnedDeprecatedAutoBuild = true
+            log.warn(
+                "branches.*.autoBuild is deprecated; define a build with atTimes in the builds section instead (branches: {})",
+                autoBuildBranches.keys.joinToString(", "),
+            )
+        }
         val autoBuildState = FileAutoBuildState(workingDir.resolve(AUTO_BUILDS_FILE))
         val now = clock.instant()
         val today = LocalDate.ofInstant(now, ZoneOffset.UTC)
         val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
         for ((branch, branchConfig) in autoBuildBranches) {
             val slot = AutoBuildSlots.latestDueSlot(branchConfig.autoBuild.times, timeOfDay) ?: continue
-            if (autoBuildState.isTriggered(branch, today, slot.time)) {
+            if (autoBuildState.isTriggered(branch, today, slot)) {
                 continue
             }
             if (branch !in originBranches) {
                 log.warn("skipping auto build of branch {}: branch is not on origin", branch)
                 continue
             }
-            // rebuilding the already-built commit is the point of an auto build; a slot
-            // with its own command dictates it, and a named slot records under its name
-            val started =
-                startBuildIfDue(
-                    branch,
-                    allowSameCommit = true,
-                    config,
-                    pullRequestHeads,
-                    workingDir,
-                    slot.buildCommand.ifBlank { null },
-                    slot.name.ifBlank { branch },
-                )
-            if (started) {
-                autoBuildState.markTriggered(branch, today, slot.time)
+            if (startBuildIfDue(branch, allowSameCommit = true, config, pullRequestHeads, workingDir)) {
+                autoBuildState.markTriggered(branch, today, slot)
             }
         }
     }

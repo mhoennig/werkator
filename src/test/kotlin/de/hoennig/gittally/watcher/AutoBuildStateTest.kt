@@ -1,6 +1,5 @@
 package de.hoennig.gittally.watcher
 
-import de.hoennig.gittally.config.AutoBuildSlot
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -14,27 +13,19 @@ import java.time.LocalTime
 class AutoBuildStateTest : FunSpec() {
     private fun stateFile(): Path = Files.createTempDirectory("gittally-autobuild-test").resolve("auto-builds.json")
 
-    private fun slots(vararg times: String) = times.map { AutoBuildSlot(it) }
-
     init {
         test("latestDueSlot picks the latest slot at or before now") {
-            val times = slots("01:00", "11:00", "13:00")
+            val times = listOf("01:00", "11:00", "13:00")
 
             AutoBuildSlots.latestDueSlot(times, LocalTime.parse("00:59")).shouldBeNull()
-            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("01:00"))?.time shouldBe "01:00"
-            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("12:00"))?.time shouldBe "11:00"
-            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("23:59"))?.time shouldBe "13:00"
-        }
-
-        test("latestDueSlot answers the whole slot including its build command") {
-            val slot = AutoBuildSlot(time = "01:00", buildCommand = "./gradlew fullCheck")
-
-            AutoBuildSlots.latestDueSlot(listOf(slot), LocalTime.parse("02:00")) shouldBe slot
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("01:00")) shouldBe "01:00"
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("12:00")) shouldBe "11:00"
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("23:59")) shouldBe "13:00"
         }
 
         test("latestDueSlot skips invalid slots but keeps the valid ones") {
-            AutoBuildSlots.latestDueSlot(slots("25:99", "nope", "02:00"), LocalTime.parse("12:00"))?.time shouldBe "02:00"
-            AutoBuildSlots.latestDueSlot(slots("25:99"), LocalTime.parse("12:00")).shouldBeNull()
+            AutoBuildSlots.latestDueSlot(listOf("25:99", "nope", "02:00"), LocalTime.parse("12:00")) shouldBe "02:00"
+            AutoBuildSlots.latestDueSlot(listOf("25:99"), LocalTime.parse("12:00")).shouldBeNull()
         }
 
         test("latestDueSlot of an empty slot list is null") {

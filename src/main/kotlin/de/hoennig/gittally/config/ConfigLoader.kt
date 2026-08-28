@@ -29,10 +29,11 @@ class ConfigLoader {
      * `docker.image`/`env`, …).
      *
      * The [pinned][stripPinned] keys are the exception: secrets (`git`), `gitea`/`server`
-     * settings, and the docker sandbox policy (`docker.enabled`/`docker.network`) always
-     * come from `.git`/primary — a branch must never be able to disable its own container,
-     * change its network mode, or reach the credentials. They are stripped from the
-     * worktree layer before it is merged, so a worktree cannot set them at all.
+     * settings, the whole `builds` section (job definitions and execution settings), and
+     * the docker sandbox policy (`docker.enabled`/`docker.network`) always come from
+     * `.git`/primary — a branch must never be able to disable its own container, change
+     * its network mode, redefine jobs, or reach the credentials. They are stripped from
+     * the worktree layer before it is merged, so a worktree cannot set them at all.
      *
      * With no worktree `.gittally.yml` this is identical to [load].
      */
@@ -50,9 +51,28 @@ class ConfigLoader {
             if (raw.isEmpty()) {
                 GitTallyConfig()
             } else {
-                yaml.convertValue(mergeBranchDefaults(raw), GitTallyConfig::class.java)
+                yaml.convertValue(splitBuildsSection(mergeBranchDefaults(raw)), GitTallyConfig::class.java)
             }
         return defaultPublicBaseUrl(config)
+    }
+
+    /**
+     * The YAML `builds` section carries the reserved execution key `maxConcurrent`
+     * next to the named build definitions (ADR 0007); the schema separates them into
+     * [GitTallyConfig.builds] and [GitTallyConfig.buildDefinitions].
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun splitBuildsSection(raw: Map<String, Any?>): Map<String, Any?> {
+        val builds = raw["builds"] as? Map<String, Any?> ?: return raw
+        val definitions = builds.filterKeys { it !in RESERVED_BUILDS_KEYS }
+        if (definitions.isEmpty()) {
+            return raw
+        }
+        return raw +
+            mapOf(
+                "builds" to builds.filterKeys { it in RESERVED_BUILDS_KEYS },
+                "buildDefinitions" to definitions,
+            )
     }
 
     /**
@@ -141,8 +161,15 @@ class ConfigLoader {
     }
 
     companion object {
-        /** Top-level sections a build worktree must never override: secrets and server-side settings. */
-        private val PINNED_TOP_LEVEL_KEYS = setOf("git", "gitea", "server")
+        /**
+         * Top-level sections a build worktree must never override: secrets, server-side
+         * settings, and the build definitions with their execution settings (a branch
+         * must not be able to redefine jobs or raise concurrency).
+         */
+        private val PINNED_TOP_LEVEL_KEYS = setOf("git", "gitea", "server", "builds")
+
+        /** Keys of the YAML `builds` section that are execution settings, not build definitions. */
+        private val RESERVED_BUILDS_KEYS = setOf("maxConcurrent")
 
         /** Per-branch `docker` keys the worktree must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")

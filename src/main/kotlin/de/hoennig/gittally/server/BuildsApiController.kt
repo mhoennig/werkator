@@ -5,6 +5,7 @@ import de.hoennig.gittally.build.BuildExecutor
 import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
+import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.git.GitService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -103,13 +104,12 @@ class BuildsApiController(
             latest?.commit
                 ?: gitService.originHeadCommit(branch, workingDir)
                 ?: return notFound("branch '$branch' has no recorded build and no origin counterpart")
-        // a restarted build repeats what it originally ran: same branch, name, and command
+        // a restarted build re-runs its recorded build definition (settings from the current config)
         val running =
             buildExecutor.startBuild(
                 branch = latest?.branch ?: branch,
                 commit = commit,
-                buildCommandOverride = latest?.buildCommandOverride,
-                name = latest?.name ?: branch,
+                build = latest?.build ?: BuildDefinition.DEFAULT,
             )
         return ResponseEntity.accepted().body(
             BuildResultDto(

@@ -1,5 +1,6 @@
 package de.hoennig.gittally.build
 
+import de.hoennig.gittally.config.BuildDefinition
 import java.nio.file.Path
 import java.time.Instant
 
@@ -7,8 +8,10 @@ import java.time.Instant
 data class RunningBuild(
     /** The git branch being built. */
     val branch: String,
-    /** The build name the result is recorded under; the branch name unless a named auto-build slot set its own. */
-    val name: String = branch,
+    /** The build definition (job) this build runs; its settings are resolved from config at run time. */
+    val build: String = BuildDefinition.DEFAULT,
+    /** The pool the result is recorded under: the branch, or `<branch>@<build>` for non-default builds. */
+    val name: String = BuildDefinition.poolName(branch, build),
     val commit: String,
     val artifactKey: String,
     val startedAt: Instant,

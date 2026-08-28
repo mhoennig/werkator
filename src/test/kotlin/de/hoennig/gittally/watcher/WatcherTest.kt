@@ -10,8 +10,8 @@ import de.hoennig.gittally.build.GitWorktreeWorkspaces
 import de.hoennig.gittally.build.RunningBuild
 import de.hoennig.gittally.config.ArtifactsConfig
 import de.hoennig.gittally.config.AutoBuildConfig
-import de.hoennig.gittally.config.AutoBuildSlot
 import de.hoennig.gittally.config.BranchConfig
+import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.GitTallyConfig
 import de.hoennig.gittally.config.WatcherConfig
@@ -75,11 +75,12 @@ class WatcherTest : FunSpec() {
             every { gitService.newOriginBranches(any(), any()) } returns emptyList()
             every { gitService.hasNewCommits(any(), any()) } returns false
             every { gitService.originHeadCommit(any(), any()) } returns null
+            every { gitService.originBranchCommitTimes(any()) } returns emptyMap()
             every { gitService.pullRequestHeads(any()) } returns emptySet()
             every { gitService.worktreePrune(any()) } returns Unit
             every { gitService.fastForwardLocalBranches(any()) } returns emptyList()
             every { buildExecutor.currentBuilds() } returns emptyList()
-            every { buildExecutor.startBuild(any(), any(), any(), anyNullable(), any()) } answers {
+            every { buildExecutor.startBuild(any(), any(), any(), any()) } answers {
                 val branch = firstArg<String>()
                 val commit = secondArg<String>()
                 startedBuilds += branch to commit
@@ -93,19 +94,17 @@ class WatcherTest : FunSpec() {
             branch: String,
             status: BuildStatus,
             commit: String = "commit-0",
-            buildCommandOverride: String? = null,
-            name: String = branch,
+            build: String = BuildDefinition.DEFAULT,
         ): BuildResult {
             val startedAt = noon.minusSeconds(3600).plusSeconds(seedCounter++)
             val result =
                 BuildResult(
                     branch = branch,
-                    name = name,
+                    build = build,
                     commit = commit,
                     status = status,
                     startedAt = startedAt,
-                    buildCommandOverride = buildCommandOverride,
-                    artifactKey = ArtifactKeys.buildKey(branch, startedAt),
+                    artifactKey = ArtifactKeys.buildKey(BuildDefinition.poolName(branch, build), startedAt),
                 )
             repository.append(result)
             return result
@@ -141,7 +140,7 @@ class WatcherTest : FunSpec() {
             branches =
                 mapOf(
                     "default" to BranchConfig(),
-                    "main" to BranchConfig(autoBuild = AutoBuildConfig(enabled = true, times = times.map { AutoBuildSlot(it) })),
+                    "main" to BranchConfig(autoBuild = AutoBuildConfig(enabled = true, times = times.toList())),
                 ),
         )
 
@@ -354,7 +353,7 @@ class WatcherTest : FunSpec() {
                                 "main" to
                                     BranchConfig(
                                         requirePullRequest = true,
-                                        autoBuild = AutoBuildConfig(enabled = true, times = listOf(AutoBuildSlot("11:00"))),
+                                        autoBuild = AutoBuildConfig(enabled = true, times = listOf("11:00")),
                                     ),
                             ),
                     ),
@@ -379,69 +378,100 @@ class WatcherTest : FunSpec() {
             harness.watcher.poll(harness.workingDir)
 
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-abc")
-            // a plain HH:MM slot runs the branch's regular buildCommand — no override
-            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), null) }
+            // the deprecated branch schedule rebuilds the branch's own pool with the default build
+            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), BuildDefinition.DEFAULT) }
             harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
         }
 
-        test("an auto-build slot with its own build command dictates that command for the build") {
+        test("a scheduled build definition fires for its selected branches under its own pool") {
             val harness =
                 Harness(
                     GitTallyConfig(
-                        branches =
+                        buildDefinitions =
                             mapOf(
-                                "default" to BranchConfig(),
-                                "main" to
-                                    BranchConfig(
-                                        autoBuild =
-                                            AutoBuildConfig(
-                                                enabled = true,
-                                                times = listOf(AutoBuildSlot("11:00", "./gradlew fullCheck")),
-                                            ),
+                                "pitest" to
+                                    BuildDefinition(
+                                        atTimes = listOf("11:00"),
+                                        branches = listOf("main", "release/*"),
                                     ),
                             ),
                     ),
                 )
-            harness.seed("main", BuildStatus.SUCCESS, commit = "commit-abc")
-            every { harness.gitService.originBranches(any()) } returns listOf("main")
-            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
-
-            harness.watcher.poll(harness.workingDir)
-
-            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), "./gradlew fullCheck") }
-            harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
-        }
-
-        test("a named auto-build slot records under its name, even while the branch's regular build is running") {
-            val harness =
-                Harness(
-                    GitTallyConfig(
-                        branches =
-                            mapOf(
-                                "default" to BranchConfig(),
-                                "main" to
-                                    BranchConfig(
-                                        autoBuild =
-                                            AutoBuildConfig(
-                                                enabled = true,
-                                                times = listOf(AutoBuildSlot("11:00", "./gradlew fullCheck", "main@nightly")),
-                                            ),
-                                    ),
-                            ),
-                    ),
-                )
-            // the branch's own pool is busy; the named slot has its own pool and is not blocked by it
+            // the branch's own pool is busy; the pitest pool is its own and not blocked by it
             harness.seed("main", BuildStatus.RUNNING, commit = "commit-abc")
-            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.originBranches(any()) } returns listOf("main", "release/1.x", "feature/x")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
+            every { harness.gitService.originHeadCommit("release/1.x", any()) } returns "commit-rel"
+
+            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.workingDir)
+
+            // glob selector: main and release/1.x fire once, feature/x is not selected
+            harness.startedBuilds shouldContainExactlyInAnyOrder
+                listOf("main" to "commit-abc", "release/1.x" to "commit-rel")
+            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), "pitest") }
+            harness.autoBuildState().isTriggered("main@pitest", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
+        }
+
+        test("a scheduled build definition with activeWithin skips branches without recent commits") {
+            val harness =
+                Harness(
+                    GitTallyConfig(
+                        buildDefinitions =
+                            mapOf("pitest" to BuildDefinition(atTimes = listOf("11:00"), activeWithin = "24h")),
+                    ),
+                )
+            every { harness.gitService.originBranches(any()) } returns listOf("active", "dormant")
+            every { harness.gitService.originHeadCommit("active", any()) } returns "commit-act"
+            every { harness.gitService.originBranchCommitTimes(any()) } returns
+                mapOf(
+                    "active" to noon.minusSeconds(3600),
+                    "dormant" to noon.minus(Duration.ofDays(10)),
+                )
 
             harness.watcher.poll(harness.workingDir)
 
-            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), "./gradlew fullCheck", "main@nightly") }
-            harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
+            harness.startedBuilds shouldContainExactly listOf("active" to "commit-act")
+            verify { harness.buildExecutor.startBuild("active", "commit-act", any(), "pitest") }
         }
 
-        test("a commit-triggered build never carries a build command override") {
+        test("an onPush build definition builds the changed branches it selects") {
+            val harness =
+                Harness(
+                    GitTallyConfig(
+                        buildDefinitions =
+                            mapOf("lint" to BuildDefinition(onPush = true, branches = listOf("main"))),
+                    ),
+                )
+            every { harness.gitService.originBranches(any()) } returns listOf("main", "feature/x")
+            every { harness.gitService.localBranches(any()) } returns listOf("main", "feature/x")
+            every { harness.gitService.hasNewCommits(any(), any()) } returns true
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
+            every { harness.gitService.originHeadCommit("feature/x", any()) } returns "commit-feat"
+
+            harness.watcher.poll(harness.workingDir)
+
+            // the implicit default build covers both branches; lint only selects main
+            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild("feature/x", "commit-feat", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), "lint") }
+            verify(exactly = 0) { harness.buildExecutor.startBuild("feature/x", "commit-feat", any(), "lint") }
+        }
+
+        test("builds.default with onPush false disables the implicit on-push build") {
+            val harness =
+                Harness(GitTallyConfig(buildDefinitions = mapOf("default" to BuildDefinition(onPush = false))))
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.localBranches(any()) } returns listOf("main")
+            every { harness.gitService.hasNewCommits("main", any()) } returns true
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.startedBuilds.shouldBeEmpty()
+        }
+
+        test("a commit-triggered build belongs to the default build definition") {
             val harness = Harness()
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.localBranches(any()) } returns listOf("main")
@@ -450,7 +480,7 @@ class WatcherTest : FunSpec() {
 
             harness.watcher.poll(harness.workingDir)
 
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), null) }
+            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
         }
 
         test("an auto-build slot stays untriggered while the branch is still building") {
@@ -496,21 +526,15 @@ class WatcherTest : FunSpec() {
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-2")
         }
 
-        test("startup recovery re-enqueues an interrupted auto-slot build with its recorded command and name") {
+        test("startup recovery re-enqueues an interrupted build under its recorded build definition") {
             val harness = Harness()
-            harness.seed(
-                "main",
-                BuildStatus.INTERRUPTED,
-                commit = "commit-1",
-                buildCommandOverride = "./gradlew fullCheck",
-                name = "main@nightly",
-            )
+            harness.seed("main", BuildStatus.INTERRUPTED, commit = "commit-1", build = "pitest")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-1"
 
             harness.watcher.recoverOnStartup(harness.workingDir)
 
-            // otherwise a restart mid-nightly-build would repeat it with the regular command, in the wrong pool
-            verify { harness.buildExecutor.startBuild("main", "commit-1", any(), "./gradlew fullCheck", "main@nightly") }
+            // otherwise a restart mid-nightly-build would repeat it as a regular build in the wrong pool
+            verify { harness.buildExecutor.startBuild("main", "commit-1", any(), "pitest") }
         }
 
         test("startup recovery closes out an orphaned PENDING build of a branch gone from origin") {

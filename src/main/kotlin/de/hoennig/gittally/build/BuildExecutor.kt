@@ -1,6 +1,7 @@
 package de.hoennig.gittally.build
 
 import de.hoennig.gittally.config.BranchConfig
+import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.gitea.GiteaClient
 import org.slf4j.LoggerFactory
@@ -67,27 +68,25 @@ class BuildExecutor(
      * not cancel-requested), that build is returned instead of stacking a duplicate —
      * a double-triggered UI restart must not queue the same commit twice. Re-running
      * a *finished* build stays possible; this only guards the active queue.
-     * A [buildCommandOverride] (from an auto-build slot with its own command) replaces
-     * the branch's configured `buildCommand`; since the command differs, such a build
-     * never counts as a duplicate of a regular build of the same commit.
-     * A [name] (from a named auto-build slot) records the result under that name
-     * instead of the branch name, giving the slot its own history and retention pool;
-     * the build still runs in the branch's worktree, serialized with the branch's
-     * other builds.
+     * The [build] names the build definition (job, ADR 0007) this run belongs to; its
+     * settings — command overrides and the result pool `<branch>@<build>` — are
+     * resolved from the current configuration when the build starts executing. A
+     * non-default build has its own pool, so it never counts as a duplicate of the
+     * branch's regular build of the same commit; it still runs in the branch's
+     * worktree, serialized with the branch's other builds.
      */
     fun startBuild(
         branch: String,
         commit: String,
         workingDir: Path = Paths.get("."),
-        buildCommandOverride: String? = null,
-        name: String = branch,
+        build: String = BuildDefinition.DEFAULT,
     ): RunningBuild {
+        val name = BuildDefinition.poolName(branch, build)
         val duplicate =
             builds.values.firstOrNull {
                 !it.cancelled.get() &&
                     it.runningBuild.name == name &&
-                    it.runningBuild.commit == commit &&
-                    it.runningBuild.buildCommandOverride == buildCommandOverride
+                    it.runningBuild.commit == commit
             }
         if (duplicate != null) {
             log.info("build of branch {} at commit {} is already queued or running; not queueing a duplicate", branch, commit)
@@ -98,23 +97,21 @@ class BuildExecutor(
         val runningBuild =
             RunningBuild(
                 branch = branch,
-                name = name,
+                build = build,
                 commit = commit,
                 artifactKey = ArtifactKeys.buildKey(name, startedAt),
                 startedAt = startedAt,
                 stagingDir = stagingDir,
                 liveLogFile = stagingDir.resolve(LIVE_LOG_FILE),
-                buildCommandOverride = buildCommandOverride,
             )
         val pending =
             BuildResult(
                 branch = branch,
-                name = name,
+                build = build,
                 commit = commit,
                 status = BuildStatus.PENDING,
                 startedAt = startedAt,
                 duration = null,
-                buildCommandOverride = buildCommandOverride,
                 artifactKey = runningBuild.artifactKey,
             )
         repository.append(pending)
@@ -259,8 +256,8 @@ class BuildExecutor(
         build: ActiveBuild,
         workspace: Path,
     ): Int {
-        val branchConfig = branchConfig(build.runningBuild.branch, build.workingDir, workspace)
-        val buildCommand = build.runningBuild.buildCommandOverride ?: branchConfig.buildCommand
+        val branchConfig = buildConfig(build.runningBuild, build.workingDir, workspace)
+        val buildCommand = branchConfig.buildCommand
         val stagingDir = build.runningBuild.stagingDir
         Files.newOutputStream(stagingDir.resolve(branchConfig.stdoutLog)).use { stdoutLog ->
             Files.newOutputStream(stagingDir.resolve(branchConfig.stderrLog)).use { stderrLog ->
@@ -374,13 +371,12 @@ class BuildExecutor(
                 )
             } ?: BuildResult(
                 branch = runningBuild.branch,
-                name = runningBuild.name,
+                build = runningBuild.build,
                 commit = runningBuild.commit,
                 status = status,
                 startedAt = runningBuild.startedAt,
                 runningSince = runningBuild.runningSince,
                 duration = duration,
-                buildCommandOverride = runningBuild.buildCommandOverride,
                 artifactKey = runningBuild.artifactKey,
             ).also { repository.append(it) }
         eventPublisher.publishEvent(BuildStatusChangedEvent(updated))
@@ -433,15 +429,12 @@ class BuildExecutor(
         val header =
             buildString {
                 appendLine("building branch: ${runningBuild.branch}")
-                if (runningBuild.name != runningBuild.branch) {
-                    appendLine("build name: ${runningBuild.name}")
+                if (runningBuild.build != BuildDefinition.DEFAULT) {
+                    appendLine("build: ${runningBuild.build} (recorded as ${runningBuild.name})")
                 }
                 appendLine("commit: ${runningBuild.commit}")
                 appendLine("started: ${runningBuild.startedAt}")
                 appendLine("workspace: $workspace")
-                if (runningBuild.buildCommandOverride != null) {
-                    appendLine("triggered by: auto-build slot with its own build command")
-                }
                 appendLine("build command: $buildCommand")
                 if (branchConfig.cleanCommand.isNotBlank()) {
                     appendLine("clean command: ${branchConfig.cleanCommand}")
@@ -470,14 +463,22 @@ class BuildExecutor(
         }
     }
 
-    /** The build config for [branch], with the build [worktree]'s `.gittally.yml` layered on top (see [ConfigLoader.loadForWorktree]). */
-    private fun branchConfig(
-        branch: String,
+    /**
+     * The effective settings of this run: the branch config with the build [worktree]'s
+     * `.gittally.yml` layered on top (see [ConfigLoader.loadForWorktree]), then the
+     * build definition's overrides applied last — the job wins, and it always comes
+     * from the primary config (`builds` is a pinned section). An unknown build name
+     * (a stale result whose job was removed) falls back to the plain branch settings.
+     */
+    private fun buildConfig(
+        runningBuild: RunningBuild,
         workingDir: Path,
         worktree: Path,
     ): BranchConfig {
-        val branches = configLoader.loadForWorktree(workingDir, worktree).branches
-        return branches[branch] ?: branches["default"] ?: BranchConfig()
+        val config = configLoader.loadForWorktree(workingDir, worktree)
+        val branchConfig = config.branches[runningBuild.branch] ?: config.branches["default"] ?: BranchConfig()
+        val definition = config.effectiveBuildDefinitions()[runningBuild.build] ?: return branchConfig
+        return definition.applyTo(branchConfig)
     }
 
     private class ActiveBuild(

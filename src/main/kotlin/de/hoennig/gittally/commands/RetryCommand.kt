@@ -50,9 +50,9 @@ class RetryCommand(
                 println("skipping branch ${result.branch}: gone from origin")
                 continue
             }
-            println("retrying branch ${result.branch} at commit ${commit.take(12)}")
-            // a failed auto-slot build retries with its recorded command, under its name
-            val status = consoleBuildRunner.buildAndStream(result.branch, commit, workingDir, result.buildCommandOverride, result.name)
+            println("retrying build ${result.name} at commit ${commit.take(12)}")
+            // a failed build retries its recorded build definition (settings from the current config)
+            val status = consoleBuildRunner.buildAndStream(result.branch, commit, workingDir, result.build)
             if (status != BuildStatus.SUCCESS) {
                 anyFailed = true
             }

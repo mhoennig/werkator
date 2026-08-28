@@ -24,12 +24,13 @@ This layer applies **only** to the build itself. A pinned set is always taken fr
 install/project config and can never be set from the worktree:
 
 - secrets and server-side settings: the whole `git`, `gitea`, and `server` sections;
+- the whole `builds` section: build definitions and `maxConcurrent`;
 - the container sandbox policy: `docker.enabled` and `docker.network`.
 
 This keeps a branch from disabling its own build container, changing its network mode, or
-reaching credentials. Watcher decisions that happen before a build exists — the whole
-`autoBuild` section (schedule and slot commands) and the `requirePullRequest` gate — are
-read from the repo install/project config, because there is no worktree at that point.
+reaching credentials. The whole `builds` section (build definitions and `maxConcurrent`)
+and the deprecated `autoBuild` schedules are pinned too — jobs and their triggers are
+server-side decisions made before a build worktree exists.
 
 ## Inspect the Effective Config
 
@@ -84,13 +85,30 @@ gitea:
   repo: my-repo                      # repository name
   statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
 
-# Build execution.
+# Build execution and named build definitions (jobs, see notes below).
+# "maxConcurrent" is a reserved key; every other key names a build definition.
 builds:
   # How many branches may build at the same time.
   # At most one build per branch runs regardless; each branch builds in its own
   # git worktree under .git/gittally/worktrees/, never in the primary checkout.
   # Changing this value requires a restart.
   maxConcurrent: 1
+  # Implicit unless overridden: the default build runs on push over all branches
+  # with the branch's regular settings — exactly the behavior without any
+  # build definitions. Set onPush: false here to disable on-push builds.
+  # default:
+  #   onPush: true
+  #
+  # Example of a named build definition; all keys except its name are optional:
+  # pitest:
+  #   onPush: false                  # trigger: build every new commit (default: false)
+  #   atTimes: ["01:00"]             # trigger: daily UTC times HH:MM (default: none)
+  #   branches: ["master", "release/*"]  # selector: names or glob patterns (default: all)
+  #   activeWithin: 24h              # selector: only branches with commits in the last 24h
+  #   buildCommand: ./gradlew piTestFull  # overrides; unset keys fall back to the
+  #   cleanCommand: rm -rf build          # merged branch settings (also available:
+  #   artifactDirs: [build/reports]       # stdoutLog, stderrLog, and docker
+  #                                       # image/dockerfile/context/env)
 
 # Build artifact storage and retention.
 artifacts:
@@ -145,15 +163,11 @@ branches:
     # Build this branch only while its head commit matches a pull-request head on origin
     # (refs/pull/*/head — read via plain git, no API token needed; see notes below).
     requirePullRequest: false
+    # DEPRECATED: define a build with atTimes in the builds section instead.
+    # Kept for compatibility: rebuilds this branch on schedule with its regular command.
     autoBuild:
       enabled: false        # whether to rebuild on schedule
-      # UTC times HH:MM for scheduled builds. An entry may carry its own build
-      # command, so a nightly slot can run a fuller check than the on-commit
-      # builds, and a name recording its builds in a separate pool (see notes below):
-      #   - time: "01:00"
-      #     buildCommand: ./gradlew fullCheck
-      #     name: main@nightly
-      times: ["01:00"]
+      times: ["01:00"]      # UTC times HH:MM for scheduled builds
     # Optional Docker build runtime; when enabled, the clean and build commands
     # run inside a container instead of natively (see notes below).
     docker:
@@ -170,27 +184,19 @@ branches:
       # additional environment variables set inside the build container
       env: {}
 
-  main:
-    autoBuild:
-      enabled: true
-
   master:
     buildCommand: ./gradlew --console=plain --no-daemon quickCheck
-    autoBuild:
-      enabled: true
-      times:
-        # the nightly rebuild runs the full check instead of the quick on-commit
-        # one, recorded separately as master@nightly
-        - time: "01:00"
-          buildCommand: ./gradlew --console=plain --no-daemon completeCheck
-          name: master@nightly
 
   release:
     buildCommand: ./gradlew --console=plain --no-daemon --no-build-cache test jacocoReport
-    autoBuild:
-      enabled: true
-      times:
-        - "04:00"
+
+builds:
+  # the nightly rebuild runs the full check instead of the quick on-commit one,
+  # recorded separately as master@pitest
+  pitest:
+    atTimes: ["01:00"]
+    branches: ["master"]
+    buildCommand: ./gradlew -PfullPitTest --console=plain --no-daemon piTestFull
 ```
 
 ### Notes on `server.bindAddress`
@@ -237,24 +243,33 @@ Without the `main` override, direct pushes and merges to `main` would never buil
 A plain git origin (no Gitea/GitHub) serves no `refs/pull/*/head` at all, so gated branches would never build there.
 For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/gittally/.gittally.yml`, so the committed configuration keeps the gates for forge-backed environments.
 
-### Notes on `branches.<name>.autoBuild.times`
+### Notes on `builds` (build definitions)
 
-Each entry is either a plain `HH:MM` string or an object with `time` and optional `buildCommand` and `name`; both forms mix freely in one list.
-A slot without its own command runs the branch's regular `buildCommand`.
-The typical use is a quick check on every commit and a fuller, slower check in the nightly slot of the same branch.
+Next to the reserved execution key `maxConcurrent`, every key of the `builds` section names a build definition (a job) over the branches — ADR 0007.
+A build definition has triggers, a branch selector, and build-setting overrides.
 
-A slot's command is recorded in the build result.
-Restarting such a build from the UI re-runs it with the slot's command, and the startup recovery re-enqueues an interrupted one likewise — a build is always repeated with the command it originally ran.
-Manual `gittally build <branch>` runs and watcher builds for new commits always use the regular `buildCommand`.
+Triggers: `onPush: true` builds every new commit of the selected branches; `atTimes: ["HH:MM", …]` rebuilds their heads once per day and slot (UTC).
+A definition may have both; one with neither never triggers automatically.
 
-Without a `name`, a slot's builds share the branch's history, retention pool, and permanent latest-green link — on a busy branch, the regular builds can displace the nightly build and its artifacts within a day.
-A slot `name` (e.g. `master@nightly`) records the slot's builds in their own pool instead: an own row in the branches view (sorted after its branch), an own `retentionPerBranch` count, an own latest status, and an own permanent artifact link.
-The URL key is the sanitized name — `master@nightly` is served as `/branches/master_nightly/…`.
-The builds still run in the branch's worktree, one build per branch at a time, and the Gitea commit status is still reported per commit in the shared status context, so the last build of a commit wins there regardless of its name.
-Do not name a slot like an existing branch — the pools would merge.
-The name's results live as long as the underlying branch exists on origin.
+Selector: `branches` lists branch names or glob patterns (`*` matches any characters, also across `/`); empty selects all origin branches.
+`activeWithin` (e.g. `24h`) additionally keeps only branches whose origin head commit is younger than the duration — useful to run a nightly deep check over all recently active branches.
+Both parts combine as an intersection.
+The `branches.<name>.requirePullRequest` gate stays a branch property and gates all watcher-triggered builds of that branch.
 
-The whole `autoBuild` section is a watcher decision made before a build worktree exists, so — unlike `buildCommand` itself — it is read from the repo install/project config and cannot be changed by the `.gittally.yml` committed on the branch being built.
+Overrides: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, and the docker image keys (`image`, `dockerfile`, `context`, `env`).
+The effective settings of one build on one branch merge in this order: defaults → `branches.default` → `branches.<branch>` → the worktree's committed `.gittally.yml` → the build definition's overrides.
+Unset keys fall back; the definition wins last because it is the job.
+The whole `builds` section is pinned: it always comes from the repo install/project config, and the `.gittally.yml` committed on a branch can neither define jobs nor change `maxConcurrent`.
+
+The implicit `default` build (`onPush: true`, all branches) preserves the behavior without any definitions; defining other builds does not disable it, `builds.default.onPush: false` does.
+The `default` build records under the plain branch name; every other build records under `<branch>@<name>` with its own row in the branches view (sorted after its branch), its own `retentionPerBranch` count, latest status, and permanent latest-green artifact link.
+The URL key is the sanitized pool name — `master@pitest` is served as `/branches/master_pitest/…`.
+The pools live as long as the underlying branch exists on origin.
+Restart, `gittally retry`, and the startup recovery re-run a build under its recorded definition, resolving the settings from the current configuration — the job definition is the source of truth, not the historical run.
+The builds still run in their branch's worktree, one build per branch at a time, and the Gitea commit status is reported per commit in the shared status context (the last build of a commit wins there).
+
+`branches.<name>.autoBuild` (`enabled` + `times`) is the deprecated pre-ADR-0007 schedule, kept for compatibility: it rebuilds the branch's own pool with its regular command and logs a deprecation warning.
+`autoBuild.times` entries carrying their own `buildCommand`/`name` (a short-lived v0.9.13 syntax) are no longer supported — use a build definition.
 
 ### Notes on `watcher.fastForwardLocalRefs`
 

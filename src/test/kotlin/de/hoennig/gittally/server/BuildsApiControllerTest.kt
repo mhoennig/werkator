@@ -167,50 +167,23 @@ class BuildsApiControllerTest : FunSpec() {
             verify { buildExecutor.startBuild("feature/topic", successResult.commit) }
         }
 
-        test("restart of an auto-slot build repeats its recorded build command") {
-            val liveLogFile = tempDir.resolve("auto-restart.log")
-            every { repository.latestFor("main") } returns successResult.copy(buildCommandOverride = "./gradlew fullCheck")
-            every { buildExecutor.startBuild("main", successResult.commit, buildCommandOverride = "./gradlew fullCheck") } returns
-                runningBuild(liveLogFile).copy(buildCommandOverride = "./gradlew fullCheck")
-
-            mockMvc
-                .perform(post("/api/builds/restart").param("branch", "main").header(BuildsApiController.TOKEN_HEADER, "secret"))
-                .andExpect(status().isAccepted)
-                .andExpect(jsonPath("$.status").value("pending"))
-
-            // so a restarted nightly build repeats its slot's command, not the regular one
-            verify { buildExecutor.startBuild("main", successResult.commit, buildCommandOverride = "./gradlew fullCheck") }
-        }
-
-        test("restart of a named slot build re-runs under its name on its real branch") {
+        test("restart of a named build re-runs its build definition on its real branch") {
             val liveLogFile = tempDir.resolve("named-restart.log")
-            every { repository.latestFor("main@nightly") } returns
-                successResult.copy(name = "main@nightly", buildCommandOverride = "./gradlew fullCheck")
-            every {
-                buildExecutor.startBuild(
-                    "main",
-                    successResult.commit,
-                    buildCommandOverride = "./gradlew fullCheck",
-                    name = "main@nightly",
-                )
-            } returns runningBuild(liveLogFile).copy(name = "main@nightly")
+            every { repository.latestFor("main@pitest") } returns
+                successResult.copy(build = "pitest", name = "main@pitest")
+            every { buildExecutor.startBuild("main", successResult.commit, build = "pitest") } returns
+                runningBuild(liveLogFile).copy(build = "pitest", name = "main@pitest")
 
             mockMvc
                 .perform(
                     post("/api/builds/restart")
-                        .param("branch", "main@nightly")
+                        .param("branch", "main@pitest")
                         .header(BuildsApiController.TOKEN_HEADER, "secret"),
                 ).andExpect(status().isAccepted)
-                .andExpect(jsonPath("$.name").value("main@nightly"))
+                .andExpect(jsonPath("$.name").value("main@pitest"))
 
-            verify {
-                buildExecutor.startBuild(
-                    "main",
-                    successResult.commit,
-                    buildCommandOverride = "./gradlew fullCheck",
-                    name = "main@nightly",
-                )
-            }
+            // the re-run resolves its settings from the current config by the build name
+            verify { buildExecutor.startBuild("main", successResult.commit, build = "pitest") }
         }
 
         test("restart of a never-built branch enqueues its origin head commit") {

@@ -140,6 +140,19 @@ class GitService(
             }.map { (branch, _) -> branch }
     }
 
+    /** Committer timestamps of all origin branch heads, in one git call; used by `activeWithin` build selectors. */
+    fun originBranchCommitTimes(workingDir: Path = Paths.get(".")): Map<String, Instant> =
+        runner
+            .runOrThrow(
+                listOf("git", "for-each-ref", "--format=%(refname:strip=3) %(committerdate:unix)", "refs/remotes/origin"),
+                workingDir,
+            ).lines()
+            .mapNotNull { line ->
+                val branch = line.substringBeforeLast(' ')
+                val epochSeconds = line.substringAfterLast(' ').toLongOrNull() ?: return@mapNotNull null
+                if (branch == "HEAD") null else branch to Instant.ofEpochSecond(epochSeconds)
+            }.toMap()
+
     /** Switches to an existing local branch, or creates a tracking branch from origin. */
     fun checkout(
         branch: String,

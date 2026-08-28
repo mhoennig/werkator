@@ -150,10 +150,18 @@ class InitCommand(
               repo: ${detected.repo}                      # repository name
               statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
 
-            # Build execution.
+            # Build execution and named build definitions (jobs); "maxConcurrent" is a
+            # reserved key, every other key names a build definition over the branches.
             builds:
               # how many branches may build at the same time (at most one build per branch regardless)
               maxConcurrent: 1
+              # Example definition — triggers (onPush/atTimes), branch selector
+              # (branches/activeWithin), and overrides of the branch settings:
+              # pitest:
+              #   atTimes: ["01:00"]           # daily UTC times HH:MM
+              #   branches: ["master"]         # names or glob patterns; default: all branches
+              #   activeWithin: 24h            # only branches with recent commits
+              #   buildCommand: ./gradlew piTestFull
 
             # Build artifact storage and retention.
             artifacts:
@@ -197,14 +205,10 @@ class InitCommand(
                 # build only while the branch head matches a pull-request head on origin
                 # (refs/pull/*/head — read via plain git, no API token needed)
                 requirePullRequest: false
+                # DEPRECATED: define a build with atTimes in the builds section instead
                 autoBuild:
                   enabled: false        # whether to rebuild on schedule
-                  # UTC times HH:MM for scheduled builds; an entry may carry its own
-                  # command and a name for a separate history/artifact pool:
-                  #   - time: "01:00"
-                  #     buildCommand: ./gradlew fullCheck
-                  #     name: main@nightly
-                  times: ["01:00"]
+                  times: ["01:00"]      # UTC times HH:MM for scheduled builds
                 docker:
                   enabled: false        # run clean/build commands in a Docker container instead of natively
                   image: ""             # image for the build container; required when enabled

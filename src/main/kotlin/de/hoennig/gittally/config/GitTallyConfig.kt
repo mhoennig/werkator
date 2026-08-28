@@ -1,8 +1,5 @@
 package de.hoennig.gittally.config
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize
-import com.fasterxml.jackson.databind.annotation.JsonSerialize
-
 data class GitTallyConfig(
     val server: ServerConfig = ServerConfig(),
     val git: GitConfig = GitConfig(),
@@ -11,7 +8,17 @@ data class GitTallyConfig(
     val artifacts: ArtifactsConfig = ArtifactsConfig(),
     val watcher: WatcherConfig = WatcherConfig(),
     val branches: Map<String, BranchConfig> = mapOf("default" to BranchConfig()),
-)
+    /**
+     * Named build definitions (jobs) over the branches (ADR 0007). The implicit
+     * [BuildDefinition.DEFAULT] build (`onPush` over all branches) applies unless this
+     * map overrides it; see [effectiveBuildDefinitions].
+     */
+    val buildDefinitions: Map<String, BuildDefinition> = emptyMap(),
+) {
+    /** The configured [buildDefinitions] plus the implicit `default` build unless overridden. */
+    fun effectiveBuildDefinitions(): Map<String, BuildDefinition> =
+        mapOf(BuildDefinition.DEFAULT to BuildDefinition(onPush = true)) + buildDefinitions
+}
 
 data class ServerConfig(
     /**
@@ -149,32 +156,13 @@ data class DockerConfig(
     val env: Map<String, String> = emptyMap(),
 )
 
+/**
+ * Deprecated per-branch schedule (pre-ADR-0007), kept for compatibility: mapped to a
+ * daily rebuild of the branch's own pool with its regular command. New configurations
+ * define a build with `atTimes` in the top-level `builds` section instead.
+ */
 data class AutoBuildConfig(
     val enabled: Boolean = false,
-    /**
-     * Daily UTC slots. Each entry is either a plain `HH:MM` time or an object with
-     * `time` and its own `buildCommand` — so a nightly slot can run a fuller check
-     * than the on-commit builds of the same branch.
-     */
-    val times: List<AutoBuildSlot> = listOf(AutoBuildSlot("01:00")),
-)
-
-/**
- * One scheduled auto-build slot; in YAML either a plain `HH:MM` string or an object
- * (`time` plus optional `buildCommand` and `name`) — see [AutoBuildSlotDeserializer].
- */
-@JsonDeserialize(using = AutoBuildSlotDeserializer::class)
-@JsonSerialize(using = AutoBuildSlotSerializer::class)
-data class AutoBuildSlot(
-    /** UTC time of day, `HH:MM`. */
-    val time: String,
-    /** Command this slot's build runs; empty runs the branch's [BranchConfig.buildCommand]. */
-    val buildCommand: String = "",
-    /**
-     * Build name this slot's builds are recorded under (e.g. `master@nightly`); empty
-     * records them under the branch name. A named slot gets its own history, retention
-     * pool, latest status, and permanent latest-green artifact link, so its builds are
-     * not displaced by the branch's regular builds.
-     */
-    val name: String = "",
+    /** Daily UTC times `HH:MM`. */
+    val times: List<String> = listOf("01:00"),
 )

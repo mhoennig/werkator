@@ -6,6 +6,7 @@ import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.build.RunningBuild
+import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.server.UiFormats
 import org.springframework.stereotype.Component
 import java.io.IOException
@@ -37,10 +38,9 @@ class ConsoleBuildRunner(
         branch: String,
         commit: String,
         workingDir: Path = Paths.get("."),
-        buildCommandOverride: String? = null,
-        name: String = branch,
+        buildDefinition: String = BuildDefinition.DEFAULT,
     ): BuildStatus {
-        val build = buildExecutor.startBuild(branch, commit, workingDir, buildCommandOverride, name)
+        val build = buildExecutor.startBuild(branch, commit, workingDir, buildDefinition)
         var printed = 0L
         var result: BuildResult? = null
         while (result?.status?.isTerminal != true) {

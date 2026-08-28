@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import de.hoennig.gittally.config.AutoBuildSlot
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
@@ -14,28 +13,33 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeParseException
 
-/** One recorded auto-build trigger: [branch] was enqueued for the [slot] (UTC `HH:MM`) of [date] (ISO). */
+/**
+ * One recorded scheduled-build trigger: the result pool [branch] (a branch, or
+ * `<branch>@<build>` of a named build definition) was enqueued for the [slot]
+ * (UTC `HH:MM`) of [date] (ISO). The field keeps its legacy name `branch` so the
+ * state file stays readable across versions.
+ */
 data class AutoBuildTrigger(
     val branch: String,
     val date: String,
     val slot: String,
 )
 
-/** Auto-build time slot matching (UTC `HH:MM`), like legacy `auto_build_check`. */
+/** Scheduled-build time slot matching (UTC `HH:MM`), like legacy `auto_build_check`. */
 object AutoBuildSlots {
     private val log = LoggerFactory.getLogger(AutoBuildSlots::class.java)
 
     /** The latest valid slot at or before [now], or null when no slot is due yet today. */
     fun latestDueSlot(
-        times: List<AutoBuildSlot>,
+        times: List<String>,
         now: LocalTime,
-    ): AutoBuildSlot? =
+    ): String? =
         times
             .mapNotNull { slot ->
                 try {
-                    LocalTime.parse(slot.time.trim()) to slot
+                    LocalTime.parse(slot.trim()) to slot
                 } catch (_: DateTimeParseException) {
-                    log.warn("skipping invalid auto-build time slot '{}': expected HH:MM", slot.time)
+                    log.warn("skipping invalid scheduled-build time slot '{}': expected HH:MM", slot)
                     null
                 }
             }.filter { (parsed, _) -> !parsed.isAfter(now) }
