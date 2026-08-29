@@ -159,3 +159,11 @@ Update to v0.9.18 (2026-08-29): same procedure, `~/opt/gittally.0.9.17.bak` as t
 Verified live: `bin/gittally --version` reports v0.9.18 before the start, the service is `active`, `/releases` lists v0.9.18, the watcher polls without fetch or poll errors, and the only warnings are the two known `builds.maxConcurrent` lines from the repository's committed config.
 Shipped feature: a configuration file can declare the GitTally it is written for (`gitTally.version.since`/`below`), so an incompatibility is named instead of silently ignored.
 The configs of the watched repository declare nothing yet and are unaffected — a missing declaration is never an error.
+
+Update to v0.9.19 (2026-08-29): same procedure, `~/opt/gittally.0.9.18.bak` as the rollback copy, no build was running.
+Shipped feature: a build definition describes its build completely (`requirePullRequest`, the whole `docker` section), `builds.default` is the settings base of every other definition, and the per-branch `branches` section is superseded — read only while nothing defines a build at all.
+The machine config `.git/gittally/.gittally.yml` was rewritten to the new shape beforehand (backup `.gittally.yml.20260829T085959Z.bak`), in a form valid under both versions: `builds.default` plus `builds.master` for the new one, a reduced `branches` block for v0.9.18, which has no sandbox policy inside a definition.
+It also drops the machine-local `--no-build-cache` command that had shadowed master's own `buildCommand` for every on-push build; the commands now come from `origin/master`'s committed config.
+Verified live: `bin/gittally --version` reports v0.9.19 before the start, the service is `active`, `/releases` lists v0.9.19, and the log carries the expected "ignoring the branches section" warning next to the known `builds.maxConcurrent` one.
+The new `master@master` job fired on the first poll after the restart — its 01:00 slot was due and unmarked for that pool — and runs in `hsadmin-ng-build-env:latest` with `bootJarWithDocumentation`: the pinned `docker.enabled`/`network` reached it through the inheritance from `builds.default`, while its own command won.
+The legacy `branches` block stays in the machine config for the transition week as the rollback path to v0.9.18; it is inert under v0.9.19.
