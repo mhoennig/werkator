@@ -156,6 +156,8 @@ class InitCommand(
               maxConcurrent: 1
 
             # Named build definitions (jobs) over the branches; every key names a build.
+            # A branch may add or override definitions in its own committed .gittally.yml —
+            # they then apply to that branch alone, so a new job can be tried out on a branch.
             builds:
               # Example definition — triggers (onPush/atTimes), branch selector
               # (branches/activeWithin), and overrides of the branch settings:

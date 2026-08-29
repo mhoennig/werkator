@@ -258,6 +258,19 @@ class GitService(
         return if (result.isSuccess) result.stdout.trim() else null
     }
 
+    /**
+     * The content of [path] as committed in [commit], or null when that commit has no
+     * such file — used to read a branch's committed `.gittally.yml` without a worktree.
+     */
+    fun showFileAtCommit(
+        commit: String,
+        path: String,
+        workingDir: Path = Paths.get("."),
+    ): String? {
+        val result = runner.run(listOf("git", "show", "$commit:$path"), workingDir)
+        return if (result.isSuccess) result.stdout else null
+    }
+
     fun headCommit(workingDir: Path = Paths.get(".")): String =
         runner
             .runOrThrow(listOf("git", "rev-parse", "HEAD"), workingDir)

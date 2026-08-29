@@ -8,29 +8,42 @@ GitTally is configured via YAML files. Settings are merged from several sources 
 |--------------------------|----------------------------|------------------|----------------------------------------------|
 | Project config           | `.gittally.yml`            | Yes              | Shared team settings                         |
 | Repo installation config | `.git/gittally/.gittally.yml` | No               | Machine- or user-specific overrides, secrets |
-| Build worktree config    | `.gittally.yml` of the built commit | Yes    | Per-branch build settings (build layer only) |
+| Branch config            | `.gittally.yml` committed on a branch | Yes  | That branch's build settings and build definitions |
 
 The repo install config (`.git/gittally/.gittally.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
 
-### Per-branch build settings from the worktree
+### The branch layer: a branch describes its own CI
 
-When a branch builds, its build config is resolved with an extra layer: the `.gittally.yml`
-committed on the branch being built (read from its build worktree) overrides the two layers
-above, giving the precedence **worktree > repo install > project**. So a branch can change its
-own `buildCommand`, `cleanCommand`, `artifactDirs`, log file names, and
-`docker.image`/`dockerfile`/`context`/`env`.
+The `.gittally.yml` committed on a branch is applied as a third layer on top of the two
+above, giving the precedence **branch > repo install > project**. It takes precedence for
+everything that describes how this branch is built: `buildCommand`, `cleanCommand`,
+`artifactDirs`, log file names, `docker.image`/`dockerfile`/`context`/`env`, and the whole
+`builds` section — its own definitions and its overrides of the definitions from the
+project config. That is how a new configuration is tried out: change it on a branch, and
+no other branch's builds are affected.
 
-This layer applies **only** to the build itself. A pinned set is always taken from the repo
-install/project config and can never be set from the worktree:
+The branch layer is used in both places where it matters: the watcher reads the committed
+config of each origin branch (via `git show`, only when the branch moved) to decide which
+of *its* builds are due, and the build itself resolves its settings from the worktree of
+the commit being built.
 
-- secrets and server-side settings: the whole `git`, `gitea`, and `server` sections;
-- the whole `builds` (build definitions) and `executor` sections;
-- the container sandbox policy: `docker.enabled` and `docker.network`.
+A branch's definitions apply to that branch alone. Their selectors are evaluated for it
+only, so a definition committed on one branch can never trigger builds of another — even
+when its `branches` selector names one.
 
-This keeps a branch from disabling its own build container, changing its network mode, or
-reaching credentials. Jobs and their triggers are server-side decisions made before a
-build worktree exists, so the deprecated `autoBuild` schedules are read from the repo
-install/project config as well.
+A pinned set is always taken from the repo install/project config, because none of it
+describes this branch's build:
+
+- secrets: the whole `git` section;
+- host- and repository-side settings: the whole `server`, `gitea`, `executor`, and `watcher` sections;
+- the container sandbox policy: `docker.enabled` and `docker.network`;
+- the trust gate: `requirePullRequest`.
+
+This keeps a branch from reaching credentials, reporting statuses to another repository,
+raising the global concurrency, disabling its own build container, changing its network
+mode, or bypassing its own pull-request gate. Everything else is the branch's to decide —
+it can already run any command through `buildCommand`.
+The deprecated `autoBuild` schedules are read from the repo install/project config only.
 
 ## Inspect the Effective Config
 
@@ -260,9 +273,10 @@ Both parts combine as an intersection.
 The `branches.<name>.requirePullRequest` gate stays a branch property and gates all watcher-triggered builds of that branch.
 
 Overrides: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, and the docker image keys (`image`, `dockerfile`, `context`, `env`).
-The effective settings of one build on one branch merge in this order: defaults → `branches.default` → `branches.<branch>` → the worktree's committed `.gittally.yml` → the build definition's overrides.
+A definition has no `docker.enabled`/`docker.network` and no `requirePullRequest` — those are pinned branch properties, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci).
+The effective settings of one build on one branch merge in this order: defaults → `branches.default` → `branches.<branch>` → the branch's committed `.gittally.yml` → the build definition's overrides.
 Unset keys fall back; the definition wins last because it is the job.
-The `builds` and `executor` sections are pinned: they always come from the repo install/project config, and the `.gittally.yml` committed on a branch can neither define jobs nor change the concurrency.
+Definitions themselves are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
 
 The implicit `default` build (`onPush: true`, all branches) preserves the behavior without any definitions; defining other builds does not disable it, `builds.default.onPush: false` does.
 The `default` build records under the plain branch name; every other build records under `<branch>@<name>` with its own row in the branches view (sorted after its branch), its own `retentionPerBranch` count, latest status, and permanent latest-green artifact link.

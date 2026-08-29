@@ -7,8 +7,19 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
-        <h2>v0.9.15 <span class="muted">— 2026-08-28</span></h2>
+        <h2>v0.9.15 <span class="muted">— 2026-08-29</span></h2>
         <ul>
+            <li>The <code>.gittally.yml</code> committed on a branch now takes precedence for the
+                <code>builds</code> section as well — a branch can define its own build definitions
+                and override those from the project config. The watcher reads each origin branch's
+                committed configuration, so a new build definition takes effect by committing it on
+                a branch, without touching any other branch's builds. A branch's definitions apply
+                to that branch alone.</li>
+            <li>Pinned to the server side are only the keys that do not describe the branch's build:
+                secrets (<code>git</code>), the host and repository sections (<code>server</code>,
+                <code>gitea</code>, <code>executor</code>, <code>watcher</code>), the container sandbox
+                policy (<code>docker.enabled</code>, <code>docker.network</code>), and the
+                <code>requirePullRequest</code> gate.</li>
             <li><strong>Changed:</strong> the build concurrency limit moved from
                 <code>builds.maxConcurrent</code> to <code>executor.maxConcurrent</code> (default 1,
                 no compatibility alias) — the <code>builds</code> section now holds build definitions

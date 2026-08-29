@@ -76,6 +76,9 @@ class WatcherTest : FunSpec() {
             every { gitService.hasNewCommits(any(), any()) } returns false
             every { gitService.originHeadCommit(any(), any()) } returns null
             every { gitService.originBranchCommitTimes(any()) } returns emptyMap()
+            every { gitService.originBranchHeads(any()) } returns emptyMap()
+            every { gitService.showFileAtCommit(any(), any(), any()) } returns null
+            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns config
             every { gitService.pullRequestHeads(any()) } returns emptySet()
             every { gitService.worktreePrune(any()) } returns Unit
             every { gitService.fastForwardLocalBranches(any()) } returns emptyList()
@@ -480,6 +483,85 @@ class WatcherTest : FunSpec() {
 
             harness.watcher.poll(harness.workingDir)
 
+            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
+        }
+
+        test("a build definition committed on a branch fires for that branch, without any entry in the primary config") {
+            val harness = Harness()
+            val branchLayer =
+                GitTallyConfig(
+                    buildDefinitions = mapOf("pitest" to BuildDefinition(atTimes = listOf("11:00"))),
+                )
+            every { harness.gitService.originBranches(any()) } returns listOf("main", "experiment")
+            every { harness.gitService.originBranchHeads(any()) } returns
+                mapOf("main" to "commit-main", "experiment" to "commit-exp")
+            every { harness.gitService.showFileAtCommit("commit-exp", Watcher.CONFIG_FILE, any()) } returns "branch-yaml"
+            every { harness.configLoader.loadWithBranchLayer(any(), "branch-yaml") } returns branchLayer
+            every { harness.gitService.originHeadCommit("experiment", any()) } returns "commit-exp"
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.startedBuilds shouldContainExactly listOf("experiment" to "commit-exp")
+            verify { harness.buildExecutor.startBuild("experiment", "commit-exp", any(), "pitest") }
+            harness
+                .autoBuildState()
+                .isTriggered("experiment@pitest", LocalDate.parse("2026-07-07"), "11:00")
+                .shouldBeTrue()
+        }
+
+        test("a build definition committed on a branch never schedules another branch") {
+            val harness = Harness()
+            val branchLayer =
+                GitTallyConfig(
+                    buildDefinitions =
+                        mapOf("pitest" to BuildDefinition(atTimes = listOf("11:00"), branches = listOf("main"))),
+                )
+            every { harness.gitService.originBranches(any()) } returns listOf("main", "experiment")
+            every { harness.gitService.originBranchHeads(any()) } returns
+                mapOf("main" to "commit-main", "experiment" to "commit-exp")
+            every { harness.gitService.showFileAtCommit("commit-exp", Watcher.CONFIG_FILE, any()) } returns "branch-yaml"
+            every { harness.configLoader.loadWithBranchLayer(any(), "branch-yaml") } returns branchLayer
+            every { harness.gitService.originHeadCommit(any(), any()) } returns "commit-any"
+
+            harness.watcher.poll(harness.workingDir)
+
+            // the definition selects main, but it is only known on experiment — so nothing is built
+            harness.startedBuilds.shouldBeEmpty()
+        }
+
+        test("a branch's committed config is read from git again only after the branch moved") {
+            val harness = Harness()
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.originBranchHeads(any()) } returns mapOf("main" to "commit-1")
+
+            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.workingDir)
+            verify(exactly = 1) { harness.gitService.showFileAtCommit("commit-1", Watcher.CONFIG_FILE, any()) }
+
+            every { harness.gitService.originBranchHeads(any()) } returns mapOf("main" to "commit-2")
+            harness.watcher.poll(harness.workingDir)
+
+            verify(exactly = 1) { harness.gitService.showFileAtCommit("commit-2", Watcher.CONFIG_FILE, any()) }
+        }
+
+        test("an unreadable branch config falls back to the primary definitions instead of failing the poll") {
+            val harness = Harness()
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.localBranches(any()) } returns listOf("main")
+            every { harness.gitService.hasNewCommits("main", any()) } returns true
+            every { harness.gitService.originBranchHeads(any()) } returns mapOf("main" to "commit-main")
+            every { harness.gitService.showFileAtCommit("commit-main", Watcher.CONFIG_FILE, any()) } returns "broken"
+            every { harness.configLoader.loadWithBranchLayer(any(), "broken") } throws
+                RuntimeException("mapping problem")
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
+
+            harness.watcher.poll(harness.workingDir)
+
+            harness.watcher
+                .state()
+                .lastPollError
+                .shouldBeNull()
             verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
         }
 

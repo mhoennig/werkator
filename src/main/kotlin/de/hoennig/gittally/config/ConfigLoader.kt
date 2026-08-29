@@ -23,28 +23,36 @@ class ConfigLoader {
 
     /**
      * Config for building a branch in [worktreeDir]: the worktree's `.gittally.yml`
-     * (the committed config of the branch being built) overrides the primary/`.git`
-     * config, giving the precedence worktree > `.git` > project. So a branch controls
-     * its own build settings (`buildCommand`, `cleanCommand`, `artifactDirs`,
-     * `docker.image`/`env`, …).
-     *
-     * The [pinned][stripPinned] keys are the exception: secrets (`git`), `gitea`/`server`
-     * settings, the whole `builds` section (job definitions and execution settings), and
-     * the docker sandbox policy (`docker.enabled`/`docker.network`) always come from
-     * `.git`/primary — a branch must never be able to disable its own container, change
-     * its network mode, redefine jobs, or reach the credentials. They are stripped from
-     * the worktree layer before it is merged, so a worktree cannot set them at all.
-     *
-     * With no worktree `.gittally.yml` this is identical to [load].
+     * (the committed config of the branch being built) is applied as the branch layer,
+     * see [loadWithBranchLayer]. With no worktree `.gittally.yml` this is identical
+     * to [load].
      */
     fun loadForWorktree(
         workingDir: Path,
         worktreeDir: Path,
-    ): GitTallyConfig {
-        val primary = loadRaw(workingDir)
-        val worktree = stripPinned(loadFile(worktreeDir.resolve(".gittally.yml").toFile()))
-        return toConfig(deepMerge(primary, worktree))
-    }
+    ): GitTallyConfig = toConfig(deepMerge(loadRaw(workingDir), stripPinned(loadFile(worktreeDir.resolve(".gittally.yml").toFile()))))
+
+    /**
+     * The primary/`.git` config with the committed `.gittally.yml` of one branch
+     * ([branchConfigYaml], null or blank for a branch without one) merged on top:
+     * precedence branch > `.git` > project. A branch describes its own CI — build
+     * settings (`buildCommand`, `cleanCommand`, `artifactDirs`, `docker.image`/`env`, …)
+     * and its `builds` definitions — so a new configuration can be tried out on a
+     * branch without touching any other branch's builds.
+     *
+     * The [pinned][stripPinned] keys are the exception, and they are exactly the ones
+     * that are not a description of this branch's build: secrets (`git`), the host- and
+     * repository-side sections (`server`, `gitea`, `executor`), the docker sandbox policy
+     * (`docker.enabled`/`docker.network`), and the trust gate
+     * (`requirePullRequest`, which decides whether the branch is built at all).
+     * They are stripped from the branch layer before merging, so a branch can neither
+     * escape its container, nor bypass its own pull-request gate, nor raise the global
+     * concurrency, nor reach the credentials.
+     */
+    fun loadWithBranchLayer(
+        workingDir: Path,
+        branchConfigYaml: String?,
+    ): GitTallyConfig = toConfig(deepMerge(loadRaw(workingDir), stripPinned(parseYaml(branchConfigYaml))))
 
     private fun toConfig(raw: Map<String, Any?>): GitTallyConfig {
         val config =
@@ -57,27 +65,33 @@ class ConfigLoader {
     }
 
     /**
-     * Removes the keys a build worktree must never override: the secret/server-side
-     * top-level sections and the per-branch docker sandbox policy. See [loadForWorktree].
+     * Removes the keys a branch must never override: the secret and host-side top-level
+     * sections, the per-branch trust gate, and the docker sandbox policy.
+     * See [loadWithBranchLayer].
      */
     @Suppress("UNCHECKED_CAST")
-    private fun stripPinned(worktree: Map<String, Any?>): Map<String, Any?> {
-        if (worktree.isEmpty()) {
-            return worktree
+    private fun stripPinned(branchLayer: Map<String, Any?>): Map<String, Any?> {
+        if (branchLayer.isEmpty()) {
+            return branchLayer
         }
-        val result = worktree.toMutableMap()
+        val result = branchLayer.toMutableMap()
         PINNED_TOP_LEVEL_KEYS.forEach { result.remove(it) }
         val branches = result["branches"] as? Map<String, Any?>
         if (branches != null) {
-            result["branches"] =
-                branches.mapValues { (_, value) ->
-                    val branch = value as? Map<String, Any?> ?: return@mapValues value
-                    val docker = branch["docker"] as? Map<String, Any?> ?: return@mapValues branch
-                    val strippedDocker = docker.toMutableMap().apply { PINNED_DOCKER_KEYS.forEach { remove(it) } }
-                    branch.toMutableMap().apply {
-                        if (strippedDocker.isEmpty()) remove("docker") else put("docker", strippedDocker)
-                    }
-                }
+            result["branches"] = branches.mapValues { (_, value) -> stripPinnedBranchKeys(value) }
+        }
+        return result
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun stripPinnedBranchKeys(value: Any?): Any? {
+        val branch = value as? Map<String, Any?> ?: return value
+        val result = branch.toMutableMap()
+        PINNED_BRANCH_KEYS.forEach { result.remove(it) }
+        val docker = branch["docker"] as? Map<String, Any?>
+        if (docker != null) {
+            val strippedDocker = docker.toMutableMap().apply { PINNED_DOCKER_KEYS.forEach { remove(it) } }
+            if (strippedDocker.isEmpty()) result.remove("docker") else result["docker"] = strippedDocker
         }
         return result
     }
@@ -105,6 +119,13 @@ class ConfigLoader {
         if (!file.exists()) return emptyMap()
         @Suppress("UNCHECKED_CAST")
         return yaml.readValue(file, Map::class.java) as Map<String, Any?>
+    }
+
+    /** Parses a `.gittally.yml` read from git (not from disk); blank or null yields no layer. */
+    private fun parseYaml(text: String?): Map<String, Any?> {
+        if (text.isNullOrBlank()) return emptyMap()
+        @Suppress("UNCHECKED_CAST")
+        return yaml.readValue(text, Map::class.java) as? Map<String, Any?> ?: emptyMap()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -143,13 +164,23 @@ class ConfigLoader {
 
     companion object {
         /**
-         * Top-level sections a build worktree must never override: secrets, server-side
-         * settings, the build definitions, and the concurrency limit (a branch must not
-         * be able to redefine jobs or raise concurrency).
+         * Top-level sections a branch must never override, because none of them describes
+         * this branch's build: secrets (`git`), and the host- and repository-side settings
+         * (`server`, `gitea`, `executor`, `watcher`) — a branch must not be able to reach
+         * the credentials, report statuses to another repository, raise the global
+         * concurrency, or turn off the pull-request gate for the whole watcher.
+         * The `builds` section is deliberately *not* pinned: it describes what the branch
+         * builds, and a branch can already run any command via `branches.*.buildCommand`.
          */
-        private val PINNED_TOP_LEVEL_KEYS = setOf("git", "gitea", "server", "builds", "executor")
+        private val PINNED_TOP_LEVEL_KEYS = setOf("git", "gitea", "server", "executor", "watcher")
 
-        /** Per-branch `docker` keys the worktree must never override: the sandbox policy. */
+        /**
+         * Per-branch keys a branch must never override: the trust gate that decides
+         * whether the watcher builds this branch at all.
+         */
+        private val PINNED_BRANCH_KEYS = setOf("requirePullRequest")
+
+        /** Per-branch `docker` keys a branch must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")
     }
 }

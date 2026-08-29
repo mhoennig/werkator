@@ -22,6 +22,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -53,6 +54,9 @@ class Watcher(
     /** The branches.*.autoBuild deprecation is logged once per watcher instance, not once per poll. */
     @Volatile
     private var warnedDeprecatedAutoBuild = false
+
+    /** Build definitions per branch, cached by the branch's head commit — see [definitionsFor]. */
+    private val branchDefinitions = ConcurrentHashMap<String, CachedDefinitions>()
 
     fun state(): WatcherState = state
 
@@ -195,7 +199,8 @@ class Watcher(
         val pullRequestHeads = lazy { gitService.pullRequestHeads(workingDir) }
         // one for-each-ref per cycle at most, and only when a definition filters by activeWithin
         val headCommitTimes = lazy { gitService.originBranchCommitTimes(workingDir) }
-        val definitions = config.effectiveBuildDefinitions()
+        val heads = gitService.originBranchHeads(workingDir)
+        branchDefinitions.keys.retainAll(originBranches)
         val changedLocal =
             gitService
                 .localBranches(workingDir)
@@ -203,14 +208,60 @@ class Watcher(
         val newOrigin =
             gitService.newOriginBranches(DurationParser.parse(config.watcher.newBranchMaxAge), workingDir)
         val changed = (changedLocal + newOrigin).distinct()
-        for ((buildName, definition) in definitions.filterValues { it.onPush }) {
-            for (branch in changed.filter { selects(definition, it, headCommitTimes) }) {
-                startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir, buildName)
+        for (branch in changed) {
+            val onPush = definitionsFor(branch, heads[branch], workingDir).filterValues { it.onPush }
+            for ((buildName, definition) in onPush) {
+                if (selects(definition, branch, headCommitTimes)) {
+                    startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir, buildName)
+                }
             }
         }
-        enqueueScheduledBuilds(definitions, config, originBranches, pullRequestHeads, headCommitTimes, workingDir)
+        enqueueScheduledBuilds(config, originBranches, heads, pullRequestHeads, headCommitTimes, workingDir)
         enqueueDeprecatedAutoBuilds(config, originBranches, pullRequestHeads, workingDir)
     }
+
+    /**
+     * The build definitions that apply to [branch]: the primary configuration with the
+     * branch's own committed `.gittally.yml` merged on top (the pinned keys stripped),
+     * so a new `builds` configuration can be tried out on a branch without touching any
+     * other branch's builds. A branch's definitions only ever apply to that branch —
+     * their selectors are evaluated for it alone, so a definition committed on one branch
+     * can never schedule builds of another.
+     *
+     * Cached per branch by its head commit, so the `git show` runs only when the branch
+     * moved. An unreadable branch config falls back to the primary definitions instead of
+     * failing the poll cycle.
+     */
+    private fun definitionsFor(
+        branch: String,
+        headCommit: String?,
+        workingDir: Path,
+    ): Map<String, BuildDefinition> {
+        val commit = headCommit ?: return configLoader.load(workingDir).effectiveBuildDefinitions()
+        branchDefinitions[branch]?.takeIf { it.commit == commit }?.let { return it.definitions }
+        val definitions =
+            try {
+                configLoader
+                    .loadWithBranchLayer(workingDir, gitService.showFileAtCommit(commit, CONFIG_FILE, workingDir))
+                    .effectiveBuildDefinitions()
+            } catch (e: Exception) {
+                log.warn(
+                    "ignoring the committed {} of branch {} at {}: {}",
+                    CONFIG_FILE,
+                    branch,
+                    commit,
+                    e.message ?: e.javaClass.simpleName,
+                )
+                configLoader.load(workingDir).effectiveBuildDefinitions()
+            }
+        branchDefinitions[branch] = CachedDefinitions(commit, definitions)
+        return definitions
+    }
+
+    private class CachedDefinitions(
+        val commit: String,
+        val definitions: Map<String, BuildDefinition>,
+    )
 
     private fun selects(
         definition: BuildDefinition,
@@ -269,30 +320,30 @@ class Watcher(
      * the point of a scheduled build.
      */
     private fun enqueueScheduledBuilds(
-        definitions: Map<String, BuildDefinition>,
         config: GitTallyConfig,
         originBranches: Set<String>,
+        heads: Map<String, String>,
         pullRequestHeads: Lazy<Set<String>>,
         headCommitTimes: Lazy<Map<String, Instant>>,
         workingDir: Path,
     ) {
-        val scheduled = definitions.filterValues { it.atTimes.isNotEmpty() }
-        if (scheduled.isEmpty()) {
-            return
-        }
-        val autoBuildState = FileAutoBuildState(workingDir.resolve(AUTO_BUILDS_FILE))
+        val autoBuildState = lazy { FileAutoBuildState(workingDir.resolve(AUTO_BUILDS_FILE)) }
         val now = clock.instant()
         val today = LocalDate.ofInstant(now, ZoneOffset.UTC)
         val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
-        for ((buildName, definition) in scheduled) {
-            val slot = AutoBuildSlots.latestDueSlot(definition.atTimes, timeOfDay) ?: continue
-            for (branch in originBranches.filter { selects(definition, it, headCommitTimes) }) {
+        for (branch in originBranches) {
+            val scheduled = definitionsFor(branch, heads[branch], workingDir).filterValues { it.atTimes.isNotEmpty() }
+            for ((buildName, definition) in scheduled) {
+                if (!selects(definition, branch, headCommitTimes)) {
+                    continue
+                }
+                val slot = AutoBuildSlots.latestDueSlot(definition.atTimes, timeOfDay) ?: continue
                 val pool = BuildDefinition.poolName(branch, buildName)
-                if (autoBuildState.isTriggered(pool, today, slot)) {
+                if (autoBuildState.value.isTriggered(pool, today, slot)) {
                     continue
                 }
                 if (startBuildIfDue(branch, allowSameCommit = true, config, pullRequestHeads, workingDir, buildName)) {
-                    autoBuildState.markTriggered(pool, today, slot)
+                    autoBuildState.value.markTriggered(pool, today, slot)
                 }
             }
         }
@@ -395,5 +446,8 @@ class Watcher(
     companion object {
         /** Auto-build trigger state next to the build results (replaces legacy `auto-builds.tsv`). */
         const val AUTO_BUILDS_FILE = ".git/gittally/auto-builds.json"
+
+        /** The committed config read per branch for its build definitions. */
+        const val CONFIG_FILE = ".gittally.yml"
     }
 }
