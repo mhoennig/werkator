@@ -7,6 +7,15 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.17 <span class="muted">— 2026-08-29</span></h2>
+        <ul>
+            <li><strong>Fixed:</strong> a page left in the background — a phone tab switched away
+                from for an hour — kept showing the state it was left in, with the durations of
+                running builds counting up client-side although the builds had long finished.
+                A returning page now fetches the current state immediately, whether the browser
+                reports the return as a visibility change, a focus, or a restore from its cache.</li>
+        </ul>
+
         <h2>v0.9.16 <span class="muted">— 2026-08-29</span></h2>
         <ul>
             <li>A scheduled build can run hourly: <code>atTimes: ["??:05"]</code> stands for that
