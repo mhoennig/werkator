@@ -118,7 +118,7 @@ builds:
   # Example of a named build definition; all keys except its name are optional:
   # pitest:
   #   onPush: false                  # trigger: build every new commit (default: false)
-  #   atTimes: ["01:00"]             # trigger: daily UTC times HH:MM (default: none)
+  #   atTimes: ["01:00"]             # trigger: daily UTC times HH:MM, "??:05" = hourly at :05
   #   branches: ["master", "release/*"]  # selector: names or glob patterns (default: all)
   #   activeWithin: 24h              # selector: only branches with commits in the last 24h
   #   buildCommand: ./gradlew piTestFull  # overrides; unset keys fall back to the
@@ -265,6 +265,8 @@ Every key of the `builds` section names a build definition (a job) over the bran
 A build definition has triggers, a branch selector, and build-setting overrides.
 
 Triggers: `onPush: true` builds every new commit of the selected branches; `atTimes: ["HH:MM", …]` rebuilds their heads once per day and slot (UTC).
+A slot may also be written as `??:MM` — that minute of every hour, expanded to its 24 slots, so the build runs hourly.
+Only the latest due slot of a day triggers, so slots missed while the server was down are skipped instead of piling up, and a slot whose pool is still building is retried on the next poll cycle until it succeeds.
 A definition may have both; one with neither never triggers automatically.
 
 Selector: `branches` lists branch names or glob patterns (`*` matches any characters, also across `/`); empty selects all origin branches.

@@ -16,7 +16,11 @@ import java.time.Instant
 data class BuildDefinition(
     /** Build every new commit of the selected branches. */
     val onPush: Boolean = false,
-    /** Daily UTC times `HH:MM`; each slot rebuilds the selected branches' heads once per day. */
+    /**
+     * Daily UTC times `HH:MM`; each slot rebuilds the selected branches' heads once per day.
+     * `??:MM` is the hourly form — it stands for that minute of every hour, so each of its
+     * 24 slots triggers separately.
+     */
     val atTimes: List<String> = emptyList(),
     /**
      * Branch names or glob patterns (`*` matches any characters, also across `/`);

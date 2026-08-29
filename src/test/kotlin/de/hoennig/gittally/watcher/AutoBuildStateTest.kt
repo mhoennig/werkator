@@ -28,6 +28,30 @@ class AutoBuildStateTest : FunSpec() {
             AutoBuildSlots.latestDueSlot(listOf("25:99"), LocalTime.parse("12:00")).shouldBeNull()
         }
 
+        test("an hourly ??:MM slot is due every hour and resolves to that hour's concrete slot") {
+            val times = listOf("??:05")
+
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("00:04")).shouldBeNull()
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("00:05")) shouldBe "00:05"
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("07:30")) shouldBe "07:05"
+            // the next hour is a different slot, so it triggers again
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("08:05")) shouldBe "08:05"
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("23:59")) shouldBe "23:05"
+        }
+
+        test("hourly and fixed slots combine, the latest due one wins") {
+            val times = listOf("??:05", "12:30")
+
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("12:20")) shouldBe "12:05"
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("12:45")) shouldBe "12:30"
+            AutoBuildSlots.latestDueSlot(times, LocalTime.parse("13:10")) shouldBe "13:05"
+        }
+
+        test("latestDueSlot skips an hourly slot with an impossible minute") {
+            AutoBuildSlots.latestDueSlot(listOf("??:70"), LocalTime.parse("12:00")).shouldBeNull()
+            AutoBuildSlots.latestDueSlot(listOf("??:xx", "02:00"), LocalTime.parse("12:00")) shouldBe "02:00"
+        }
+
         test("latestDueSlot of an empty slot list is null") {
             AutoBuildSlots.latestDueSlot(emptyList(), LocalTime.parse("12:00")).shouldBeNull()
         }

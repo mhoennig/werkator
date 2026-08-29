@@ -162,7 +162,7 @@ class InitCommand(
               # Example definition — triggers (onPush/atTimes), branch selector
               # (branches/activeWithin), and overrides of the branch settings:
               # pitest:
-              #   atTimes: ["01:00"]           # daily UTC times HH:MM
+              #   atTimes: ["01:00"]           # daily UTC times HH:MM ("??:05" = every hour at :05)
               #   branches: ["master"]         # names or glob patterns; default: all branches
               #   activeWithin: 24h            # only branches with recent commits
               #   buildCommand: ./gradlew piTestFull

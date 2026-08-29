@@ -29,22 +29,41 @@ data class AutoBuildTrigger(
 object AutoBuildSlots {
     private val log = LoggerFactory.getLogger(AutoBuildSlots::class.java)
 
-    /** The latest valid slot at or before [now], or null when no slot is due yet today. */
+    /**
+     * The latest valid slot at or before [now], or null when no slot is due yet today.
+     * The returned slot is always a concrete `HH:MM` — an hourly pattern is expanded
+     * first, so each of its hours triggers separately.
+     */
     fun latestDueSlot(
         times: List<String>,
         now: LocalTime,
     ): String? =
         times
+            .flatMap { expand(it) }
             .mapNotNull { slot ->
                 try {
-                    LocalTime.parse(slot.trim()) to slot
+                    LocalTime.parse(slot) to slot
                 } catch (_: DateTimeParseException) {
-                    log.warn("skipping invalid scheduled-build time slot '{}': expected HH:MM", slot)
+                    log.warn("skipping invalid scheduled-build time slot '{}': expected HH:MM or ??:MM", slot)
                     null
                 }
             }.filter { (parsed, _) -> !parsed.isAfter(now) }
             .maxByOrNull { (parsed, _) -> parsed }
             ?.second
+
+    /** `??:MM` means every hour at that minute and expands to its 24 slots; `HH:MM` is itself. */
+    private fun expand(time: String): List<String> {
+        val slot = time.trim()
+        if (!slot.startsWith("??:")) {
+            return listOf(slot)
+        }
+        val minute = slot.substringAfter(':').toIntOrNull()
+        if (minute == null || minute !in 0..59) {
+            log.warn("skipping invalid scheduled-build time slot '{}': expected ??:MM with MM from 00 to 59", slot)
+            return emptyList()
+        }
+        return (0..23).map { hour -> "%02d:%02d".format(hour, minute) }
+    }
 }
 
 /**
