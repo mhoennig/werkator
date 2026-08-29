@@ -7,6 +7,23 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.18 <span class="muted">— 2026-08-29</span></h2>
+        <ul>
+            <li>A configuration file can declare which GitTally it is written for, so a version
+                that renames or drops a key says so instead of silently ignoring what it no longer
+                understands:
+                <code>gitTally: { version: { since: "0.9.18", below: "2.0" } }</code>.
+                <code>since</code> is enforced — both against a GitTally that is too old and
+                against a file written before the version in which the configuration format last
+                changed incompatibly, which GitTally knows about itself. <code>below</code> is a
+                release marker and only warns, so an unmaintained value can never stop a build.</li>
+            <li>The reach follows the file: the machine and project configuration abort the start
+                naming the file and the way back, an incompatible configuration committed on a
+                branch fails only that branch's builds. A file that declares nothing keeps working,
+                and <code>gittally init</code> writes the current version into the config it
+                generates.</li>
+        </ul>
+
         <h2>v0.9.17 <span class="muted">— 2026-08-29</span></h2>
         <ul>
             <li><strong>Fixed:</strong> a page left in the background — a phone tab switched away
