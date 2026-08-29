@@ -7,6 +7,33 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.19 <span class="muted">— 2026-08-29</span></h2>
+        <ul>
+            <li>A build definition now describes its build completely: <code>requirePullRequest</code>
+                and the whole <code>docker</code> section, the sandbox policy included, live in
+                <code>builds.&lt;name&gt;</code>. <code>builds.default</code> is the base every other
+                definition inherits its settings from — never its trigger, because
+                <code>onPush</code>, <code>atTimes</code>, <code>branches</code>, and
+                <code>activeWithin</code> say when and where that one build runs.</li>
+            <li>The per-branch <code>branches</code> section is thereby superseded and will be
+                removed. It is still read, but only while nothing defines a build at all: as soon as
+                one real definition exists — a leftover <code>builds.maxConcurrent</code> is not one
+                — <code>branches</code> is ignored completely and a warning names it. Either or,
+                never both: two half-answers to what a build runs would pull against each other.</li>
+            <li><code>requirePullRequest</code>, <code>docker.enabled</code>, and
+                <code>docker.network</code> stay pinned to the host, wherever a branch writes them.
+                Since the inheritance is applied after all configuration layers are merged, a build
+                a branch invents and the host has never heard of still inherits the host's
+                <code>builds.default</code> — it cannot reach a native build by defining a new
+                job.</li>
+            <li><strong>Fixed:</strong> the archived artifact directories came from the plain branch
+                settings, so a build definition adding its own <code>artifactDirs</code> — a
+                release job storing <code>build/libs</code>, say — never had them stored.</li>
+            <li><strong>Fixed:</strong> the build definitions of a branch were cached by its head
+                commit alone, so an edited machine or project configuration only took effect once
+                that branch moved. On a quiet branch, a new scheduled job never started at all.</li>
+        </ul>
+
         <h2>v0.9.18 <span class="muted">— 2026-08-29</span></h2>
         <ul>
             <li>A configuration file can declare which GitTally it is written for, so a version
