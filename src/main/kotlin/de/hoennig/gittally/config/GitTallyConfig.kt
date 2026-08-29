@@ -3,6 +3,8 @@ package de.hoennig.gittally.config
 import com.fasterxml.jackson.annotation.JsonProperty
 
 data class GitTallyConfig(
+    /** What this file declares about the GitTally that reads it; see [VersionRequirement]. */
+    val gitTally: GitTallyMeta = GitTallyMeta(),
     val server: ServerConfig = ServerConfig(),
     val git: GitConfig = GitConfig(),
     val gitea: GiteaConfig = GiteaConfig(),

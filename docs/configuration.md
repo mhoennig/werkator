@@ -12,6 +12,50 @@ GitTally is configured via YAML files. Settings are merged from several sources 
 
 The repo install config (`.git/gittally/.gittally.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
 
+### Which GitTally a file is written for
+
+Every configuration file may declare the GitTally it was written for. Without it, a
+version that renames or drops a key does not fail — it silently ignores what it no longer
+understands, and the effect shows up as a build that does the wrong thing.
+
+```yaml
+gitTally:
+  version:
+    since: "0.9.16"   # enforced: an older GitTally refuses to read this file
+    below: "2.0"      # your release marker; GitTally decides how strictly to take it
+```
+
+There is deliberately **no version of the file format** (no `apiVersion`): no API is
+involved — GitTally reads its own configuration — and only one configuration generation is
+ever supported. The declaration exists to make an incompatibility nameable, never to run
+two parsers.
+
+`since` is a hard floor and covers both directions:
+
+- a newer file on an older GitTally is refused instead of being half-understood;
+- a file written *before* a breaking change and read *after* it is refused as well —
+  GitTally knows in which version its configuration format last broke, so the message can
+  name the change: *"is written for GitTally 1.4.0, but the configuration format changed
+  incompatibly in 2.0.0: `builds:` is now `buildSpec:`"*.
+
+`below` is optional and names the first version this file was **not** released for. The
+bound is exclusive, so `below: "2.0"` means everything up to 2.0.0. On its own it only
+warns — a caution marker nobody maintained must never stop a CI. The refusal above comes
+from GitTally's own knowledge of its breaking changes, not from this value. The intended
+routine is the one known from IDE plugins: a new version appears, the warning shows up, you
+try it (on a test host, or in production with a rollback ready), and then raise `below` and
+commit that.
+
+A file that declares nothing is read as before, with a hint in the log — a missing line
+must never stop a server either. `gittally init` writes the running version into the
+generated config.
+
+How far a violation reaches depends on the file, following the same rule as everything
+else here: the machine and project configs abort the start (the message names the file and
+the rollback), while an incompatible **branch** config fails only the builds of that
+branch. A branch that was cut before a migration must never stop the server or hold up the
+branches that are fine.
+
 ### The branch layer: a branch describes its own CI
 
 The `.gittally.yml` committed on a branch is applied as a third layer on top of the two
@@ -60,6 +104,12 @@ Add `--show-secrets` to print it in clear text.
 Values shown are the defaults.
 
 ```yaml
+# The GitTally this file is written for (see the section above).
+gitTally:
+  version:
+    since: "0.9.18"   # enforced: older GitTally refuses this file
+    below: "2.0"      # optional release marker; warns, does not block
+
 server:
   # Public base URL of this GitTally installation — used for all links posted to Gitea.
   publicBaseUrl: https://ci.example.org/

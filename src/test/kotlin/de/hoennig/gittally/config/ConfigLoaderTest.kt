@@ -1,13 +1,27 @@
 package de.hoennig.gittally.config
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.maps.shouldBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.mockk.every
+import io.mockk.mockk
+import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.info.BuildProperties
 import java.nio.file.Files
+import java.util.Properties
 
 class ConfigLoaderTest : FunSpec() {
     private val loader = ConfigLoader()
+
+    /** A loader that knows which GitTally it is, for the `gitTally.version` checks. */
+    private fun loaderRunning(version: String): ConfigLoader {
+        val provider = mockk<ObjectProvider<BuildProperties>>()
+        every { provider.getIfAvailable() } returns BuildProperties(Properties().apply { setProperty("version", version) })
+        return ConfigLoader(provider)
+    }
 
     init {
         test("returns defaults when no config files exist") {
@@ -90,6 +104,86 @@ class ConfigLoaderTest : FunSpec() {
             )
 
             loader.load(dir).effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(onPush = false)
+        }
+
+        test("a config that needs a newer GitTally is refused, naming the file and both versions") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                gitTally:
+                  version:
+                    since: "0.9.16"
+                """.trimIndent(),
+            )
+
+            val error = shouldThrow<ConfigVersionException> { loaderRunning("0.9.15").load(dir) }
+
+            error.message.shouldNotBeNull().let {
+                it shouldContain ".gittally.yml"
+                it shouldContain "0.9.16"
+                it shouldContain "0.9.15"
+                it shouldContain "roll back"
+            }
+        }
+
+        test("a config within its declared range loads, and exceeding only the ceiling still loads") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                gitTally:
+                  version:
+                    since: "0.9.16"
+                    below: "1.0"
+                gitea:
+                  owner: my-org
+                """.trimIndent(),
+            )
+
+            loaderRunning("0.9.16").load(dir).gitea.owner shouldBe "my-org"
+            // beyond `below`: a warning, never a refusal — an unmaintained marker must not stop a CI
+            loaderRunning("1.4.0").load(dir).gitea.owner shouldBe "my-org"
+            loaderRunning("0.9.16").load(dir).gitTally.version shouldBe
+                VersionRequirement(since = "0.9.16", below = "1.0")
+        }
+
+        test("an incompatible branch config is refused as the branch's problem, not the server's") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText("gitea:\n  owner: my-org")
+
+            val error =
+                shouldThrow<ConfigVersionException> {
+                    loaderRunning("0.9.15").loadWithBranchLayer(
+                        dir,
+                        """
+                        gitTally:
+                          version:
+                            since: "2.0.0"
+                        """.trimIndent(),
+                    )
+                }
+
+            error.message.shouldNotBeNull().let {
+                it shouldContain "branch"
+                it shouldContain "the other branches keep building"
+            }
+            // the primary config alone is untouched by the branch's declaration
+            loaderRunning("0.9.15").load(dir).gitea.owner shouldBe "my-org"
+        }
+
+        test("the machine config is checked as its own file") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".git/gittally").toFile().mkdirs()
+            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+                """
+                gitTally:
+                  version:
+                    since: "1.0.0"
+                """.trimIndent(),
+            )
+
+            shouldThrow<ConfigVersionException> {
+                loaderRunning("0.9.16").load(dir)
+            }.message.shouldNotBeNull() shouldContain ".git/gittally/.gittally.yml"
         }
 
         test("a leftover builds.maxConcurrent is ignored instead of failing the config") {

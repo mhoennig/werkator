@@ -7,6 +7,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.info.BuildProperties
 import org.springframework.stereotype.Service
 import java.io.File
 import java.nio.file.Path
@@ -14,7 +16,10 @@ import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
-class ConfigLoader {
+class ConfigLoader(
+    /** The running version, for the `gitTally.version` check; absent outside a built jar (IDE, tests). */
+    private val buildProperties: ObjectProvider<BuildProperties>? = null,
+) {
     private val log = LoggerFactory.getLogger(ConfigLoader::class.java)
 
     private val yaml =
@@ -25,6 +30,9 @@ class ConfigLoader {
 
     /** Keys already reported by [dropNonDefinitionBuilds]; the config is loaded on every poll cycle. */
     private val warnedBuildKeys = ConcurrentHashMap.newKeySet<String>()
+
+    /** Version warnings already reported; the config is loaded on every poll cycle, per branch. */
+    private val warnedVersions = ConcurrentHashMap.newKeySet<String>()
 
     fun load(workingDir: Path = Paths.get(".")): GitTallyConfig = toConfig(loadRaw(workingDir))
 
@@ -37,7 +45,7 @@ class ConfigLoader {
     fun loadForWorktree(
         workingDir: Path,
         worktreeDir: Path,
-    ): GitTallyConfig = toConfig(deepMerge(loadRaw(workingDir), stripPinned(loadFile(worktreeDir.resolve(".gittally.yml").toFile()))))
+    ): GitTallyConfig = withBranchLayer(workingDir, loadFile(worktreeDir.resolve(".gittally.yml").toFile()))
 
     /**
      * The primary/`.git` config with the committed `.gittally.yml` of one branch
@@ -49,8 +57,8 @@ class ConfigLoader {
      *
      * The [pinned][stripPinned] keys are the exception, and they are exactly the ones
      * that are not a description of this branch's build: secrets (`git`), the host- and
-     * repository-side sections (`server`, `gitea`, `executor`), the docker sandbox policy
-     * (`docker.enabled`/`docker.network`), and the trust gate
+     * repository-side sections (`server`, `gitea`, `executor`, `watcher`), the docker
+     * sandbox policy (`docker.enabled`/`docker.network`), and the trust gate
      * (`requirePullRequest`, which decides whether the branch is built at all).
      * They are stripped from the branch layer before merging, so a branch can neither
      * escape its container, nor bypass its own pull-request gate, nor raise the global
@@ -59,7 +67,17 @@ class ConfigLoader {
     fun loadWithBranchLayer(
         workingDir: Path,
         branchConfigYaml: String?,
-    ): GitTallyConfig = toConfig(deepMerge(loadRaw(workingDir), stripPinned(parseYaml(branchConfigYaml))))
+    ): GitTallyConfig = withBranchLayer(workingDir, parseYaml(branchConfigYaml))
+
+    private fun withBranchLayer(
+        workingDir: Path,
+        branchLayer: Map<String, Any?>,
+    ): GitTallyConfig {
+        // scoped to this branch: an incompatible branch config fails its own builds and
+        // must never stop the server or hold up the branches that are fine
+        checkVersion(branchLayer, "the committed .gittally.yml of this branch", BRANCH_HINT)
+        return toConfig(deepMerge(loadRaw(workingDir), stripPinned(branchLayer)))
+    }
 
     private fun toConfig(raw: Map<String, Any?>): GitTallyConfig {
         val config =
@@ -144,7 +162,45 @@ class ConfigLoader {
     fun loadRaw(workingDir: Path = Paths.get(".")): Map<String, Any?> {
         val repoInstall = loadFile(workingDir.resolve(".git/gittally/.gittally.yml").toFile())
         val project = loadFile(workingDir.resolve(".gittally.yml").toFile())
+        // per file, so the message names the file to fix — the merged map has no provenance
+        checkVersion(project, ".gittally.yml", ROLLBACK_HINT)
+        checkVersion(repoInstall, ".git/gittally/.gittally.yml", ROLLBACK_HINT)
         return deepMerge(project, repoInstall)
+    }
+
+    /**
+     * Enforces the `gitTally.version` declaration of one configuration file.
+     * An incompatible file throws — reading it would mean honoring keys that mean
+     * something else now, which is worse than not building. A file that merely exceeds
+     * its own `below` marker is a warning, logged once: an unmaintained marker must
+     * never stop a CI.
+     */
+    private fun checkVersion(
+        raw: Map<String, Any?>,
+        source: String,
+        hint: String,
+    ) {
+        if (raw.isEmpty()) {
+            return
+        }
+        val running = buildProperties?.getIfAvailable()?.version
+        when (val verdict = ConfigVersions.verdict(requirementOf(raw), running)) {
+            is VersionVerdict.Compatible -> Unit
+            is VersionVerdict.Warn ->
+                if (warnedVersions.add("$source: ${verdict.message}")) {
+                    log.warn("{} {}", source, verdict.message)
+                }
+            is VersionVerdict.Incompatible -> throw ConfigVersionException("$source ${verdict.message}. $hint")
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun requirementOf(raw: Map<String, Any?>): VersionRequirement {
+        val version = (raw["gitTally"] as? Map<String, Any?>)?.get("version") as? Map<String, Any?> ?: return VersionRequirement()
+        return VersionRequirement(
+            since = version["since"]?.toString()?.trim().orEmpty(),
+            below = version["below"]?.toString()?.trim().orEmpty(),
+        )
     }
 
     fun toYaml(value: Any): String = yaml.writeValueAsString(value)
@@ -216,5 +272,11 @@ class ConfigLoader {
 
         /** Per-branch `docker` keys a branch must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")
+
+        private const val ROLLBACK_HINT =
+            "Migrate the file, or roll back to the GitTally version it was written for."
+
+        private const val BRANCH_HINT =
+            "Migrate the file on this branch; the other branches keep building."
     }
 }

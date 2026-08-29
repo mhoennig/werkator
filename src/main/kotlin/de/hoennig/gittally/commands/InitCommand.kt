@@ -2,6 +2,8 @@ package de.hoennig.gittally.commands
 
 import de.hoennig.gittally.SecretFiles
 import de.hoennig.gittally.git.GitService
+import org.springframework.beans.factory.ObjectProvider
+import org.springframework.boot.info.BuildProperties
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
@@ -16,6 +18,8 @@ import java.nio.file.Paths
 )
 class InitCommand(
     private val gitService: GitService,
+    /** The version written into the generated config as `gitTally.version.since`. */
+    private val buildProperties: ObjectProvider<BuildProperties>? = null,
 ) : Runnable {
     var workingDir: Path = Paths.get(".")
 
@@ -50,6 +54,12 @@ class InitCommand(
             createSystemdFiles(root, normalizedWorkingDir)
         }
     }
+
+    /**
+     * The running version for `gitTally.version.since`; outside a built jar (IDE, tests)
+     * there is none, and `0.0.0` then declares no floor at all rather than a wrong one.
+     */
+    private fun runningVersion(): String = buildProperties?.getIfAvailable()?.version ?: "0.0.0"
 
     private fun detectFromUrl(url: String?): DetectedValues {
         if (url == null) return DetectedValues()
@@ -120,6 +130,16 @@ class InitCommand(
         }
         val content =
             """
+            # The GitTally this file is written for.
+            # since: enforced — an older GitTally refuses to read this file instead of
+            #        silently ignoring the keys it does not know yet.
+            # below: your release marker for a coming major; GitTally decides how strictly
+            #        to take it, and warns rather than blocks unless the format really broke.
+            gitTally:
+              version:
+                since: "${runningVersion()}"
+              # below: "2.0"
+
             server:
               # Public base URL of this GitTally installation — used for all links posted to Gitea.
               publicBaseUrl: ""
