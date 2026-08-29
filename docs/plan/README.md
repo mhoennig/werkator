@@ -80,7 +80,7 @@ Added for the vm2176 → vm4006 migration (2026-08-10):
 
 Added after v0.9.19 replaced the per-branch settings with build definitions (2026-08-29):
 
-- [ ] `18-remove-branches-section.md` — delete the legacy `branches` section and its `autoBuild` schedule; run around 2026-09-05, after the precondition check in the step file
+- [ ] `18-remove-branches-section.md` — delete the legacy `branches` section and its `autoBuild` schedule, and group a definition's trigger and selector keys in a `trigger` block; run around 2026-09-05, after the precondition check in the step file
 
 Added for running GitTally on Hostsharing Managed Webspaces (2026-08-10):
 
