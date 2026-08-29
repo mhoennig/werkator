@@ -39,7 +39,7 @@
             <li>Started: <span th:text="${result.startedAt}">2026-07-07 12:00</span>
                 <th:block th:if="${result.duration != ''}">— Duration: <span th:text="${result.duration}">1:23</span></th:block>
             </li>
-            <li th:if="${buildCommand != null}">Build command (as currently configured):<br>
+            <li th:if="${buildCommand != null}">Build command (as configured for this build):<br>
                 <code th:text="${buildCommand}">./gradlew test</code>
             </li>
         </ul>

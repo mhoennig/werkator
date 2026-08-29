@@ -21,6 +21,22 @@ data class GitTallyConfig(
     /** The configured [buildDefinitions] plus the implicit `default` build unless overridden. */
     fun effectiveBuildDefinitions(): Map<String, BuildDefinition> =
         mapOf(BuildDefinition.DEFAULT to BuildDefinition(onPush = true)) + buildDefinitions
+
+    /**
+     * The settings one build of [build] on [branch] runs with: the branch entry (falling
+     * back to `branches.default`) with the build definition's overrides applied last.
+     * A build name without a definition — a job removed from the config since the run —
+     * falls back to the plain branch settings.
+     * This must stay the single answer to "what does this build run", used by the
+     * executor and by everything that displays it.
+     */
+    fun buildSettings(
+        branch: String,
+        build: String,
+    ): BranchConfig {
+        val branchConfig = branches[branch] ?: branches["default"] ?: BranchConfig()
+        return effectiveBuildDefinitions()[build]?.applyTo(branchConfig) ?: branchConfig
+    }
 }
 
 data class ServerConfig(

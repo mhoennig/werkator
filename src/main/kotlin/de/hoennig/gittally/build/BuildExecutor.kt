@@ -474,12 +474,10 @@ class BuildExecutor(
         runningBuild: RunningBuild,
         workingDir: Path,
         worktree: Path,
-    ): BranchConfig {
-        val config = configLoader.loadForWorktree(workingDir, worktree)
-        val branchConfig = config.branches[runningBuild.branch] ?: config.branches["default"] ?: BranchConfig()
-        val definition = config.effectiveBuildDefinitions()[runningBuild.build] ?: return branchConfig
-        return definition.applyTo(branchConfig)
-    }
+    ): BranchConfig =
+        configLoader
+            .loadForWorktree(workingDir, worktree)
+            .buildSettings(runningBuild.branch, runningBuild.build)
 
     private class ActiveBuild(
         val runningBuild: RunningBuild,

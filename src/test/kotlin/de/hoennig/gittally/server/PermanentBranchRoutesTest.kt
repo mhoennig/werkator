@@ -8,6 +8,7 @@ import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.GitTallyConfig
+import de.hoennig.gittally.git.GitService
 import de.hoennig.gittally.metrics.SystemMetricsCollector
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
@@ -53,6 +54,9 @@ class PermanentBranchRoutesTest : FunSpec() {
     lateinit var configLoader: ConfigLoader
 
     @MockkBean
+    lateinit var gitService: GitService
+
+    @MockkBean
     lateinit var metricsCollector: SystemMetricsCollector
 
     @MockkBean
@@ -81,11 +85,14 @@ class PermanentBranchRoutesTest : FunSpec() {
                 artifactStore,
                 controlTokens,
                 configLoader,
+                gitService,
                 metricsCollector,
                 branchListing,
                 branchPermalinks,
             )
             every { configLoader.load(any()) } returns GitTallyConfig()
+            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns GitTallyConfig()
+            every { gitService.showFileAtCommit(any(), any(), any()) } returns null
             every { controlTokens.token() } returns "test-token"
             every { branchListing.branches(any()) } returns emptyList()
             every { branchPermalinks.latestGreenBuild("main") } returns greenBuild

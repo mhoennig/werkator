@@ -7,10 +7,13 @@ import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.build.RunningBuild
+import de.hoennig.gittally.config.BranchConfig
+import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.GitTallyConfig
 import de.hoennig.gittally.config.GiteaConfig
 import de.hoennig.gittally.config.ServerConfig
+import de.hoennig.gittally.git.GitService
 import de.hoennig.gittally.metrics.MetricAggregate
 import de.hoennig.gittally.metrics.SystemMetrics
 import de.hoennig.gittally.metrics.SystemMetricsCollector
@@ -59,6 +62,9 @@ class UiControllerTest : FunSpec() {
     lateinit var configLoader: ConfigLoader
 
     @MockkBean
+    lateinit var gitService: GitService
+
+    @MockkBean
     lateinit var metricsCollector: SystemMetricsCollector
 
     @MockkBean
@@ -103,6 +109,7 @@ class UiControllerTest : FunSpec() {
                 artifactStore,
                 controlTokens,
                 configLoader,
+                gitService,
                 metricsCollector,
                 branchListing,
                 branchPermalinks,
@@ -112,6 +119,8 @@ class UiControllerTest : FunSpec() {
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),
                     gitea = GiteaConfig(baseUrl = "https://git.example.org", owner = "acme", repo = "widget"),
                 )
+            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns GitTallyConfig()
+            every { gitService.showFileAtCommit(any(), any(), any()) } returns null
             every { controlTokens.token() } returns "test-token"
             every { repository.latestGreenFor(any()) } returns null
         }
@@ -262,6 +271,28 @@ class UiControllerTest : FunSpec() {
                 .andExpect(
                     content().string(containsString("""/artifacts/main-abc123-key/reports/tests/test/index.html" target="_blank"""")),
                 ).andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
+        }
+
+        test("the artifact page shows the command of the build's own definition, not the plain branch command") {
+            val pitestResult =
+                successResult.copy(
+                    build = "pitest",
+                    name = "main@pitest",
+                    artifactKey = "main-pitest-key",
+                )
+            every { repository.history() } returns listOf(pitestResult)
+            every { artifactStore.artifactDir("main-pitest-key") } returns null
+            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns
+                GitTallyConfig(
+                    branches = mapOf("default" to BranchConfig(buildCommand = "./gradlew quick-check")),
+                    buildDefinitions = mapOf("pitest" to BuildDefinition(buildCommand = "./gradlew pitestFull")),
+                )
+
+            mockMvc
+                .perform(get("/builds/main-pitest-key"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("./gradlew pitestFull")))
+                .andExpect(content().string(not(containsString("./gradlew quick-check"))))
         }
 
         test("artifact index links a single index-less report page as a directory, keeping the URL stable") {

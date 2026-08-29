@@ -6,7 +6,9 @@ import de.hoennig.gittally.build.BuildResult
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.gittally.git.GitService
 import de.hoennig.gittally.metrics.SystemMetricsCollector
+import de.hoennig.gittally.watcher.Watcher
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
@@ -36,6 +38,7 @@ class UiController(
     private val buildExecutor: BuildExecutor,
     private val artifactStore: ArtifactStore,
     private val configLoader: ConfigLoader,
+    private val gitService: GitService,
     private val metricsCollector: SystemMetricsCollector,
     private val branchListing: BranchListing,
     private val branchPermalinks: BranchPermalinks,
@@ -189,7 +192,7 @@ class UiController(
         model.addAttribute("filesBase", filesBase)
         model.addAttribute("result", result?.let { BuildRowView.from(it, links) })
         model.addAttribute("hasArtifacts", artifactDir != null)
-        model.addAttribute("buildCommand", result?.let { branchBuildCommand(it.branch) })
+        model.addAttribute("buildCommand", result?.let { buildCommandOf(it) })
         model.addAttribute(
             "logs",
             artifactDir?.let { logFiles(it, scanForFailure = result != null && result.status != BuildStatus.SUCCESS) }
@@ -220,10 +223,24 @@ class UiController(
         return links
     }
 
-    /** The currently configured build command — the command actually used at build time is not persisted. */
-    private fun branchBuildCommand(branch: String): String {
-        val branches = configLoader.load(workingDir).branches
-        return (branches[branch] ?: branches["default"])?.buildCommand ?: ""
+    /**
+     * The command this build runs, resolved exactly like the executor resolves it: the
+     * branch layer committed at the build's own commit, plus the overrides of the build
+     * definition it belongs to. Reading only the primary config would show a command no
+     * build of this pool ever ran — the branch and its job usually override it.
+     * The command used by a past run is not persisted, so this is the current answer.
+     */
+    private fun buildCommandOf(result: BuildResult): String {
+        val config =
+            try {
+                configLoader.loadWithBranchLayer(
+                    workingDir,
+                    gitService.showFileAtCommit(result.commit, Watcher.CONFIG_FILE, workingDir),
+                )
+            } catch (_: Exception) {
+                configLoader.load(workingDir)
+            }
+        return config.buildSettings(result.branch, result.build).buildCommand
     }
 
     /**
