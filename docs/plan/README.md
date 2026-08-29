@@ -78,6 +78,10 @@ Added for the vm2176 → vm4006 migration (2026-08-10):
 - [x] `15-runtime-bundle-distribution.md` — self-contained runtime bundle (jlink JRE + jar) for hosts without a Java runtime
 - [x] `16-git-in-docker-builds.md` — read-only git metadata inside Docker build containers, with `.git/gittally/` masked
 
+Added after v0.9.19 replaced the per-branch settings with build definitions (2026-08-29):
+
+- [ ] `18-remove-branches-section.md` — delete the legacy `branches` section and its `autoBuild` schedule; run around 2026-09-05, after the precondition check in the step file
+
 Added for running GitTally on Hostsharing Managed Webspaces (2026-08-10):
 
 - [ ] `17-bwrap-build-runtime.md` — GitTally on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
@@ -89,3 +93,4 @@ Steps 11 and 12 are optional/deferrable; 10 only needs 04–06.
 Step 13 depends on 07, 11, and 12.
 Step 15 depends on 12 and 13 and revises the containerized-runtime sketch in `docs/bootstrapping.md` (ADR 0006 is written as part of the step; GraalVM native image was evaluated and rejected there).
 Step 17 depends on 11, 15, and 16, and starts with a hard precondition check on the target webspace (ADR 0007 is written as part of the step).
+Step 18 depends on nothing in code but on the watched repository having migrated — its precondition check is a hard gate, not a formality.
