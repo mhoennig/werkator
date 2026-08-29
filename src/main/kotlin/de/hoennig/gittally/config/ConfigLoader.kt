@@ -6,18 +6,25 @@ import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class ConfigLoader {
+    private val log = LoggerFactory.getLogger(ConfigLoader::class.java)
+
     private val yaml =
         ObjectMapper(YAMLFactory().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER))
             .registerKotlinModule()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+
+    /** Keys already reported by [dropNonDefinitionBuilds]; the config is loaded on every poll cycle. */
+    private val warnedBuildKeys = ConcurrentHashMap.newKeySet<String>()
 
     fun load(workingDir: Path = Paths.get(".")): GitTallyConfig = toConfig(loadRaw(workingDir))
 
@@ -59,9 +66,36 @@ class ConfigLoader {
             if (raw.isEmpty()) {
                 GitTallyConfig()
             } else {
-                yaml.convertValue(mergeBranchDefaults(raw), GitTallyConfig::class.java)
+                yaml.convertValue(mergeBranchDefaults(dropNonDefinitionBuilds(raw)), GitTallyConfig::class.java)
             }
         return defaultPublicBaseUrl(config)
+    }
+
+    /**
+     * Ignores `builds` entries that are not a build definition — a scalar where a
+     * definition belongs, most likely the `builds.maxConcurrent` key that moved to
+     * `executor.maxConcurrent`. Such a leftover is a warning, not a startup failure:
+     * the config lives in a repository whose `master` may not be changeable right now,
+     * and the rest of it is perfectly usable.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun dropNonDefinitionBuilds(raw: Map<String, Any?>): Map<String, Any?> {
+        val builds = raw["builds"] as? Map<String, Any?> ?: return raw
+        val definitions = builds.filterValues { it is Map<*, *> }
+        if (definitions.size == builds.size) {
+            return raw
+        }
+        for (key in builds.keys - definitions.keys) {
+            if (!warnedBuildKeys.add(key)) {
+                continue
+            }
+            if (key == "maxConcurrent") {
+                log.warn("ignoring builds.maxConcurrent; the concurrency limit is executor.maxConcurrent since v0.9.15")
+            } else {
+                log.warn("ignoring builds.{}: a build definition must be a mapping of keys", key)
+            }
+        }
+        return raw + ("builds" to definitions)
     }
 
     /**

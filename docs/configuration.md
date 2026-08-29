@@ -287,7 +287,8 @@ The builds still run in their branch's worktree, one build per branch at a time,
 
 `branches.<name>.autoBuild` (`enabled` + `times`) is the deprecated pre-ADR-0007 schedule, kept for compatibility: it rebuilds the branch's own pool with its regular command and logs a deprecation warning.
 `autoBuild.times` entries carrying their own `buildCommand`/`name` (a short-lived v0.9.13 syntax) are no longer supported — use a build definition.
-The concurrency limit that used to live in this section moved to `executor.maxConcurrent` without an alias — a leftover `builds.maxConcurrent` key is rejected as an invalid build definition.
+The concurrency limit that used to live in this section moved to `executor.maxConcurrent` without an alias.
+A leftover `builds.maxConcurrent` key (or any other scalar where a definition belongs) is ignored with a warning, not a startup failure — a committed config cannot always be changed right away.
 
 ### Notes on `watcher.fastForwardLocalRefs`
 

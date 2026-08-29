@@ -92,6 +92,23 @@ class ConfigLoaderTest : FunSpec() {
             loader.load(dir).effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(onPush = false)
         }
 
+        test("a leftover builds.maxConcurrent is ignored instead of failing the config") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  maxConcurrent: 1
+                  pitest:
+                    buildCommand: ./gradlew piTestFull
+                """.trimIndent(),
+            )
+
+            val config = loader.load(dir)
+
+            config.executor.maxConcurrent shouldBe 1
+            config.buildDefinitions.keys shouldBe setOf("pitest")
+        }
+
         test("a branch may redefine the builds section for its own builds") {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(

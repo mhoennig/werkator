@@ -23,8 +23,9 @@
             <li><strong>Changed:</strong> the build concurrency limit moved from
                 <code>builds.maxConcurrent</code> to <code>executor.maxConcurrent</code> (default 1,
                 no compatibility alias) — the <code>builds</code> section now holds build definitions
-                only. A leftover <code>builds.maxConcurrent</code> key is rejected as an invalid
-                build definition.</li>
+                only. A leftover <code>builds.maxConcurrent</code> key is ignored with a warning
+                instead of failing the configuration, so an installation keeps running until its
+                committed config can be updated.</li>
         </ul>
 
         <h2>v0.9.14 <span class="muted">— 2026-08-28</span></h2>
