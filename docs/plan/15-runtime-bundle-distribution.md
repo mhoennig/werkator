@@ -154,3 +154,8 @@ Update to v0.9.17 (2026-08-29): same procedure, `~/opt/gittally.0.9.16.bak` as t
 Deployed under the operator's condition "only if no build is running": the deploy script re-checks `/api/builds/current` immediately before the stop and exits without touching anything when a build is executing.
 Verified live: `bin/gittally --version` reports v0.9.17 before the start, the service is `active`, `/releases` lists v0.9.17, the served `gittally.js` carries the resume listeners, and no errors in the log.
 Shipped fix: a page returning from the background fetches the current state immediately instead of showing (and ticking) the state it was left in.
+
+Update to v0.9.18 (2026-08-29): same procedure, `~/opt/gittally.0.9.17.bak` as the rollback copy, no build was running.
+Verified live: `bin/gittally --version` reports v0.9.18 before the start, the service is `active`, `/releases` lists v0.9.18, the watcher polls without fetch or poll errors, and the only warnings are the two known `builds.maxConcurrent` lines from the repository's committed config.
+Shipped feature: a configuration file can declare the GitTally it is written for (`gitTally.version.since`/`below`), so an incompatibility is named instead of silently ignored.
+The configs of the watched repository declare nothing yet and are unaffected — a missing declaration is never an error.
