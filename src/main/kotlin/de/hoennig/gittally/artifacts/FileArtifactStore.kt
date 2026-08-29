@@ -138,7 +138,7 @@ class FileArtifactStore(
             log.warn("build {} has no workspace; storing only its logs", build.artifactKey)
             return
         }
-        for (artifactDir in branchConfig(build.branch, workspace).artifactDirs) {
+        for (artifactDir in buildSettings(build, workspace).artifactDirs) {
             if (artifactDir.isBlank()) {
                 continue
             }
@@ -159,14 +159,16 @@ class FileArtifactStore(
             "reports/$artifactDir"
         }
 
-    /** The build config for [branch], with the build [workspace]'s `.gittally.yml` layered on top (see [ConfigLoader.loadForWorktree]). */
-    private fun branchConfig(
-        branch: String,
+    /**
+     * The settings [build] ran with, from the build [workspace]'s `.gittally.yml` layered
+     * on top of the primary config (see [ConfigLoader.loadForWorktree]) — resolved through
+     * [GitTallyConfig.buildSettings], so a job's own `artifactDirs` are archived and not
+     * only the ones its branch would have used.
+     */
+    private fun buildSettings(
+        build: BuildResult,
         workspace: Path,
-    ): BranchConfig {
-        val branches = configLoader.loadForWorktree(workingDir, workspace).branches
-        return branches[branch] ?: branches["default"] ?: BranchConfig()
-    }
+    ): BranchConfig = configLoader.loadForWorktree(workingDir, workspace).buildSettings(build.branch, build.build)
 
     private fun copyChildren(
         sourceDir: Path,

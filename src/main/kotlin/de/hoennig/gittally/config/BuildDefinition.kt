@@ -6,8 +6,12 @@ import java.time.Instant
 /**
  * A named build (job) over the branches — ADR 0007. In YAML these live in the
  * top-level `builds` section next to the reserved execution key `maxConcurrent`
- * (split apart by [ConfigLoader]); a build definition always comes from the repo
- * install/project config, never from a build worktree.
+ * (split apart by [ConfigLoader]).
+ *
+ * A definition carries the complete description of one build. The `default` entry is
+ * additionally the base every other definition inherits its settings from — but never
+ * its trigger, see [SELECTOR_KEYS][ConfigLoader]. Unset values fall through to the
+ * [BranchConfig] defaults.
  *
  * The `default` build records its results under the plain branch name; every other
  * build records under `<branch>@<name>` with its own history, retention pool, and
@@ -42,7 +46,13 @@ data class BuildDefinition(
     val stdoutLog: String? = null,
     /** Overrides the branch's stderr log file name; null inherits it. */
     val stderrLog: String? = null,
-    /** Overrides of the branch's docker image settings; the sandbox policy (`enabled`, `network`) is not overridable. */
+    /**
+     * The watcher builds a selected branch only while its head commit matches a
+     * pull-request head; null inherits. Pinned — a branch's own committed config can
+     * never set it, or it would bypass its own gate.
+     */
+    val requirePullRequest: Boolean? = null,
+    /** Overrides of the branch's docker settings; null inherits them. */
     val docker: DockerOverrides? = null,
 ) {
     /** True when [branch] matches the [branches] patterns (or none are configured). */
@@ -78,11 +88,14 @@ data class BuildDefinition(
             artifactDirs = artifactDirs ?: branchConfig.artifactDirs,
             stdoutLog = stdoutLog ?: branchConfig.stdoutLog,
             stderrLog = stderrLog ?: branchConfig.stderrLog,
+            requirePullRequest = requirePullRequest ?: branchConfig.requirePullRequest,
             docker =
                 branchConfig.docker.copy(
+                    enabled = docker?.enabled ?: branchConfig.docker.enabled,
                     image = docker?.image ?: branchConfig.docker.image,
                     dockerfile = docker?.dockerfile ?: branchConfig.docker.dockerfile,
                     context = docker?.context ?: branchConfig.docker.context,
+                    network = docker?.network ?: branchConfig.docker.network,
                     env = docker?.env ?: branchConfig.docker.env,
                 ),
         )
@@ -106,8 +119,12 @@ data class BuildDefinition(
     }
 }
 
-/** Nullable docker image overrides of a [BuildDefinition]; null values inherit the branch's setting. */
+/** Nullable docker overrides of a [BuildDefinition]; null values inherit the branch's setting. */
 data class DockerOverrides(
+    /** Run the build in a container instead of natively. Pinned — a branch must not escape its sandbox. */
+    val enabled: Boolean? = null,
+    /** Docker network mode. Pinned — a branch must not change the sandbox's reachability. */
+    val network: String? = null,
     val image: String? = null,
     val dockerfile: String? = null,
     val context: String? = null,

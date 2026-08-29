@@ -60,10 +60,10 @@ branches that are fine.
 
 The `.gittally.yml` committed on a branch is applied as a third layer on top of the two
 above, giving the precedence **branch > repo install > project**. It takes precedence for
-everything that describes how this branch is built: `buildCommand`, `cleanCommand`,
-`artifactDirs`, log file names, `docker.image`/`dockerfile`/`context`/`env`, and the whole
-`builds` section — its own definitions and its overrides of the definitions from the
-project config. That is how a new configuration is tried out: change it on a branch, and
+everything that describes how this branch is built: the whole `builds` section — its own
+definitions and its overrides of the definitions from the project config, with
+`buildCommand`, `cleanCommand`, `artifactDirs`, log file names, and
+`docker.image`/`dockerfile`/`context`/`env` inside them. That is how a new configuration is tried out: change it on a branch, and
 no other branch's builds are affected.
 
 The branch layer is used in both places where it matters: the watcher reads the committed
@@ -87,7 +87,9 @@ This keeps a branch from reaching credentials, reporting statuses to another rep
 raising the global concurrency, disabling its own build container, changing its network
 mode, or bypassing its own pull-request gate. Everything else is the branch's to decide —
 it can already run any command through `buildCommand`.
-The deprecated `autoBuild` schedules are read from the repo install/project config only.
+The pinned settings are stripped wherever they appear, in a build definition as well as in
+a legacy `branches` entry. The deprecated `branches` section itself is read from the repo
+install/project config only, and only while nothing defines a build at all.
 
 ## Inspect the Effective Config
 
@@ -159,22 +161,52 @@ executor:
 
 # Named build definitions (jobs, see notes below); every key names a build.
 builds:
-  # Implicit unless overridden: the default build runs on push over all branches
-  # with the branch's regular settings — exactly the behavior without any
-  # build definitions. Set onPush: false here to disable on-push builds.
-  # default:
-  #   onPush: true
-  #
-  # Example of a named build definition; all keys except its name are optional:
-  # pitest:
-  #   onPush: false                  # trigger: build every new commit (default: false)
-  #   atTimes: ["01:00"]             # trigger: daily UTC times HH:MM, "??:05" = hourly at :05
-  #   branches: ["master", "release/*"]  # selector: names or glob patterns (default: all)
-  #   activeWithin: 24h              # selector: only branches with commits in the last 24h
-  #   buildCommand: ./gradlew piTestFull  # overrides; unset keys fall back to the
-  #   cleanCommand: rm -rf build          # merged branch settings (also available:
-  #   artifactDirs: [build/reports]       # stdoutLog, stderrLog, and docker
-  #                                       # image/dockerfile/context/env)
+  # "default" is the base every other definition inherits its settings from — never its
+  # trigger — and, with onPush, the build of every branch. Without this entry an implicit
+  # default build (onPush over all branches) applies; writing it replaces that implicit
+  # one, so a default without a trigger is a settings base and nothing else.
+  default:
+    onPush: true                # trigger: build every new commit of the selected branches
+    # run before each build
+    cleanCommand: rm -rf build
+    # shell command for each build
+    buildCommand: ./gradlew --console=plain --no-daemon test
+    # directories copied as build artifacts
+    artifactDirs:
+      - build/reports
+      - build/doc
+    stdoutLog: build.stdout.log   # filename for captured stdout
+    stderrLog: build.stderr.log   # filename for captured stderr
+    # Build a selected branch only while its head commit matches a pull-request head on
+    # origin (refs/pull/*/head — read via plain git, no API token needed; see notes below).
+    # Pinned: a branch cannot set this in its own committed config.
+    requirePullRequest: false
+    # Optional Docker build runtime; when enabled, the clean and build commands
+    # run inside a container instead of natively (see notes below).
+    docker:
+      # run clean/build commands in a Docker container (pinned)
+      enabled: false
+      # image for the build container; required when enabled
+      image: ""
+      # Dockerfile to (re)build the image from when it is missing or stale; empty pulls the image as-is
+      dockerfile: ""
+      # Docker build context used with dockerfile
+      context: "."
+      # Docker network mode for the build container; empty = Docker default (pinned)
+      network: ""
+      # additional environment variables set inside the build container
+      env: {}
+
+  # Every further job inherits the settings above and adds its own trigger and selector.
+  # The nightly rebuild runs the full check instead of the quick on-commit one and is
+  # recorded separately as master@pitest:
+  pitest:
+    onPush: false                     # trigger: build every new commit (default: false)
+    atTimes: ["01:00"]                # trigger: daily UTC times HH:MM, "??:05" = hourly at :05
+    branches: ["master", "release/*"]  # selector: names or glob patterns (default: all)
+    activeWithin: 24h                 # selector: only branches with commits in the last 24h
+    buildCommand: ./gradlew -PfullPitTest --console=plain --no-daemon piTestFull
+    artifactDirs: [build/reports, build/libs]
 
 # Build artifact storage and retention.
 artifacts:
@@ -202,7 +234,7 @@ watcher:
   pollInterval: 10s
   # max commit age for new origin branches to be pulled automatically
   newBranchMaxAge: 5d
-  # Honor the branches.<name>.requirePullRequest gates (see notes below).
+  # Honor the builds.<name>.requirePullRequest gates (see notes below).
   # Set false for a plain git origin without pull-request refs (no Gitea/GitHub);
   # gated branches then build on new commits like any other branch.
   pullRequestGate: true
@@ -211,58 +243,6 @@ watcher:
   # ahead local branch is never touched. Set false to leave refs/heads/* alone entirely.
   fastForwardLocalRefs: true
 
-# Per-branch build configuration.
-# Use "default" as the fallback for all branches not listed explicitly.
-# Each entry merges build settings and auto-build scheduling.
-branches:
-  default:
-    # run before each build
-    cleanCommand: rm -rf build
-    # shell command for each build 
-    buildCommand: ./gradlew --console=plain --no-daemon test
-    # directories copied as build artifacts
-    artifactDirs:                                         
-      - build/reports
-      - build/doc
-    stdoutLog: build.stdout.log   # filename for captured stdout
-    stderrLog: build.stderr.log   # filename for captured stderr
-    # Build this branch only while its head commit matches a pull-request head on origin
-    # (refs/pull/*/head — read via plain git, no API token needed; see notes below).
-    requirePullRequest: false
-    # DEPRECATED: define a build with atTimes in the builds section instead.
-    # Kept for compatibility: rebuilds this branch on schedule with its regular command.
-    autoBuild:
-      enabled: false        # whether to rebuild on schedule
-      times: ["01:00"]      # UTC times HH:MM for scheduled builds
-    # Optional Docker build runtime; when enabled, the clean and build commands
-    # run inside a container instead of natively (see notes below).
-    docker:
-      # run clean/build commands in a Docker container
-      enabled: false
-      # image for the build container; required when enabled
-      image: ""
-      # Dockerfile to (re)build the image from when it is missing or stale; empty pulls the image as-is
-      dockerfile: ""
-      # Docker build context used with dockerfile
-      context: "."
-      # Docker network mode for the build container; empty = Docker default
-      network: ""
-      # additional environment variables set inside the build container
-      env: {}
-
-  master:
-    buildCommand: ./gradlew --console=plain --no-daemon quickCheck
-
-  release:
-    buildCommand: ./gradlew --console=plain --no-daemon --no-build-cache test jacocoReport
-
-builds:
-  # the nightly rebuild runs the full check instead of the quick on-commit one,
-  # recorded separately as master@pitest
-  pitest:
-    atTimes: ["01:00"]
-    branches: ["master"]
-    buildCommand: ./gradlew -PfullPitTest --console=plain --no-daemon piTestFull
 ```
 
 ### Notes on `server.bindAddress`
@@ -282,7 +262,7 @@ All nginx/certificate failures are non-fatal warnings; the plain HTTP server kee
 The container is labelled `org.hoennig.gittally`; stale nginx containers of the repository are removed before each start, and the container is removed on shutdown.
 `server.port` must differ from `httpPort` and `httpsPort`.
 
-### Notes on `branches.<name>.requirePullRequest`
+### Notes on `builds.<name>.requirePullRequest`
 
 The gate applies to all watcher-triggered builds (push-triggered and scheduled auto builds).
 A manual `gittally build <branch>` always builds, regardless of this setting.
@@ -294,17 +274,21 @@ This ls-remote call is made at most once per poll cycle, and only when a branch 
 Because matching is by commit id, a closed pull request whose head ref still equals the branch head also counts.
 Distinguishing open from closed pull requests would require the Gitea API.
 
-To build pull-request branches only, set the key under `branches.default` and override it for permanent branches:
+To build pull-request branches only, gate the default build and give the permanent branches a build of their own:
 
 ```yaml
-branches:
+builds:
   default:
+    onPush: true
     requirePullRequest: true
   main:
+    onPush: true
+    branches: ["main"]
     requirePullRequest: false
 ```
 
-Without the `main` override, direct pushes and merges to `main` would never build — merge commits do not match any pull-request head.
+Without that second definition, direct pushes and merges to `main` would never build — merge commits do not match any pull-request head.
+Note that `main` is then selected by both definitions, so a push builds it twice; give the default build a `branches` selector that excludes it, or accept the second run.
 
 A plain git origin (no Gitea/GitHub) serves no `refs/pull/*/head` at all, so gated branches would never build there.
 For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/gittally/.gittally.yml`, so the committed configuration keeps the gates for forge-backed environments.
@@ -317,18 +301,19 @@ A build definition has triggers, a branch selector, and build-setting overrides.
 Triggers: `onPush: true` builds every new commit of the selected branches; `atTimes: ["HH:MM", …]` rebuilds their heads once per day and slot (UTC).
 A slot may also be written as `??:MM` — that minute of every hour, expanded to its 24 slots, so the build runs hourly.
 Only the latest due slot of a day triggers, so slots missed while the server was down are skipped instead of piling up, and a slot whose pool is still building is retried on the next poll cycle until it succeeds.
-A definition may have both; one with neither never triggers automatically.
+A definition may have both; one with neither never triggers automatically — which is how `builds.default` is written when it is meant as a settings base only.
+GitTally logs a warning once when no definition has a trigger at all, because such an instance never builds anything on its own.
 
 Selector: `branches` lists branch names or glob patterns (`*` matches any characters, also across `/`); empty selects all origin branches.
 `activeWithin` (e.g. `24h`) additionally keeps only branches whose origin head commit is younger than the duration — useful to run a nightly deep check over all recently active branches.
 Both parts combine as an intersection.
-The `branches.<name>.requirePullRequest` gate stays a branch property and gates all watcher-triggered builds of that branch.
 
-Overrides: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, and the docker image keys (`image`, `dockerfile`, `context`, `env`).
-A definition has no `docker.enabled`/`docker.network` and no `requirePullRequest` — those are pinned branch properties, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci).
-The effective settings of one build on one branch merge in this order: defaults → `branches.default` → `branches.<branch>` → the branch's committed `.gittally.yml` → the build definition's overrides.
-Unset keys fall back; the definition wins last because it is the job.
-Definitions themselves are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
+Settings: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `requirePullRequest`, and `docker` with all its keys.
+A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to GitTally's own defaults.
+`requirePullRequest`, `docker.enabled`, and `docker.network` are pinned: they are read from the repo install/project config even when a branch sets them in its own committed config, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci).
+Inheritance from `builds.default` covers the settings only — a trigger and a selector say when and where *this* build runs, so `onPush`, `atTimes`, `branches`, and `activeWithin` are never inherited.
+Definitions are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
+Because the inheritance is applied after all layers are merged, a build a branch invents still inherits the host's `builds.default` — its sandbox policy included, which is what keeps the pinning effective for a build the host has never heard of.
 
 The implicit `default` build (`onPush: true`, all branches) preserves the behavior without any definitions; defining other builds does not disable it, `builds.default.onPush: false` does.
 The `default` build records under the plain branch name; every other build records under `<branch>@<name>` with its own row in the branches view (sorted after its branch), its own `retentionPerBranch` count, latest status, and permanent latest-green artifact link.
@@ -337,10 +322,23 @@ The pools live as long as the underlying branch exists on origin.
 Restart, `gittally retry`, and the startup recovery re-run a build under its recorded definition, resolving the settings from the current configuration — the job definition is the source of truth, not the historical run.
 The builds still run in their branch's worktree, one build per branch at a time, and the Gitea commit status is reported per commit in the shared status context (the last build of a commit wins there).
 
-`branches.<name>.autoBuild` (`enabled` + `times`) is the deprecated pre-ADR-0007 schedule, kept for compatibility: it rebuilds the branch's own pool with its regular command and logs a deprecation warning.
-`autoBuild.times` entries carrying their own `buildCommand`/`name` (a short-lived v0.9.13 syntax) are no longer supported — use a build definition.
 The concurrency limit that used to live in this section moved to `executor.maxConcurrent` without an alias.
 A leftover `builds.maxConcurrent` key (or any other scalar where a definition belongs) is ignored with a warning, not a startup failure — a committed config cannot always be changed right away.
+
+### The legacy `branches` section
+
+Before build definitions existed, the settings lived in a per-branch `branches` section, with `branches.default` as the fallback for every branch not listed.
+That section is deprecated and will be removed.
+It is still read, but only while the merged configuration defines no build at all: as soon as one real definition exists, `branches` is ignored completely and a warning names it.
+`builds.maxConcurrent` is not a definition — a configuration carrying only that leftover still uses `branches`.
+
+Either or, never both: a definition now carries the complete description of its build, and two half-answers would silently pull against each other.
+The decision is made on the merged configuration, so a machine config that defines builds switches `branches` off for every branch, including the branches whose committed config still has one.
+
+`branches.<name>.autoBuild` (`enabled` + `times`) is the pre-ADR-0007 schedule that goes with it: it rebuilds the branch's own pool with its regular command and logs a deprecation warning.
+`autoBuild.times` entries carrying their own `buildCommand`/`name` (a short-lived v0.9.13 syntax) are no longer supported — use a build definition.
+
+To migrate, move `branches.default` to `builds.default`, add `onPush: true`, and turn every other branch entry into a definition with a `branches` selector of its own.
 
 ### Notes on `watcher.fastForwardLocalRefs`
 
@@ -355,7 +353,7 @@ Only fast-forwards are applied, as a compare-and-swap against the commit just re
 A local branch that diverged from origin or is ahead of it stays untouched, so local work in the primary checkout is never lost.
 The branch checked out in the primary checkout is advanced with `git merge --ff-only`, which refuses to overwrite conflicting uncommitted changes; a refusal is logged and the cycle continues.
 
-### Notes on `branches.<name>.docker`
+### Notes on `builds.<name>.docker`
 
 With `docker.enabled`, GitTally shells out to the `docker` CLI; the `docker` command must be on the `PATH`.
 When `dockerfile` is set, the image is (re)built whenever the Dockerfile content, its path, or the context path changed.

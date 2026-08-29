@@ -34,6 +34,9 @@ class ConfigLoader(
     /** Version warnings already reported; the config is loaded on every poll cycle, per branch. */
     private val warnedVersions = ConcurrentHashMap.newKeySet<String>()
 
+    /** Section-level warnings already reported, keyed by a fixed slug; the config is loaded on every poll cycle. */
+    private val warnedSections = ConcurrentHashMap.newKeySet<String>()
+
     fun load(workingDir: Path = Paths.get(".")): GitTallyConfig = toConfig(loadRaw(workingDir))
 
     /**
@@ -84,7 +87,7 @@ class ConfigLoader(
             if (raw.isEmpty()) {
                 GitTallyConfig()
             } else {
-                yaml.convertValue(mergeBranchDefaults(dropNonDefinitionBuilds(raw)), GitTallyConfig::class.java)
+                yaml.convertValue(resolveBuildSections(dropNonDefinitionBuilds(raw)), GitTallyConfig::class.java)
             }
         return defaultPublicBaseUrl(config)
     }
@@ -118,7 +121,8 @@ class ConfigLoader(
 
     /**
      * Removes the keys a branch must never override: the secret and host-side top-level
-     * sections, the per-branch trust gate, and the docker sandbox policy.
+     * sections, the trust gate, and the docker sandbox policy — the latter two wherever
+     * they may appear, in a `builds` definition as well as in a legacy `branches` entry.
      * See [loadWithBranchLayer].
      */
     @Suppress("UNCHECKED_CAST")
@@ -128,24 +132,100 @@ class ConfigLoader(
         }
         val result = branchLayer.toMutableMap()
         PINNED_TOP_LEVEL_KEYS.forEach { result.remove(it) }
-        val branches = result["branches"] as? Map<String, Any?>
-        if (branches != null) {
-            result["branches"] = branches.mapValues { (_, value) -> stripPinnedBranchKeys(value) }
+        for (section in listOf("builds", "branches")) {
+            val entries = result[section] as? Map<String, Any?> ?: continue
+            result[section] = entries.mapValues { (_, value) -> stripPinnedSettings(value) }
         }
         return result
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun stripPinnedBranchKeys(value: Any?): Any? {
-        val branch = value as? Map<String, Any?> ?: return value
-        val result = branch.toMutableMap()
-        PINNED_BRANCH_KEYS.forEach { result.remove(it) }
-        val docker = branch["docker"] as? Map<String, Any?>
+    private fun stripPinnedSettings(value: Any?): Any? {
+        val entry = value as? Map<String, Any?> ?: return value
+        val result = entry.toMutableMap()
+        PINNED_SETTING_KEYS.forEach { result.remove(it) }
+        val docker = entry["docker"] as? Map<String, Any?>
         if (docker != null) {
             val strippedDocker = docker.toMutableMap().apply { PINNED_DOCKER_KEYS.forEach { remove(it) } }
             if (strippedDocker.isEmpty()) result.remove("docker") else result["docker"] = strippedDocker
         }
         return result
+    }
+
+    /**
+     * Decides which of the two sections describes the builds: `builds` or the legacy
+     * `branches`, never both. As soon as the merged configuration carries one real build
+     * definition — `builds.maxConcurrent` alone is not one, it is already dropped by
+     * [dropNonDefinitionBuilds] — a `branches` section is ignored altogether, because a
+     * definition now carries the complete description of its build and two half-answers
+     * would silently pull against each other.
+     *
+     * Deliberately decided on the *merged* map, after all layers are in: a branch that
+     * brings its own `builds` therefore also switches the host's `branches` off for its
+     * own builds, and — the reason this order matters — a build the branch defines and
+     * the host has never heard of still inherits the host's `builds.default`, sandbox
+     * policy included. Were the sections resolved per layer, that build would start with
+     * an empty docker policy and run natively on the host, which is exactly the escape
+     * the pinned keys exist to prevent.
+     */
+    private fun resolveBuildSections(raw: Map<String, Any?>): Map<String, Any?> {
+        @Suppress("UNCHECKED_CAST")
+        val definitions = raw["builds"] as? Map<String, Any?> ?: emptyMap()
+        if (definitions.isEmpty()) {
+            return mergeBranchDefaults(raw)
+        }
+        if (raw.containsKey("branches") && warnedSections.add(LEGACY_BRANCHES_WARNING)) {
+            log.warn(
+                "ignoring the branches section: this configuration defines builds, and a build definition " +
+                    "carries its own settings; move what is still needed into builds — branches is going away",
+            )
+        }
+        warnWhenNothingIsTriggered(definitions)
+        return mergeBuildDefaults(raw - "branches")
+    }
+
+    /**
+     * An explicit `builds.default` replaces the implicit on-push build, so a set of
+     * definitions can end up with no trigger at all — an instance that will never build
+     * anything. That is a plausible intention for a moment and a mistake for a week, so
+     * it is said out loud once instead of being enforced.
+     */
+    private fun warnWhenNothingIsTriggered(definitions: Map<String, Any?>) {
+        if (BuildDefinition.DEFAULT !in definitions || definitions.values.any { isTriggered(it) }) {
+            return
+        }
+        if (warnedSections.add(NO_TRIGGER_WARNING)) {
+            log.warn("no build defines onPush or atTimes; the watcher will never start a build on its own")
+        }
+    }
+
+    private fun isTriggered(definition: Any?): Boolean {
+        val entry = definition as? Map<*, *> ?: return false
+        return entry["onPush"] == true || (entry["atTimes"] as? List<*>)?.isNotEmpty() == true
+    }
+
+    /**
+     * Applies `builds.default` as the base of every other build definition — the settings
+     * only. A trigger is never inherited: `onPush` and `atTimes` say when *this* build
+     * runs, and the selectors say for which branches, so inheriting them would make every
+     * job fire whenever the default one does.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun mergeBuildDefaults(raw: Map<String, Any?>): Map<String, Any?> {
+        val builds = raw["builds"] as? Map<String, Any?> ?: return raw
+        val base = (builds[BuildDefinition.DEFAULT] as? Map<String, Any?>)?.minus(SELECTOR_KEYS) ?: return raw
+        if (base.isEmpty()) {
+            return raw
+        }
+        val merged =
+            builds.mapValues { (name, value) ->
+                if (name == BuildDefinition.DEFAULT) {
+                    value
+                } else {
+                    deepMerge(base, value as? Map<String, Any?> ?: emptyMap())
+                }
+            }
+        return raw + ("builds" to merged)
     }
 
     /** Legacy default: an empty `server.publicBaseUrl` becomes `https://<nginx.serverName>/`. */
@@ -260,18 +340,27 @@ class ConfigLoader(
          * the credentials, report statuses to another repository, raise the global
          * concurrency, or turn off the pull-request gate for the whole watcher.
          * The `builds` section is deliberately *not* pinned: it describes what the branch
-         * builds, and a branch can already run any command via `branches.*.buildCommand`.
+         * builds, which is the branch's own business — only the individual settings in
+         * [PINNED_SETTING_KEYS] and [PINNED_DOCKER_KEYS] are taken out of it.
          */
         private val PINNED_TOP_LEVEL_KEYS = setOf("git", "gitea", "server", "executor", "watcher")
 
         /**
-         * Per-branch keys a branch must never override: the trust gate that decides
-         * whether the watcher builds this branch at all.
+         * Settings keys a branch must never override, in a build definition as well as in
+         * a legacy branch entry: the trust gate that decides whether the watcher builds
+         * this branch at all.
          */
-        private val PINNED_BRANCH_KEYS = setOf("requirePullRequest")
+        private val PINNED_SETTING_KEYS = setOf("requirePullRequest")
 
-        /** Per-branch `docker` keys a branch must never override: the sandbox policy. */
+        /** `docker` keys a branch must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")
+
+        /** Keys of a build definition that say *when* it runs; never inherited from `builds.default`. */
+        private val SELECTOR_KEYS = setOf("onPush", "atTimes", "branches", "activeWithin")
+
+        private const val LEGACY_BRANCHES_WARNING = "legacy-branches-ignored"
+
+        private const val NO_TRIGGER_WARNING = "no-build-triggered"
 
         private const val ROLLBACK_HINT =
             "Migrate the file, or roll back to the GitTally version it was written for."

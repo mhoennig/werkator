@@ -175,17 +175,40 @@ class InitCommand(
               # how many builds may run at the same time (at most one build per branch regardless)
               maxConcurrent: 1
 
-            # Named build definitions (jobs) over the branches; every key names a build.
-            # A branch may add or override definitions in its own committed .gittally.yml —
-            # they then apply to that branch alone, so a new job can be tried out on a branch.
+            # Named build definitions (jobs); every key names a build.
+            # "default" is the base every other definition inherits its settings from — never
+            # its trigger — and is itself the build of every branch as long as it has one.
+            # A branch may add or override definitions in its own committed .gittally.yml;
+            # they apply to that branch alone, so a new job can be tried out on one branch.
             builds:
-              # Example definition — triggers (onPush/atTimes), branch selector
-              # (branches/activeWithin), and overrides of the branch settings:
+              default:
+                onPush: true            # build every new commit of the selected branches
+                # run before each build
+                cleanCommand: rm -rf build
+                # shell command for each build
+                buildCommand: ./gradlew --console=plain --no-daemon test
+                # directories copied as build artifacts
+                artifactDirs:
+                  - build/reports
+                stdoutLog: build.stdout.log   # filename for captured stdout
+                stderrLog: build.stderr.log   # filename for captured stderr
+                # build only while the branch head matches a pull-request head on origin
+                # (refs/pull/*/head — read via plain git, no API token needed);
+                # pinned: a branch cannot set this in its own committed config
+                requirePullRequest: false
+                docker:
+                  enabled: false        # run clean/build in a container instead of natively (pinned)
+                  image: ""             # image for the build container; required when enabled
+                  dockerfile: ""        # Dockerfile to (re)build the image from when missing or stale; empty pulls the image as-is
+                  context: "."          # Docker build context used with dockerfile
+                  network: ""           # Docker network mode for the build container; empty = Docker default (pinned)
+                  env: {}               # additional environment variables set inside the build container
+              # Further jobs inherit those settings and add their own trigger and selector:
               # pitest:
               #   atTimes: ["01:00"]           # daily UTC times HH:MM ("??:05" = every hour at :05)
               #   branches: ["master"]         # names or glob patterns; default: all branches
               #   activeWithin: 24h            # only branches with recent commits
-              #   buildCommand: ./gradlew piTestFull
+              #   buildCommand: ./gradlew pitestFull
 
             # Build artifact storage and retention.
             artifacts:
@@ -206,40 +229,12 @@ class InitCommand(
               pollInterval: 10s
               # max commit age for new origin branches to be pulled automatically
               newBranchMaxAge: 5d
-              # honor branches.<name>.requirePullRequest; set false for a plain git origin
+              # honor builds.<name>.requirePullRequest; set false for a plain git origin
               # without pull-request refs (refs/pull/*/head) — gated branches then build on new commits
               pullRequestGate: true
               # after enqueueing, fast-forward the primary checkout's local branch refs to origin,
               # so build tools reading the shared .git see the same refs (diverged branches stay untouched)
               fastForwardLocalRefs: true
-
-            # Per-branch build configuration.
-            # Use "default" as the fallback for all branches not listed explicitly.
-            branches:
-              default:
-                # run before each build
-                cleanCommand: rm -rf build
-                # shell command for each build 
-                buildCommand: ./gradlew --console=plain --no-daemon test
-                # directories copied as build artifacts
-                artifactDirs:                                         
-                  - build/reports
-                stdoutLog: build.stdout.log   # filename for captured stdout
-                stderrLog: build.stderr.log   # filename for captured stderr
-                # build only while the branch head matches a pull-request head on origin
-                # (refs/pull/*/head — read via plain git, no API token needed)
-                requirePullRequest: false
-                # DEPRECATED: define a build with atTimes in the builds section instead
-                autoBuild:
-                  enabled: false        # whether to rebuild on schedule
-                  times: ["01:00"]      # UTC times HH:MM for scheduled builds
-                docker:
-                  enabled: false        # run clean/build commands in a Docker container instead of natively
-                  image: ""             # image for the build container; required when enabled
-                  dockerfile: ""        # Dockerfile to (re)build the image from when missing or stale; empty pulls the image as-is
-                  context: "."          # Docker build context used with dockerfile
-                  network: ""           # Docker network mode for the build container; empty = Docker default
-                  env: {}               # additional environment variables set inside the build container
             """.trimIndent()
         file.toFile().writeText(content + "\n")
         println("created ${file.toFile().relativeTo(normalizedWorkingDir.toFile())}")

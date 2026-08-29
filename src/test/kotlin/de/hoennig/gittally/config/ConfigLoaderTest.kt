@@ -236,7 +236,49 @@ class ConfigLoaderTest : FunSpec() {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(
                 """
-                branches:
+                builds:
+                  default:
+                    requirePullRequest: true
+                    docker:
+                      enabled: true
+                      network: none
+                      image: host-image
+                """.trimIndent(),
+            )
+            val worktree = Files.createTempDirectory("gittally-test-worktree")
+            worktree.resolve(".gittally.yml").toFile().writeText(
+                """
+                executor:
+                  maxConcurrent: 99
+                watcher:
+                  pullRequestGate: false
+                builds:
+                  default:
+                    requirePullRequest: false
+                    docker:
+                      enabled: false
+                      network: host
+                      image: attacker-image
+                """.trimIndent(),
+            )
+
+            val config = loader.loadForWorktree(dir, worktree)
+            val settings = config.buildSettings("any-branch", "default")
+
+            config.executor.maxConcurrent shouldBe 1
+            config.watcher.pullRequestGate shouldBe true
+            settings.requirePullRequest shouldBe true
+            settings.docker.enabled shouldBe true
+            settings.docker.network shouldBe "none"
+            // everything that describes the build itself stays the branch's own business
+            settings.docker.image shouldBe "attacker-image"
+        }
+
+        test("a build the branch invents inherits the host's sandbox policy") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
                   default:
                     requirePullRequest: true
                     docker:
@@ -247,38 +289,85 @@ class ConfigLoaderTest : FunSpec() {
             val worktree = Files.createTempDirectory("gittally-test-worktree")
             worktree.resolve(".gittally.yml").toFile().writeText(
                 """
-                executor:
-                  maxConcurrent: 99
-                watcher:
-                  pullRequestGate: false
-                branches:
-                  default:
-                    requirePullRequest: false
                 builds:
-                  default:
+                  invented:
+                    atTimes: ["03:00"]
+                    buildCommand: ./gradlew whatever
                     docker:
                       enabled: false
                       network: host
                 """.trimIndent(),
             )
 
-            val config = loader.loadForWorktree(dir, worktree)
-            val branchConfig = config.branches.getValue("default")
+            // the host has never heard of this build, so there is no lower layer to fall
+            // back to — it must inherit the policy from builds.default, not the data class
+            val settings = loader.loadForWorktree(dir, worktree).buildSettings("any-branch", "invented")
 
-            config.executor.maxConcurrent shouldBe 1
-            config.watcher.pullRequestGate shouldBe true
-            branchConfig.requirePullRequest shouldBe true
-            // a build definition has no enabled/network at all, so it cannot reintroduce them
-            config.buildDefinitions
-                .getValue("default")
-                .applyTo(branchConfig)
-                .docker
-                .enabled shouldBe true
-            config.buildDefinitions
-                .getValue("default")
-                .applyTo(branchConfig)
-                .docker
-                .network shouldBe "none"
+            settings.buildCommand shouldBe "./gradlew whatever"
+            settings.docker.enabled shouldBe true
+            settings.docker.network shouldBe "none"
+            settings.requirePullRequest shouldBe true
+        }
+
+        test("builds.default is the base of every other build, but never its trigger") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  default:
+                    onPush: true
+                    branches: ["master"]
+                    buildCommand: ./gradlew check
+                    artifactDirs: [build/reports]
+                    docker:
+                      image: shared-image
+                  nightly:
+                    atTimes: ["01:00"]
+                    artifactDirs: [build/reports, build/libs]
+                """.trimIndent(),
+            )
+
+            val nightly = loader.load(dir).buildDefinitions.getValue("nightly")
+
+            nightly.buildCommand shouldBe "./gradlew check"
+            nightly.docker?.image shouldBe "shared-image"
+            nightly.artifactDirs shouldBe listOf("build/reports", "build/libs")
+            // a trigger says when *this* build runs; inheriting it would fire every job at once
+            nightly.onPush shouldBe false
+            nightly.branches shouldBe emptyList()
+            nightly.atTimes shouldBe listOf("01:00")
+        }
+
+        test("branches is honored while no build is defined and ignored as soon as one is") {
+            val dir = Files.createTempDirectory("gittally-test")
+            val legacy =
+                """
+                branches:
+                  default:
+                    buildCommand: from-branches
+                    docker:
+                      enabled: true
+                """.trimIndent()
+            dir.resolve(".gittally.yml").toFile().writeText(legacy)
+
+            // the leftover execution key is not a definition, so the legacy section still wins
+            loader.load(dir).buildSettings("main", "default").buildCommand shouldBe "from-branches"
+            dir.resolve(".gittally.yml").toFile().writeText("builds:\n  maxConcurrent: 1\n" + legacy)
+            loader.load(dir).buildSettings("main", "default").buildCommand shouldBe "from-branches"
+
+            dir.resolve(".gittally.yml").toFile().writeText(
+                legacy +
+                    "\n" +
+                    """
+                    builds:
+                      default:
+                        buildCommand: from-builds
+                    """.trimIndent(),
+            )
+
+            val settings = loader.load(dir).buildSettings("main", "default")
+            settings.buildCommand shouldBe "from-builds"
+            settings.docker.enabled shouldBe false
         }
 
         test("repo install config overrides project config for same keys") {
@@ -482,7 +571,7 @@ class ConfigLoaderTest : FunSpec() {
                 """
                 git:
                   token: real-secret
-                branches:
+                builds:
                   default:
                     buildCommand: from-git
                 """.trimIndent(),
@@ -495,17 +584,16 @@ class ConfigLoaderTest : FunSpec() {
                     git:
                       token: stolen
                     builds:
+                      default:
+                        buildCommand: from-branch
                       pitest:
                         atTimes: ["03:00"]
                         buildCommand: ./gradlew piTestFull
-                    branches:
-                      default:
-                        buildCommand: from-branch
                     """.trimIndent(),
                 )
 
             config.git.token shouldBe "real-secret"
-            config.branches.getValue("default").buildCommand shouldBe "from-branch"
+            config.buildSettings("main", "default").buildCommand shouldBe "from-branch"
             config.buildDefinitions.getValue("pitest").atTimes shouldBe listOf("03:00")
         }
 

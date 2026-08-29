@@ -9,28 +9,29 @@ See [configuration.md](configuration.md) for the full configuration reference an
 Legacy configuration came from environment variables (`gitTally --env` template, sourced env files).
 The new configuration lives in two YAML files: `.gittally.yml` (committed) and `.git/gittally/.gittally.yml` (machine-specific, secrets).
 
-Branch-level keys below live under `branches.<name>`; use `branches.default` for what used to be the global value.
+Build-level keys below live in a build definition under `builds.<name>`; use `builds.default` for what used to be
+the global value — it is the base every other definition inherits its settings from.
 
 | Legacy environment variable | New YAML key |
 |---|---|
-| `GITTALLY_BUILD_COMMAND` | `branches.<name>.buildCommand` |
-| `GITTALLY_BUILD_CLEAN_COMMAND` | `branches.<name>.cleanCommand` |
-| `GITTALLY_BUILD_ARTEFACT_DIRS` | `branches.<name>.artifactDirs` — YAML list instead of `;`-separated |
-| `GITTALLY_BUILD_STDOUT_LOG` | `branches.<name>.stdoutLog` |
-| `GITTALLY_BUILD_STDERR_LOG` | `branches.<name>.stderrLog` |
+| `GITTALLY_BUILD_COMMAND` | `builds.<name>.buildCommand` |
+| `GITTALLY_BUILD_CLEAN_COMMAND` | `builds.<name>.cleanCommand` |
+| `GITTALLY_BUILD_ARTEFACT_DIRS` | `builds.<name>.artifactDirs` — YAML list instead of `;`-separated |
+| `GITTALLY_BUILD_STDOUT_LOG` | `builds.<name>.stdoutLog` |
+| `GITTALLY_BUILD_STDERR_LOG` | `builds.<name>.stderrLog` |
 | `GITTALLY_NEW_BRANCH_COMMIT_MAX_AGE` | `watcher.newBranchMaxAge` |
-| `GITTALLY_BUILD_DOCKER_IMAGE` | `branches.<name>.docker.image` — also set `docker.enabled: true` (replaces the `--docker` flag) |
-| `GITTALLY_BUILD_DOCKERFILE` | `branches.<name>.docker.dockerfile` |
-| `GITTALLY_BUILD_DOCKER_CONTEXT` | `branches.<name>.docker.context` |
-| `GITTALLY_BUILD_DOCKER_NETWORK` | `branches.<name>.docker.network` — default is now Docker's default network, not `host` |
-| `GITTALLY_BUILD_DOCKER_ENV` | `branches.<name>.docker.env` — YAML map instead of space-separated assignments |
+| `GITTALLY_BUILD_DOCKER_IMAGE` | `builds.<name>.docker.image` — also set `docker.enabled: true` (replaces the `--docker` flag) |
+| `GITTALLY_BUILD_DOCKERFILE` | `builds.<name>.docker.dockerfile` |
+| `GITTALLY_BUILD_DOCKER_CONTEXT` | `builds.<name>.docker.context` |
+| `GITTALLY_BUILD_DOCKER_NETWORK` | `builds.<name>.docker.network` — default is now Docker's default network, not `host` |
+| `GITTALLY_BUILD_DOCKER_ENV` | `builds.<name>.docker.env` — YAML map instead of space-separated assignments |
 | `GITTALLY_ARTIFACT_SERVER_PORT` | `server.port` |
 | `GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS` | `server.bindAddress` |
 | `GITTALLY_ARTIFACT_PUBLIC_BASE_URL` | `server.publicBaseUrl` |
 | `GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH` | `artifacts.retentionPerBranch` for a count, `artifacts.retentionMaxAge` for a legacy age value (`h`/`d` suffix); unlike legacy, both limits can be combined |
 | `GITTALLY_IMPRESSUM_URL` | `server.impressumUrl` |
-| `GITTALLY_AUTO_BUILD_BRANCHES` | `branches.<name>.autoBuild.enabled: true` per branch instead of a branch list |
-| `GITTALLY_AUTO_BUILD_TIMES` | `branches.<name>.autoBuild.times` — YAML list, per branch |
+| `GITTALLY_AUTO_BUILD_BRANCHES` | a build definition with `branches: [...]` selecting them |
+| `GITTALLY_AUTO_BUILD_TIMES` | `builds.<name>.atTimes` — YAML list of UTC `HH:MM` slots |
 | `GITTALLY_GITEA_BASE_URL` | `gitea.baseUrl` |
 | `GITTALLY_GITEA_OWNER` | `gitea.owner` |
 | `GITTALLY_GITEA_REPO` | `gitea.repo` |
@@ -50,7 +51,7 @@ New keys without a legacy counterpart: `builds.maxConcurrent`, `artifacts.rootDi
 ## Intentionally Not Ported
 
 - Self-install and self-update (`--install`, `--pull`, `GITTALLY_INSTALL_DIR`) — replaced by jar deployment plus `init --systemd`.
-- `GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND` and `GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — hsadmin-ng-specific; use `branches.<name>.docker.env` if needed.
+- `GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND` and `GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — hsadmin-ng-specific; use `builds.<name>.docker.env` if needed.
 - `HSADMIN_NG_*` environment-variable fallbacks.
 - Env-file configuration itself — the systemd `EnvironmentFile` now only tunes the JVM (`JAVA_OPTS`).
 - `GITTALLY_GITEA_DELETED_STATUS_DESCRIPTION`, `GITTALLY_BIN_FORWARD`, `GITTALLY_CONFIG_*` — internal legacy mechanics without a counterpart.

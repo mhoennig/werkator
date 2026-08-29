@@ -6,7 +6,6 @@ import de.hoennig.gittally.build.BuildExecutor
 import de.hoennig.gittally.build.BuildResultRepository
 import de.hoennig.gittally.build.BuildStatus
 import de.hoennig.gittally.build.GitWorktreeWorkspaces
-import de.hoennig.gittally.config.BranchConfig
 import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.DurationParser
@@ -209,7 +208,7 @@ class Watcher(
             gitService.newOriginBranches(DurationParser.parse(config.watcher.newBranchMaxAge), workingDir)
         val changed = (changedLocal + newOrigin).distinct()
         for (branch in changed) {
-            val onPush = definitionsFor(branch, heads[branch], workingDir).filterValues { it.onPush }
+            val onPush = definitionsFor(branch, heads[branch], workingDir, config).filterValues { it.onPush }
             for ((buildName, definition) in onPush) {
                 if (selects(definition, branch, headCommitTimes)) {
                     startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir, buildName)
@@ -228,17 +227,20 @@ class Watcher(
      * their selectors are evaluated for it alone, so a definition committed on one branch
      * can never schedule builds of another.
      *
-     * Cached per branch by its head commit, so the `git show` runs only when the branch
-     * moved. An unreadable branch config falls back to the primary definitions instead of
-     * failing the poll cycle.
+     * Cached per branch by its head commit *and* the primary configuration it was merged
+     * with, so the `git show` runs only when the branch moved — but an edited machine or
+     * project config takes effect on the next poll instead of waiting for a commit that
+     * may never come. An unreadable branch config falls back to the primary definitions
+     * instead of failing the poll cycle.
      */
     private fun definitionsFor(
         branch: String,
         headCommit: String?,
         workingDir: Path,
+        primary: GitTallyConfig,
     ): Map<String, BuildDefinition> {
-        val commit = headCommit ?: return configLoader.load(workingDir).effectiveBuildDefinitions()
-        branchDefinitions[branch]?.takeIf { it.commit == commit }?.let { return it.definitions }
+        val commit = headCommit ?: return primary.effectiveBuildDefinitions()
+        branchDefinitions[branch]?.takeIf { it.commit == commit && it.primary == primary }?.let { return it.definitions }
         val definitions =
             try {
                 configLoader
@@ -254,12 +256,13 @@ class Watcher(
                 )
                 configLoader.load(workingDir).effectiveBuildDefinitions()
             }
-        branchDefinitions[branch] = CachedDefinitions(commit, definitions)
+        branchDefinitions[branch] = CachedDefinitions(commit, primary, definitions)
         return definitions
     }
 
     private class CachedDefinitions(
         val commit: String,
+        val primary: GitTallyConfig,
         val definitions: Map<String, BuildDefinition>,
     )
 
@@ -298,7 +301,7 @@ class Watcher(
             return false
         }
         if (config.watcher.pullRequestGate &&
-            branchConfig(config, branch).requirePullRequest &&
+            config.buildSettings(branch, build).requirePullRequest &&
             commit !in pullRequestHeads.value
         ) {
             log.info("not enqueueing branch {}: no pull request has head commit {}", branch, commit)
@@ -308,11 +311,6 @@ class Watcher(
         buildExecutor.startBuild(branch, commit, workingDir, build)
         return true
     }
-
-    private fun branchConfig(
-        config: GitTallyConfig,
-        branch: String,
-    ): BranchConfig = config.branches[branch] ?: config.branches["default"] ?: BranchConfig()
 
     /**
      * Fires the due `atTimes` slot of every build definition for its selected branches,
@@ -332,7 +330,8 @@ class Watcher(
         val today = LocalDate.ofInstant(now, ZoneOffset.UTC)
         val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
         for (branch in originBranches) {
-            val scheduled = definitionsFor(branch, heads[branch], workingDir).filterValues { it.atTimes.isNotEmpty() }
+            val scheduled =
+                definitionsFor(branch, heads[branch], workingDir, config).filterValues { it.atTimes.isNotEmpty() }
             for ((buildName, definition) in scheduled) {
                 if (!selects(definition, branch, headCommitTimes)) {
                     continue

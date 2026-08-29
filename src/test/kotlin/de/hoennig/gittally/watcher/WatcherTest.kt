@@ -545,6 +545,29 @@ class WatcherTest : FunSpec() {
             verify(exactly = 1) { harness.gitService.showFileAtCommit("commit-2", Watcher.CONFIG_FILE, any()) }
         }
 
+        test("an edited primary config takes effect without the branch moving") {
+            val harness = Harness()
+            every { harness.gitService.originBranches(any()) } returns listOf("main")
+            every { harness.gitService.originBranchHeads(any()) } returns mapOf("main" to "commit-1")
+            every { harness.gitService.originHeadCommit("main", any()) } returns "commit-1"
+
+            harness.watcher.poll(harness.workingDir)
+            harness.startedBuilds.shouldBeEmpty()
+
+            // the machine config gains a scheduled build while the branch stays where it is:
+            // caching the definitions by head commit alone would never notice
+            val edited =
+                GitTallyConfig(
+                    buildDefinitions = mapOf("nightly" to BuildDefinition(atTimes = listOf("11:00"))),
+                )
+            every { harness.configLoader.load(any()) } returns edited
+            every { harness.configLoader.loadWithBranchLayer(any(), anyNullable()) } returns edited
+
+            harness.watcher.poll(harness.workingDir)
+
+            verify { harness.buildExecutor.startBuild("main", "commit-1", any(), "nightly") }
+        }
+
         test("an unreadable branch config falls back to the primary definitions instead of failing the poll") {
             val harness = Harness()
             every { harness.gitService.originBranches(any()) } returns listOf("main")

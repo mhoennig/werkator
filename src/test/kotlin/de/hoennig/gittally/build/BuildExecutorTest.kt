@@ -223,11 +223,10 @@ class BuildExecutorTest : FunSpec() {
             val h =
                 Harness(
                     """
-                    branches:
+                    builds:
                       default:
                         buildCommand: "echo regular-${'$'}branch"
                         cleanCommand: ""
-                    builds:
                       pitest:
                         buildCommand: "echo nightly-${'$'}branch"
                     """.trimIndent(),
