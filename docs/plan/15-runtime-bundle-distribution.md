@@ -143,3 +143,9 @@ Verified live: `bin/gittally --version` reports v0.9.15 before the start, the se
 The leftover `builds.maxConcurrent` in the repository's committed `master` config is ignored with exactly one warning per context instead of failing the configuration — the reason it is tolerated rather than rejected: that config needs a colleague's approval to change, and the installation must not be stuck on a key it is meant to forget.
 Shipped feature: the `.gittally.yml` committed on a branch takes precedence for its `builds` section as well, and the watcher reads it per origin branch (`git show`, cached by head commit) to decide which of that branch's builds are due.
 Verified live within seconds of the start: the build definition `reactivate-pi-test-with-full-pitest`, which exists only on the branch `mihoe/reactivate-pi-test` and not in the `master` config, fired its due 05:00 UTC slot, recorded under the pool `mihoe/reactivate-pi-test@reactivate-pi-test-with-full-pitest`, and ran the branch's `pitestFull` command in the build container inherited from the `master` config.
+
+Update to v0.9.16 (2026-08-29): same procedure, `~/opt/gittally.0.9.15.bak` as the rollback copy.
+A build was running at the first attempt, so the deployment aborted itself before stopping anything; the service was then stopped in the first idle window (waiting rather than interrupting was the operator's call).
+Verified live: `bin/gittally --version` reports v0.9.16 before the start, the service is `active`, `/releases` lists v0.9.16, and the watcher polls without errors.
+Shipped features: hourly scheduled builds (`atTimes: ["??:05"]`) and the artifact page showing the command a build actually runs.
+Verified live: the branch's `atTimes: ["??:00"]` — rejected by v0.9.15 with a warning on every poll cycle — is accepted, and its 06:00 UTC slot fired right after the restart.
