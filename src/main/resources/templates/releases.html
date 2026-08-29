@@ -7,6 +7,19 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.16 <span class="muted">— 2026-08-29</span></h2>
+        <ul>
+            <li>A scheduled build can run hourly: <code>atTimes: ["??:05"]</code> stands for that
+                minute of every hour. Each hour is its own slot, so it triggers once per hour —
+                mixing it with fixed <code>HH:MM</code> times works, the latest due slot wins.
+                Only the hour may be a wildcard; anything else is skipped with a warning.</li>
+            <li><strong>Fixed:</strong> the artifact page showed the build command of the plain
+                branch configuration — for a build of a named definition, or on a branch whose
+                committed <code>.gittally.yml</code> overrides the command, that was a command the
+                build never ran. It now shows what this build actually runs, resolved from the
+                branch configuration committed at the build's own commit plus its definition.</li>
+        </ul>
+
         <h2>v0.9.15 <span class="muted">— 2026-08-29</span></h2>
         <ul>
             <li>The <code>.gittally.yml</code> committed on a branch now takes precedence for the
