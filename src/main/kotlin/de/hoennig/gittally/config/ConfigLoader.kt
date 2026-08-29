@@ -79,6 +79,7 @@ class ConfigLoader(
         // scoped to this branch: an incompatible branch config fails its own builds and
         // must never stop the server or hold up the branches that are fine
         checkVersion(branchLayer, "the committed .gittally.yml of this branch", BRANCH_HINT)
+        checkTriggerBlocks(branchLayer, "the committed .gittally.yml of this branch", BRANCH_HINT)
         return toConfig(deepMerge(loadRaw(workingDir), stripPinned(branchLayer)))
     }
 
@@ -200,8 +201,34 @@ class ConfigLoader(
     }
 
     private fun isTriggered(definition: Any?): Boolean {
-        val entry = definition as? Map<*, *> ?: return false
-        return entry["onPush"] == true || (entry["atTimes"] as? List<*>)?.isNotEmpty() == true
+        val trigger = (definition as? Map<*, *>)?.get("trigger") as? Map<*, *> ?: return false
+        return trigger["onPush"] == true || (trigger["atTimes"] as? List<*>)?.isNotEmpty() == true
+    }
+
+    /**
+     * Refuses a definition that still writes its trigger and selector keys flat instead of
+     * inside `trigger`. Silently ignoring them would leave a build with no trigger at all —
+     * a branch that stops building without saying so, which is worse than not starting.
+     * Scoped like [checkVersion]: per file, so the message names the one to fix.
+     */
+    private fun checkTriggerBlocks(
+        raw: Map<String, Any?>,
+        source: String,
+        hint: String,
+    ) {
+        val builds = raw["builds"] as? Map<*, *> ?: return
+        val offenders =
+            builds.entries.mapNotNull { (name, value) ->
+                val flat = (value as? Map<*, *>)?.keys?.filter { it in FLAT_TRIGGER_KEYS } ?: return@mapNotNull null
+                flat.takeIf { it.isNotEmpty() }?.let { "builds.$name: ${it.joinToString(", ")}" }
+            }
+        if (offenders.isEmpty()) {
+            return
+        }
+        throw ConfigFormatException(
+            "$source declares a build trigger outside its trigger block (${offenders.joinToString("; ")}). " +
+                "Move these keys into a `trigger:` block inside the definition. $hint",
+        )
     }
 
     /**
@@ -213,7 +240,7 @@ class ConfigLoader(
     @Suppress("UNCHECKED_CAST")
     private fun mergeBuildDefaults(raw: Map<String, Any?>): Map<String, Any?> {
         val builds = raw["builds"] as? Map<String, Any?> ?: return raw
-        val base = (builds[BuildDefinition.DEFAULT] as? Map<String, Any?>)?.minus(SELECTOR_KEYS) ?: return raw
+        val base = (builds[BuildDefinition.DEFAULT] as? Map<String, Any?>)?.minus(TRIGGER_KEYS) ?: return raw
         if (base.isEmpty()) {
             return raw
         }
@@ -245,6 +272,8 @@ class ConfigLoader(
         // per file, so the message names the file to fix — the merged map has no provenance
         checkVersion(project, ".gittally.yml", ROLLBACK_HINT)
         checkVersion(repoInstall, ".git/gittally/.gittally.yml", ROLLBACK_HINT)
+        checkTriggerBlocks(project, ".gittally.yml", ROLLBACK_HINT)
+        checkTriggerBlocks(repoInstall, ".git/gittally/.gittally.yml", ROLLBACK_HINT)
         return deepMerge(project, repoInstall)
     }
 
@@ -348,15 +377,25 @@ class ConfigLoader(
         /**
          * Settings keys a branch must never override, in a build definition as well as in
          * a legacy branch entry: the trust gate that decides whether the watcher builds
-         * this branch at all.
+         * this branch at all, and the Gitea check this build reports as — a branch that
+         * could choose its own context could take over the check a branch protection
+         * rule depends on.
          */
-        private val PINNED_SETTING_KEYS = setOf("requirePullRequest")
+        private val PINNED_SETTING_KEYS = setOf("requirePullRequest", "statusContext")
 
         /** `docker` keys a branch must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")
 
-        /** Keys of a build definition that say *when* it runs; never inherited from `builds.default`. */
-        private val SELECTOR_KEYS = setOf("onPush", "atTimes", "branches", "activeWithin")
+        /**
+         * The one key of a build definition that says *when* and *for which branches* it
+         * runs; never inherited from `builds.default`. A single key on purpose: a selector
+         * added inside it is non-inheritable by construction, where a list of key names
+         * would have to be remembered.
+         */
+        private val TRIGGER_KEYS = setOf("trigger")
+
+        /** The keys that moved into [TRIGGER_KEYS]; still writing them flat is refused, not ignored. */
+        private val FLAT_TRIGGER_KEYS = setOf("onPush", "atTimes", "branches", "activeWithin")
 
         private const val LEGACY_BRANCHES_WARNING = "legacy-branches-ignored"
 

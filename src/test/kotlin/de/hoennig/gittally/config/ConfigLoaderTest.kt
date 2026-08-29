@@ -2,6 +2,8 @@ package de.hoennig.gittally.config
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -69,9 +71,10 @@ class ConfigLoaderTest : FunSpec() {
                   maxConcurrent: 2
                 builds:
                   pitest:
-                    atTimes: ["01:00"]
-                    branches: ["master", "release/*"]
-                    activeWithin: 24h
+                    trigger:
+                      atTimes: ["01:00"]
+                      branches: ["master", "release/*"]
+                      activeWithin: 24h
                     buildCommand: ./gradlew piTestFull
                 """.trimIndent(),
             )
@@ -83,14 +86,17 @@ class ConfigLoaderTest : FunSpec() {
                 mapOf(
                     "pitest" to
                         BuildDefinition(
-                            atTimes = listOf("01:00"),
-                            branches = listOf("master", "release/*"),
-                            activeWithin = "24h",
+                            trigger =
+                                TriggerConfig(
+                                    atTimes = listOf("01:00"),
+                                    branches = listOf("master", "release/*"),
+                                    activeWithin = "24h",
+                                ),
                             buildCommand = "./gradlew piTestFull",
                         ),
                 )
             // the implicit default build (onPush over all branches) stays in place
-            config.effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(onPush = true)
+            config.effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(trigger = TriggerConfig(onPush = true))
         }
 
         test("an explicit builds.default entry overrides the implicit default build") {
@@ -99,11 +105,12 @@ class ConfigLoaderTest : FunSpec() {
                 """
                 builds:
                   default:
-                    onPush: false
+                    trigger:
+                      onPush: false
                 """.trimIndent(),
             )
 
-            loader.load(dir).effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(onPush = false)
+            loader.load(dir).effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(trigger = TriggerConfig(onPush = false))
         }
 
         test("a config that needs a newer GitTally is refused, naming the file and both versions") {
@@ -209,7 +216,8 @@ class ConfigLoaderTest : FunSpec() {
                 """
                 builds:
                   pitest:
-                    atTimes: ["01:00"]
+                    trigger:
+                      atTimes: ["01:00"]
                     buildCommand: ./gradlew piTestPartial
                 """.trimIndent(),
             )
@@ -220,7 +228,8 @@ class ConfigLoaderTest : FunSpec() {
                   pitest:
                     buildCommand: ./gradlew piTestFull
                   experiment:
-                    onPush: true
+                    trigger:
+                      onPush: true
                 """.trimIndent(),
             )
 
@@ -228,8 +237,12 @@ class ConfigLoaderTest : FunSpec() {
 
             // the branch layer merges into the definition instead of replacing it
             config.buildDefinitions.getValue("pitest").buildCommand shouldBe "./gradlew piTestFull"
-            config.buildDefinitions.getValue("pitest").atTimes shouldBe listOf("01:00")
-            config.buildDefinitions.getValue("experiment").onPush shouldBe true
+            config.buildDefinitions
+                .getValue("pitest")
+                .trigger.atTimes shouldBe listOf("01:00")
+            config.buildDefinitions
+                .getValue("experiment")
+                .trigger.onPush shouldBe true
         }
 
         test("a branch cannot raise the concurrency limit or reach the sandbox policy through a build definition") {
@@ -239,6 +252,7 @@ class ConfigLoaderTest : FunSpec() {
                 builds:
                   default:
                     requirePullRequest: true
+                    statusContext: GitTally
                     docker:
                       enabled: true
                       network: none
@@ -255,6 +269,7 @@ class ConfigLoaderTest : FunSpec() {
                 builds:
                   default:
                     requirePullRequest: false
+                    statusContext: GitTally/impersonated
                     docker:
                       enabled: false
                       network: host
@@ -270,6 +285,7 @@ class ConfigLoaderTest : FunSpec() {
             settings.requirePullRequest shouldBe true
             settings.docker.enabled shouldBe true
             settings.docker.network shouldBe "none"
+            settings.statusContext shouldBe "GitTally"
             // everything that describes the build itself stays the branch's own business
             settings.docker.image shouldBe "attacker-image"
         }
@@ -291,7 +307,8 @@ class ConfigLoaderTest : FunSpec() {
                 """
                 builds:
                   invented:
-                    atTimes: ["03:00"]
+                    trigger:
+                      atTimes: ["03:00"]
                     buildCommand: ./gradlew whatever
                     docker:
                       enabled: false
@@ -309,20 +326,119 @@ class ConfigLoaderTest : FunSpec() {
             settings.requirePullRequest shouldBe true
         }
 
+        test("an exclusion pattern takes a branch out of a build that would otherwise select it") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  default:
+                    trigger:
+                      onPush: true
+                      branches: ["*", "!master"]
+                  release:
+                    trigger:
+                      onPush: true
+                      branches: ["master"]
+                """.trimIndent(),
+            )
+
+            val definitions = loader.load(dir).buildDefinitions
+
+            definitions
+                .getValue("default")
+                .trigger
+                .selectsByName("mihoe/feature")
+                .shouldBeTrue()
+            definitions
+                .getValue("default")
+                .trigger
+                .selectsByName("master")
+                .shouldBeFalse()
+            definitions
+                .getValue("release")
+                .trigger
+                .selectsByName("master")
+                .shouldBeTrue()
+            definitions
+                .getValue("release")
+                .trigger
+                .selectsByName("mihoe/feature")
+                .shouldBeFalse()
+        }
+
+        test("an exclusion wins over a matching pattern, whatever their order") {
+            val trigger = TriggerConfig(branches = listOf("!release/hotfix", "release/*"))
+
+            trigger.selectsByName("release/1.0").shouldBeTrue()
+            trigger.selectsByName("release/hotfix").shouldBeFalse()
+        }
+
+        test("a trigger key written outside the trigger block is refused, naming the definition") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  nightly:
+                    atTimes: ["01:00"]
+                    buildCommand: ./gradlew check
+                """.trimIndent(),
+            )
+
+            // ignoring it would leave the build without a trigger — a job that silently
+            // stops running is worse than a configuration that refuses to load
+            val thrown = shouldThrow<ConfigFormatException> { loader.load(dir) }
+
+            thrown.message.shouldContain(".gittally.yml")
+            thrown.message.shouldContain("builds.nightly: atTimes")
+            thrown.message.shouldContain("trigger:")
+        }
+
+        test("a branch writing its trigger flat fails only its own builds") {
+            val dir = Files.createTempDirectory("gittally-test")
+            dir.resolve(".gittally.yml").toFile().writeText(
+                """
+                builds:
+                  default:
+                    trigger:
+                      onPush: true
+                """.trimIndent(),
+            )
+
+            shouldThrow<ConfigFormatException> {
+                loader.loadWithBranchLayer(
+                    dir,
+                    """
+                    builds:
+                      experiment:
+                        onPush: true
+                    """.trimIndent(),
+                )
+            }.message.shouldContain("this branch")
+            // the primary config is untouched, so every other branch keeps building
+            loader
+                .load(dir)
+                .buildDefinitions
+                .getValue("default")
+                .trigger.onPush
+                .shouldBeTrue()
+        }
+
         test("builds.default is the base of every other build, but never its trigger") {
             val dir = Files.createTempDirectory("gittally-test")
             dir.resolve(".gittally.yml").toFile().writeText(
                 """
                 builds:
                   default:
-                    onPush: true
-                    branches: ["master"]
+                    trigger:
+                      onPush: true
+                      branches: ["master"]
                     buildCommand: ./gradlew check
                     artifactDirs: [build/reports]
                     docker:
                       image: shared-image
                   nightly:
-                    atTimes: ["01:00"]
+                    trigger:
+                      atTimes: ["01:00"]
                     artifactDirs: [build/reports, build/libs]
                 """.trimIndent(),
             )
@@ -333,9 +449,9 @@ class ConfigLoaderTest : FunSpec() {
             nightly.docker?.image shouldBe "shared-image"
             nightly.artifactDirs shouldBe listOf("build/reports", "build/libs")
             // a trigger says when *this* build runs; inheriting it would fire every job at once
-            nightly.onPush shouldBe false
-            nightly.branches shouldBe emptyList()
-            nightly.atTimes shouldBe listOf("01:00")
+            nightly.trigger.onPush shouldBe false
+            nightly.trigger.branches shouldBe emptyList<String>()
+            nightly.trigger.atTimes shouldBe listOf("01:00")
         }
 
         test("branches is honored while no build is defined and ignored as soon as one is") {
@@ -587,14 +703,17 @@ class ConfigLoaderTest : FunSpec() {
                       default:
                         buildCommand: from-branch
                       pitest:
-                        atTimes: ["03:00"]
+                        trigger:
+                          atTimes: ["03:00"]
                         buildCommand: ./gradlew piTestFull
                     """.trimIndent(),
                 )
 
             config.git.token shouldBe "real-secret"
             config.buildSettings("main", "default").buildCommand shouldBe "from-branch"
-            config.buildDefinitions.getValue("pitest").atTimes shouldBe listOf("03:00")
+            config.buildDefinitions
+                .getValue("pitest")
+                .trigger.atTimes shouldBe listOf("03:00")
         }
 
         test("loadWithBranchLayer without a branch config equals load") {

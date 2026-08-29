@@ -1,6 +1,6 @@
 package de.hoennig.gittally
 
-import de.hoennig.gittally.config.ConfigVersionException
+import de.hoennig.gittally.config.ConfigException
 import org.springframework.boot.CommandLineRunner
 import org.springframework.boot.ExitCodeGenerator
 import org.springframework.boot.SpringApplication
@@ -31,7 +31,7 @@ class CliRunner(
                 .setExecutionExceptionHandler { exception, commandLine, _ ->
                     // a config GitTally must not read is a stated fact, not a crash: the message
                     // names the file, the versions, and the way out — a stack trace would bury it
-                    if (exception is ConfigVersionException) {
+                    if (exception is ConfigException) {
                         commandLine.err.println("Error: ${exception.message}")
                         CONFIG_ERROR_EXIT_CODE
                     } else {

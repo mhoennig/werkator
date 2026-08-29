@@ -208,7 +208,7 @@ class Watcher(
             gitService.newOriginBranches(DurationParser.parse(config.watcher.newBranchMaxAge), workingDir)
         val changed = (changedLocal + newOrigin).distinct()
         for (branch in changed) {
-            val onPush = definitionsFor(branch, heads[branch], workingDir, config).filterValues { it.onPush }
+            val onPush = definitionsFor(branch, heads[branch], workingDir, config).filterValues { it.trigger.onPush }
             for ((buildName, definition) in onPush) {
                 if (selects(definition, branch, headCommitTimes)) {
                     startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir, buildName)
@@ -270,7 +270,7 @@ class Watcher(
         definition: BuildDefinition,
         branch: String,
         headCommitTimes: Lazy<Map<String, Instant>>,
-    ): Boolean = definition.selects(branch, { headCommitTimes.value[branch] }, clock.instant())
+    ): Boolean = definition.trigger.selects(branch, { headCommitTimes.value[branch] }, clock.instant())
 
     /**
      * Enqueues a build of the branch's origin head unless one is already pending or
@@ -331,12 +331,14 @@ class Watcher(
         val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
         for (branch in originBranches) {
             val scheduled =
-                definitionsFor(branch, heads[branch], workingDir, config).filterValues { it.atTimes.isNotEmpty() }
+                definitionsFor(branch, heads[branch], workingDir, config).filterValues {
+                    it.trigger.atTimes.isNotEmpty()
+                }
             for ((buildName, definition) in scheduled) {
                 if (!selects(definition, branch, headCommitTimes)) {
                     continue
                 }
-                val slot = AutoBuildSlots.latestDueSlot(definition.atTimes, timeOfDay) ?: continue
+                val slot = AutoBuildSlots.latestDueSlot(definition.trigger.atTimes, timeOfDay) ?: continue
                 val pool = BuildDefinition.poolName(branch, buildName)
                 if (autoBuildState.value.isTriggered(pool, today, slot)) {
                     continue

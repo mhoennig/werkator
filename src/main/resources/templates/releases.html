@@ -7,6 +7,29 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.20 <span class="muted">— 2026-08-29</span></h2>
+        <ul>
+            <li>A build definition is now split in two: a <code>trigger</code> block says when the
+                build runs and for which branches (<code>onPush</code>, <code>atTimes</code>,
+                <code>branches</code>, <code>activeWithin</code>), everything beside it says what
+                the build does. Only the second half is inherited from <code>builds.default</code>,
+                and making that structural means a selector added later cannot become inheritable
+                by accident. A definition still writing those keys flat is refused by name — a
+                trigger nobody reads any more is a build that silently stops running.</li>
+            <li>A branch pattern prefixed with <code>!</code> excludes instead of selecting, and an
+                exclusion wins whatever the order: <code>branches: ["*", "!master"]</code> is every
+                branch but master. That lets one branch have a build of its own without being built
+                by the default one as well — previously the only way to avoid the double build was
+                to give up the second definition's push trigger.</li>
+            <li>A build may report under its own Gitea check with <code>statusContext</code>; empty
+                keeps the repository-wide <code>gitea.statusContext</code>. Two builds of one commit
+                used to overwrite each other's result there, so a second build over the same branch
+                — a quick check next to a long one — was not readable in Gitea.</li>
+            <li><strong>Fixed:</strong> a branch whose builds all belong to named definitions showed
+                an empty row in the branches view, reading as "never built" right next to its actual
+                builds.</li>
+        </ul>
+
         <h2>v0.9.19 <span class="muted">— 2026-08-29</span></h2>
         <ul>
             <li>A build definition now describes its build completely: <code>requirePullRequest</code>

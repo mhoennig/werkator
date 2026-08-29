@@ -14,6 +14,7 @@ import de.hoennig.gittally.config.BranchConfig
 import de.hoennig.gittally.config.BuildDefinition
 import de.hoennig.gittally.config.ConfigLoader
 import de.hoennig.gittally.config.GitTallyConfig
+import de.hoennig.gittally.config.TriggerConfig
 import de.hoennig.gittally.config.WatcherConfig
 import de.hoennig.gittally.git.GitService
 import io.kotest.assertions.throwables.shouldThrow
@@ -394,8 +395,7 @@ class WatcherTest : FunSpec() {
                             mapOf(
                                 "pitest" to
                                     BuildDefinition(
-                                        atTimes = listOf("11:00"),
-                                        branches = listOf("main", "release/*"),
+                                        trigger = TriggerConfig(atTimes = listOf("11:00"), branches = listOf("main", "release/*")),
                                     ),
                             ),
                     ),
@@ -421,7 +421,7 @@ class WatcherTest : FunSpec() {
                 Harness(
                     GitTallyConfig(
                         buildDefinitions =
-                            mapOf("pitest" to BuildDefinition(atTimes = listOf("11:00"), activeWithin = "24h")),
+                            mapOf("pitest" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00"), activeWithin = "24h"))),
                     ),
                 )
             every { harness.gitService.originBranches(any()) } returns listOf("active", "dormant")
@@ -443,7 +443,7 @@ class WatcherTest : FunSpec() {
                 Harness(
                     GitTallyConfig(
                         buildDefinitions =
-                            mapOf("lint" to BuildDefinition(onPush = true, branches = listOf("main"))),
+                            mapOf("lint" to BuildDefinition(trigger = TriggerConfig(onPush = true, branches = listOf("main")))),
                     ),
                 )
             every { harness.gitService.originBranches(any()) } returns listOf("main", "feature/x")
@@ -463,7 +463,7 @@ class WatcherTest : FunSpec() {
 
         test("builds.default with onPush false disables the implicit on-push build") {
             val harness =
-                Harness(GitTallyConfig(buildDefinitions = mapOf("default" to BuildDefinition(onPush = false))))
+                Harness(GitTallyConfig(buildDefinitions = mapOf("default" to BuildDefinition(trigger = TriggerConfig(onPush = false)))))
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.localBranches(any()) } returns listOf("main")
             every { harness.gitService.hasNewCommits("main", any()) } returns true
@@ -490,7 +490,7 @@ class WatcherTest : FunSpec() {
             val harness = Harness()
             val branchLayer =
                 GitTallyConfig(
-                    buildDefinitions = mapOf("pitest" to BuildDefinition(atTimes = listOf("11:00"))),
+                    buildDefinitions = mapOf("pitest" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00")))),
                 )
             every { harness.gitService.originBranches(any()) } returns listOf("main", "experiment")
             every { harness.gitService.originBranchHeads(any()) } returns
@@ -515,7 +515,7 @@ class WatcherTest : FunSpec() {
             val branchLayer =
                 GitTallyConfig(
                     buildDefinitions =
-                        mapOf("pitest" to BuildDefinition(atTimes = listOf("11:00"), branches = listOf("main"))),
+                        mapOf("pitest" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00"), branches = listOf("main")))),
                 )
             every { harness.gitService.originBranches(any()) } returns listOf("main", "experiment")
             every { harness.gitService.originBranchHeads(any()) } returns
@@ -558,7 +558,7 @@ class WatcherTest : FunSpec() {
             // caching the definitions by head commit alone would never notice
             val edited =
                 GitTallyConfig(
-                    buildDefinitions = mapOf("nightly" to BuildDefinition(atTimes = listOf("11:00"))),
+                    buildDefinitions = mapOf("nightly" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00")))),
                 )
             every { harness.configLoader.load(any()) } returns edited
             every { harness.configLoader.loadWithBranchLayer(any(), anyNullable()) } returns edited

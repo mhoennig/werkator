@@ -31,6 +31,19 @@ class BranchListingTest : FunSpec() {
             every { repository.latestPerName() } returns emptyList()
         }
 
+        test("a branch built only by named definitions loses its empty default row") {
+            val releaseResult = mainResult.copy(build = "release", name = "master@release")
+            every { gitService.originBranchHeads(any()) } returns mapOf("master" to "aaa", "idle" to "bbb")
+            every { repository.latestPerName() } returns listOf(releaseResult.copy(branch = "master"))
+            every { repository.latestFor(any()) } returns null
+            every { repository.latestGreenFor(any()) } returns null
+
+            val rows = listing.branches()
+
+            // no bare "master" row next to master@release — it would read as "never built"
+            rows.map { it.name } shouldBe listOf("master@release", "idle")
+        }
+
         test("orders main/master first, then flat names, then hierarchical names") {
             every { gitService.originBranchHeads(any()) } returns
                 mapOf(

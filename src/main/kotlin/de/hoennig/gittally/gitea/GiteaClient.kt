@@ -56,13 +56,19 @@ class GiteaClient(
 
     fun isEnabled(workingDir: Path = Paths.get(".")): Boolean = isEnabled(configLoader.load(workingDir))
 
-    /** Publishes a commit status for [sha]; returns false when disabled or the request failed. */
+    /**
+     * Publishes a commit status for [sha]; returns false when disabled or the request failed.
+     * [context] is the build's own status context (`builds.<name>.statusContext`); blank or
+     * null uses the repository-wide `gitea.statusContext`. Two builds of one commit sharing
+     * a context overwrite each other's result, which is what a per-build context avoids.
+     */
     fun publishStatus(
         sha: String,
         status: BuildStatus,
         description: String,
         targetUrl: String? = null,
         workingDir: Path = Paths.get("."),
+        context: String? = null,
     ): Boolean {
         val config = configLoader.load(workingDir)
         if (!isEnabled(config)) {
@@ -71,7 +77,7 @@ class GiteaClient(
         }
         val body = mutableMapOf<String, String>()
         body["state"] = status.toGiteaState()
-        body["context"] = config.gitea.statusContext
+        body["context"] = context?.takeIf { it.isNotBlank() } ?: config.gitea.statusContext
         body["description"] = description
         if (!targetUrl.isNullOrBlank()) {
             body["target_url"] = targetUrl

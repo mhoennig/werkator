@@ -132,9 +132,9 @@ class BuildExecutorTest : FunSpec() {
             liveLog shouldContain "out-main"
             liveLog shouldContain "err-main"
 
-            verify { h.giteaClient.publishStatus("abc123", BuildStatus.PENDING, any(), null, h.workingDir) }
-            verify { h.giteaClient.publishStatus("abc123", BuildStatus.RUNNING, any(), null, h.workingDir) }
-            verify { h.giteaClient.publishStatus("abc123", BuildStatus.SUCCESS, any(), null, h.workingDir) }
+            verify { h.giteaClient.publishStatus("abc123", BuildStatus.PENDING, any(), null, h.workingDir, any()) }
+            verify { h.giteaClient.publishStatus("abc123", BuildStatus.RUNNING, any(), null, h.workingDir, any()) }
+            verify { h.giteaClient.publishStatus("abc123", BuildStatus.SUCCESS, any(), null, h.workingDir, any()) }
             verify { h.artifactStore.persist(match { it.status == BuildStatus.SUCCESS }, build.stagingDir, h.workingDir) }
         }
 
@@ -395,7 +395,7 @@ class BuildExecutorTest : FunSpec() {
             h.events.map { it.result.status } shouldContainExactly
                 listOf(BuildStatus.PENDING, BuildStatus.RUNNING, BuildStatus.INTERRUPTED)
             Files.readString(build.liveLogFile) shouldContain "build interrupted by shutdown"
-            verify { h.giteaClient.publishStatus("abc123", BuildStatus.INTERRUPTED, any(), null, h.workingDir) }
+            verify { h.giteaClient.publishStatus("abc123", BuildStatus.INTERRUPTED, any(), null, h.workingDir, any()) }
             verify { h.artifactStore.persist(match { it.status == BuildStatus.INTERRUPTED }, build.stagingDir, any()) }
         }
 
@@ -426,7 +426,7 @@ class BuildExecutorTest : FunSpec() {
             h.events
                 .filter { it.result.artifactKey == second.artifactKey }
                 .map { it.result.status } shouldContainExactly listOf(BuildStatus.PENDING)
-            verify(exactly = 0) { h.giteaClient.publishStatus("sha-2", BuildStatus.RUNNING, any(), any(), any()) }
+            verify(exactly = 0) { h.giteaClient.publishStatus("sha-2", BuildStatus.RUNNING, any(), any(), any(), any()) }
         }
 
         test("shutdown without any build in flight is a no-op") {
@@ -464,7 +464,7 @@ class BuildExecutorTest : FunSpec() {
         test("a Gitea failure does not fail the build") {
             val h = harness("echo ok")
             every {
-                h.giteaClient.publishStatus(any(), any(), any(), any(), any())
+                h.giteaClient.publishStatus(any(), any(), any(), any(), any(), any())
             } throws RuntimeException("gitea down")
 
             h.executor.startBuild("main", "abc123", h.workingDir)

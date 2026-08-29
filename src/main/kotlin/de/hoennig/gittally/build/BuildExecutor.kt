@@ -396,11 +396,26 @@ class BuildExecutor(
                 description = description(status, duration),
                 targetUrl = null,
                 workingDir = build.workingDir,
+                // from the primary config, not the worktree: statusContext is pinned, so a
+                // branch cannot report under a check name it was not given
+                context = statusContextOf(build),
             )
         } catch (e: Exception) {
             log.warn("could not publish Gitea status {} for {}: {}", status, build.runningBuild.commit, e.message)
         }
     }
+
+    /** The build's own Gitea status context, empty when it uses the repository-wide one. */
+    private fun statusContextOf(build: ActiveBuild): String =
+        try {
+            configLoader
+                .load(build.workingDir)
+                .buildSettings(build.runningBuild.branch, build.runningBuild.build)
+                .statusContext
+        } catch (e: Exception) {
+            log.warn("could not resolve the status context of {}: {}", build.runningBuild.branch, e.message)
+            ""
+        }
 
     private fun description(
         status: BuildStatus,

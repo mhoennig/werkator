@@ -44,9 +44,22 @@ sealed interface VersionVerdict {
 }
 
 /** A configuration file this GitTally must not read; carries the file's name in its message. */
-class ConfigVersionException(
+open class ConfigException(
     message: String,
 ) : RuntimeException(message)
+
+/** The file declares a GitTally that cannot read it, see [ConfigVersions]. */
+class ConfigVersionException(
+    message: String,
+) : ConfigException(message)
+
+/**
+ * The file is written in a shape this GitTally no longer reads. Refusing it is the point:
+ * a key that moved and is silently ignored means a build that quietly stops happening.
+ */
+class ConfigFormatException(
+    message: String,
+) : ConfigException(message)
 
 object ConfigVersions {
     /**

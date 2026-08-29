@@ -22,16 +22,25 @@ class BranchListing(
 ) {
     fun branches(workingDir: Path = Paths.get(".")): List<BranchDto> {
         val heads = gitService.originBranchHeads(workingDir)
+        val namedResults = repository.latestPerName().filter { it.name != it.branch && it.branch in heads }
+        val branchesWithNamedPool = namedResults.map { it.branch }.toSet()
         val branchRows =
-            heads.map { (branch, headCommit) ->
-                // latestFor groups by build name, so a named slot's results never shadow the branch row
-                BranchDto.from(branch, headCommit, repository.latestFor(branch))
-            }
+            heads
+                .mapNotNull { (branch, headCommit) ->
+                    // latestFor groups by build name, so a named slot's results never shadow the branch row
+                    val latest = repository.latestFor(branch)
+                    // A branch whose builds all belong to named definitions has no default pool,
+                    // and an empty row for it would read as "never built" next to its real ones.
+                    // Without any build at all the row stays: that a branch is known and idle is
+                    // exactly what it says then.
+                    if (latest == null && branch in branchesWithNamedPool) {
+                        null
+                    } else {
+                        BranchDto.from(branch, headCommit, latest)
+                    }
+                }
         val namedRows =
-            repository
-                .latestPerName()
-                .filter { it.name != it.branch && it.branch in heads }
-                .map { latest -> BranchDto.from(latest.branch, latest.commit, latest, name = latest.name) }
+            namedResults.map { latest -> BranchDto.from(latest.branch, latest.commit, latest, name = latest.name) }
         return (branchRows + namedRows)
             .sortedWith(compareBy({ sortGroup(it.branch) }, { it.branch }, { it.name }))
             .map { row ->

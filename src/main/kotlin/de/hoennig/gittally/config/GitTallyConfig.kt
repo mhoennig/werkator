@@ -22,7 +22,7 @@ data class GitTallyConfig(
 ) {
     /** The configured [buildDefinitions] plus the implicit `default` build unless overridden. */
     fun effectiveBuildDefinitions(): Map<String, BuildDefinition> =
-        mapOf(BuildDefinition.DEFAULT to BuildDefinition(onPush = true)) + buildDefinitions
+        mapOf(BuildDefinition.DEFAULT to BuildDefinition(trigger = TriggerConfig(onPush = true))) + buildDefinitions
 
     /**
      * The settings one build of [build] on [branch] runs with: the branch entry (falling
@@ -153,6 +153,8 @@ data class BranchConfig(
      * head (`refs/pull/<n>/head` on origin); manual `build` commands are not affected.
      */
     val requirePullRequest: Boolean = false,
+    /** Gitea commit status context of this build; empty uses `gitea.statusContext`. */
+    val statusContext: String = "",
     val autoBuild: AutoBuildConfig = AutoBuildConfig(),
     val docker: DockerConfig = DockerConfig(),
 )

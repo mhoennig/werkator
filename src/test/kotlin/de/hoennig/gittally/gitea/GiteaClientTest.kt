@@ -6,6 +6,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.equalToJson
 import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
+import com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath
 import com.github.tomakehurst.wiremock.client.WireMock.okJson
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
@@ -99,6 +100,34 @@ class GiteaClientTest :
                                 """.trimIndent(),
                             ),
                         ),
+                )
+            }
+
+            test("a build's own status context replaces the repository-wide one") {
+                server.stubFor(post(publishUrl).willReturn(aResponse().withStatus(201)))
+
+                // without this, two builds of one commit overwrite each other's check
+                client.publishStatus(
+                    sha = "abc123",
+                    status = BuildStatus.SUCCESS,
+                    description = "d",
+                    context = "GitTally/quick",
+                ) shouldBe true
+
+                server.verify(
+                    postRequestedFor(urlEqualTo(publishUrl))
+                        .withRequestBody(matchingJsonPath("${'$'}.context", equalTo("GitTally/quick"))),
+                )
+            }
+
+            test("a blank build status context falls back to the repository-wide one") {
+                server.stubFor(post(publishUrl).willReturn(aResponse().withStatus(201)))
+
+                client.publishStatus("abc123", BuildStatus.SUCCESS, "d", context = "") shouldBe true
+
+                server.verify(
+                    postRequestedFor(urlEqualTo(publishUrl))
+                        .withRequestBody(matchingJsonPath("${'$'}.context", equalTo("GitTally"))),
                 )
             }
 

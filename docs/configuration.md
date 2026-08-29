@@ -162,11 +162,18 @@ executor:
 # Named build definitions (jobs, see notes below); every key names a build.
 builds:
   # "default" is the base every other definition inherits its settings from — never its
-  # trigger — and, with onPush, the build of every branch. Without this entry an implicit
-  # default build (onPush over all branches) applies; writing it replaces that implicit
-  # one, so a default without a trigger is a settings base and nothing else.
+  # trigger — and, with a trigger of its own, the build of every branch it selects.
+  # Without this entry an implicit default build (onPush over all branches) applies;
+  # writing it replaces that implicit one, so a default without a trigger is a settings
+  # base and nothing else.
   default:
-    onPush: true                # trigger: build every new commit of the selected branches
+    # When this build runs and for which branches — the only part a definition does NOT
+    # inherit from builds.default; everything below the block does.
+    trigger:
+      onPush: true              # build every new commit of the selected branches
+      # branches: ["*", "!master"]   # names or globs; a "!" pattern excludes; default: all
+      # atTimes: ["01:00"]           # daily UTC times HH:MM ("??:05" = every hour at :05)
+      # activeWithin: 24h            # only branches with commits in the last 24h
     # run before each build
     cleanCommand: rm -rf build
     # shell command for each build
@@ -181,6 +188,9 @@ builds:
     # origin (refs/pull/*/head — read via plain git, no API token needed; see notes below).
     # Pinned: a branch cannot set this in its own committed config.
     requirePullRequest: false
+    # Gitea check this build reports as; empty uses gitea.statusContext. Two builds of one
+    # commit under the same context overwrite each other. Pinned like requirePullRequest.
+    statusContext: ""
     # Optional Docker build runtime; when enabled, the clean and build commands
     # run inside a container instead of natively (see notes below).
     docker:
@@ -197,16 +207,17 @@ builds:
       # additional environment variables set inside the build container
       env: {}
 
-  # Every further job inherits the settings above and adds its own trigger and selector.
+  # Every further job inherits the settings above and brings its own trigger.
   # The nightly rebuild runs the full check instead of the quick on-commit one and is
   # recorded separately as master@pitest:
   pitest:
-    onPush: false                     # trigger: build every new commit (default: false)
-    atTimes: ["01:00"]                # trigger: daily UTC times HH:MM, "??:05" = hourly at :05
-    branches: ["master", "release/*"]  # selector: names or glob patterns (default: all)
-    activeWithin: 24h                 # selector: only branches with commits in the last 24h
+    trigger:
+      atTimes: ["01:00"]
+      branches: ["master", "release/*"]
+      activeWithin: 24h
     buildCommand: ./gradlew -PfullPitTest --console=plain --no-daemon piTestFull
     artifactDirs: [build/reports, build/libs]
+    statusContext: GitTally/pitest
 
 # Build artifact storage and retention.
 artifacts:
@@ -279,16 +290,19 @@ To build pull-request branches only, gate the default build and give the permane
 ```yaml
 builds:
   default:
-    onPush: true
+    trigger:
+      onPush: true
+      branches: ["*", "!main"]
     requirePullRequest: true
   main:
-    onPush: true
-    branches: ["main"]
+    trigger:
+      onPush: true
+      branches: ["main"]
     requirePullRequest: false
 ```
 
 Without that second definition, direct pushes and merges to `main` would never build — merge commits do not match any pull-request head.
-Note that `main` is then selected by both definitions, so a push builds it twice; give the default build a `branches` selector that excludes it, or accept the second run.
+The `!main` exclusion keeps the default build off it, so a push is built once instead of by both definitions.
 
 A plain git origin (no Gitea/GitHub) serves no `refs/pull/*/head` at all, so gated branches would never build there.
 For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/gittally/.gittally.yml`, so the committed configuration keeps the gates for forge-backed environments.
@@ -296,7 +310,9 @@ For such origins, disable all gates globally with `watcher.pullRequestGate: fals
 ### Notes on `builds` (build definitions)
 
 Every key of the `builds` section names a build definition (a job) over the branches — ADR 0007.
-A build definition has triggers, a branch selector, and build-setting overrides.
+A build definition has a `trigger` block — when it runs and for which branches — and the settings that say what it does.
+The split is structural because `trigger` is the one part never inherited from `builds.default`.
+Writing any of its keys outside the block is refused with a message naming the definition: ignoring them would leave the build without a trigger, and a job that silently stops running is worse than a configuration that refuses to load.
 
 Triggers: `onPush: true` builds every new commit of the selected branches; `atTimes: ["HH:MM", …]` rebuilds their heads once per day and slot (UTC).
 A slot may also be written as `??:MM` — that minute of every hour, expanded to its 24 slots, so the build runs hourly.
@@ -304,14 +320,16 @@ Only the latest due slot of a day triggers, so slots missed while the server was
 A definition may have both; one with neither never triggers automatically — which is how `builds.default` is written when it is meant as a settings base only.
 GitTally logs a warning once when no definition has a trigger at all, because such an instance never builds anything on its own.
 
-Selector: `branches` lists branch names or glob patterns (`*` matches any characters, also across `/`); empty selects all origin branches.
+Selector: `trigger.branches` lists branch names or glob patterns (`*` matches any characters, also across `/`); empty selects all origin branches.
+A pattern prefixed with `!` excludes instead, and an exclusion always wins regardless of order — `["*", "!master"]` is every branch but master.
+That is how a branch gets a build of its own without being built by the default one as well.
 `activeWithin` (e.g. `24h`) additionally keeps only branches whose origin head commit is younger than the duration — useful to run a nightly deep check over all recently active branches.
 Both parts combine as an intersection.
 
-Settings: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `requirePullRequest`, and `docker` with all its keys.
+Settings: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `requirePullRequest`, `statusContext`, and `docker` with all its keys.
 A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to GitTally's own defaults.
-`requirePullRequest`, `docker.enabled`, and `docker.network` are pinned: they are read from the repo install/project config even when a branch sets them in its own committed config, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci).
-Inheritance from `builds.default` covers the settings only — a trigger and a selector say when and where *this* build runs, so `onPush`, `atTimes`, `branches`, and `activeWithin` are never inherited.
+`requirePullRequest`, `statusContext`, `docker.enabled`, and `docker.network` are pinned: they are read from the repo install/project config even when a branch sets them in its own committed config, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci).
+Inheritance from `builds.default` covers the settings only — the `trigger` block says when and where *this* build runs and is never inherited.
 Definitions are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
 Because the inheritance is applied after all layers are merged, a build a branch invents still inherits the host's `builds.default` — its sandbox policy included, which is what keeps the pinning effective for a build the host has never heard of.
 
@@ -320,7 +338,8 @@ The `default` build records under the plain branch name; every other build recor
 The URL key is the sanitized pool name — `master@pitest` is served as `/branches/master_pitest/…`.
 The pools live as long as the underlying branch exists on origin.
 Restart, `gittally retry`, and the startup recovery re-run a build under its recorded definition, resolving the settings from the current configuration — the job definition is the source of truth, not the historical run.
-The builds still run in their branch's worktree, one build per branch at a time, and the Gitea commit status is reported per commit in the shared status context (the last build of a commit wins there).
+The builds still run in their branch's worktree, one build per branch at a time.
+The Gitea commit status is reported per commit under `gitea.statusContext`, so two builds of the same commit overwrite each other's check — give the second one its own `statusContext` (`GitTally/quick`, say), or keep them apart with an exclusion pattern.
 
 The concurrency limit that used to live in this section moved to `executor.maxConcurrent` without an alias.
 A leftover `builds.maxConcurrent` key (or any other scalar where a definition belongs) is ignored with a warning, not a startup failure — a committed config cannot always be changed right away.

@@ -182,7 +182,13 @@ class InitCommand(
             # they apply to that branch alone, so a new job can be tried out on one branch.
             builds:
               default:
-                onPush: true            # build every new commit of the selected branches
+                # When this build runs and for which branches. The only part a build does
+                # NOT inherit from the default — everything below it does.
+                trigger:
+                  onPush: true          # build every new commit of the selected branches
+                  # branches: ["*", "!master"]   # names or globs; "!" excludes; default: all
+                  # atTimes: ["01:00"]           # daily UTC times HH:MM ("??:05" = every hour at :05)
+                  # activeWithin: 24h            # only branches with recent commits
                 # run before each build
                 cleanCommand: rm -rf build
                 # shell command for each build
@@ -203,12 +209,16 @@ class InitCommand(
                   context: "."          # Docker build context used with dockerfile
                   network: ""           # Docker network mode for the build container; empty = Docker default (pinned)
                   env: {}               # additional environment variables set inside the build container
-              # Further jobs inherit those settings and add their own trigger and selector:
+                # Gitea check this build reports as; empty uses gitea.statusContext.
+                # Two builds of one commit under the same context overwrite each other.
+                statusContext: ""
+              # Further jobs inherit those settings and only bring their own trigger:
               # pitest:
-              #   atTimes: ["01:00"]           # daily UTC times HH:MM ("??:05" = every hour at :05)
-              #   branches: ["master"]         # names or glob patterns; default: all branches
-              #   activeWithin: 24h            # only branches with recent commits
+              #   trigger:
+              #     atTimes: ["01:00"]
+              #     branches: ["master"]
               #   buildCommand: ./gradlew pitestFull
+              #   statusContext: GitTally/pitest
 
             # Build artifact storage and retention.
             artifacts:
