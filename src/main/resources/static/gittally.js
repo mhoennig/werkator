@@ -89,6 +89,8 @@ const FETCH_TIMEOUT_MS = 8000;
 const TABLE_POLL_MS = 10000;
 const CURRENT_POLL_MS = 3000;
 const SYSTEM_POLL_MS = 60000;
+// resume events (visibilitychange, pageshow, focus) often arrive in pairs
+const RESUME_MIN_GAP_MS = 1000;
 
 function metaContent(name) {
     const element = document.querySelector(`meta[name="${name}"]`);
@@ -186,19 +188,34 @@ function setLiveIndicator(ok, detail) {
 // The page's refresh function; actions trigger it for an immediate update.
 let refreshNow = null;
 
-/** Polls `refresh`; paused while the tab is hidden, refreshed immediately when visible again. */
+/**
+ * Polls `refresh`; paused while the tab is hidden, refreshed immediately when the page
+ * becomes visible again — the durations of running builds are ticked client-side, so a
+ * page returning from the background would otherwise keep counting up a build that has
+ * long finished on the server.
+ *
+ * Resuming re-arms the interval unconditionally instead of only when the page was
+ * stopped: a backgrounded page (phone, app switch) may be frozen without ever
+ * delivering the hidden event, and its throttled interval then fires whenever the
+ * browser feels like it. `pageshow` and `focus` are listened to as well, because not
+ * every browser reports a returning page as a visibility change.
+ */
 function startPolling(refresh, intervalMs) {
     let timer = null;
+    let lastTickAt = 0;
     const tick = () => {
+        lastTickAt = Date.now();
         refresh()
             .then(() => setLiveIndicator(true, "last update " + formatTimestamp(new Date().toISOString())))
             .catch((error) => setLiveIndicator(false, String(error)));
     };
     const start = () => {
-        if (timer === null) {
+        stop();
+        // several resume events can arrive together; one fetch is enough for all of them
+        if (Date.now() - lastTickAt >= RESUME_MIN_GAP_MS) {
             tick();
-            timer = setInterval(tick, intervalMs);
         }
+        timer = setInterval(tick, intervalMs);
     };
     const stop = () => {
         if (timer !== null) {
@@ -206,7 +223,14 @@ function startPolling(refresh, intervalMs) {
             timer = null;
         }
     };
+    const resume = () => {
+        if (!document.hidden) {
+            start();
+        }
+    };
     document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
     refreshNow = tick;
     start();
 }
