@@ -149,3 +149,8 @@ A build was running at the first attempt, so the deployment aborted itself befor
 Verified live: `bin/gittally --version` reports v0.9.16 before the start, the service is `active`, `/releases` lists v0.9.16, and the watcher polls without errors.
 Shipped features: hourly scheduled builds (`atTimes: ["??:05"]`) and the artifact page showing the command a build actually runs.
 Verified live: the branch's `atTimes: ["??:00"]` — rejected by v0.9.15 with a warning on every poll cycle — is accepted, and its 06:00 UTC slot fired right after the restart.
+
+Update to v0.9.17 (2026-08-29): same procedure, `~/opt/gittally.0.9.16.bak` as the rollback copy.
+Deployed under the operator's condition "only if no build is running": the deploy script re-checks `/api/builds/current` immediately before the stop and exits without touching anything when a build is executing.
+Verified live: `bin/gittally --version` reports v0.9.17 before the start, the service is `active`, `/releases` lists v0.9.17, the served `gittally.js` carries the resume listeners, and no errors in the log.
+Shipped fix: a page returning from the background fetches the current state immediately instead of showing (and ticking) the state it was left in.
