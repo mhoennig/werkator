@@ -208,6 +208,9 @@ function startPolling(refresh, intervalMs) {
         refresh()
             .then(() => setLiveIndicator(true, "last update " + formatTimestamp(new Date().toISOString())))
             .catch((error) => setLiveIndicator(false, String(error)));
+        // separate request, deliberately not chained: whether the watcher is healthy must
+        // not depend on this view's refresh, nor delay it
+        refreshWatcherBanner();
     };
     const start = () => {
         stop();
@@ -246,6 +249,49 @@ function elem(tag, className, text) {
         element.textContent = text;
     }
     return element;
+}
+
+/**
+ * What the watcher's health means for the page in front of the reader, or null while
+ * nothing is wrong. Three different failures, one message: what you see is not current.
+ *
+ * This is not the `live-indicator`, which says whether *this browser* reaches the server.
+ * A watcher that cannot fetch leaves the server perfectly reachable and every row stale,
+ * which is exactly the outage that went unnoticed for 57 minutes on 2026-08-30.
+ */
+function watcherBannerText(state) {
+    const since = state.lastPollAt ? " Last attempt " + formatTimestamp(state.lastPollAt) + "." : "";
+    if (state.running === false) {
+        return ["watcher stopped", "No branch is being polled; nothing below will change." + since];
+    }
+    if (state.lastFetchError) {
+        return ["origin unreachable", "The list below is not updating." + since + " " + state.lastFetchError];
+    }
+    if (state.lastPollError) {
+        return ["poll cycle failed", "The list below may be incomplete." + since + " " + state.lastPollError];
+    }
+    return null;
+}
+
+/** Never rejects: an unreachable server is the live indicator's business, not the banner's. */
+async function refreshWatcherBanner() {
+    const banner = document.getElementById("watcher-banner");
+    if (!banner) {
+        return;
+    }
+    let state;
+    try {
+        state = await fetchJson("/api/watcher");
+    } catch (error) {
+        // leave the banner as it stands rather than claiming health we could not confirm
+        return;
+    }
+    const text = watcherBannerText(state);
+    banner.replaceChildren();
+    banner.hidden = text === null;
+    if (text) {
+        banner.append(elem("strong", null, text[0]), elem("span", null, text[1]));
+    }
 }
 
 function externalLink(href, text) {
@@ -665,5 +711,9 @@ initBuildsTable();
 initCurrentBuilds();
 initSystemTable();
 initReloadButton();
+// pages with a poller update the banner from their own tick; the static ones ask once
+if (!refreshNow) {
+    refreshWatcherBanner();
+}
 setInterval(tickRunningDurations, 1000);
 tickRunningDurations();

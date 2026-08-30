@@ -86,6 +86,12 @@ tbody tr:nth-child(even) { background: var(--row); }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: color-mix(in srgb, var(--link) 8%, transparent); }
 tbody.is-stale { opacity: 0.55; }
+
+/* Server-side staleness: the watcher cannot reach origin. Distinct from the live
+   indicator, which reports whether this browser reaches the server. */
+.watcher-banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin: -8px 0 18px; padding: 9px 12px; border-radius: 8px; background: var(--failed-bg); color: var(--failed-text); font-size: 13px; }
+.watcher-banner strong { text-transform: uppercase; letter-spacing: 0.03em; font-size: 12px; }
+.watcher-banner[hidden] { display: none; }
 .branch { font-weight: 650; }
 .duration-cell { white-space: nowrap; }
 /* queue wait time of a pending build — italic to distinguish it from real build time */

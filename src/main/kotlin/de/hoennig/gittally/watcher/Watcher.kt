@@ -54,6 +54,15 @@ class Watcher(
     @Volatile
     private var warnedDeprecatedAutoBuild = false
 
+    /**
+     * The fetch failure last written to the log, so a lasting outage does not repeat the
+     * same warning on every poll — one wrong token produced 297 identical lines before
+     * this. Null while the last fetch succeeded, which is also what makes the recovery
+     * loggable.
+     */
+    @Volatile
+    private var loggedFetchError: String? = null
+
     /** Build definitions per branch, cached by the branch's head commit — see [definitionsFor]. */
     private val branchDefinitions = ConcurrentHashMap<String, CachedDefinitions>()
 
@@ -125,8 +134,8 @@ class Watcher(
     }
 
     /**
-     * One poll cycle, never blocking on a build: fetch origin (on failure: log, expose
-     * in [state], retry next cycle), enqueue due branches — changed local branches
+     * One poll cycle, never blocking on a build: fetch origin (on failure: log once per
+     * message, expose in [state], retry next cycle), enqueue due branches — changed local branches
      * first, then recent new origin branches, then due auto-build slots — then
      * fast-forward the local branch refs, and finally prune results, artifacts, and
      * worktrees of branches gone from origin.
@@ -135,9 +144,17 @@ class Watcher(
         val startedAt = clock.instant()
         try {
             gitService.fetchOrigin(workingDir)
+            if (loggedFetchError != null) {
+                log.info("fetching origin succeeded again")
+                loggedFetchError = null
+            }
         } catch (e: Exception) {
-            log.warn("fetching origin failed; retrying next cycle: {}", e.message)
-            state = state.copy(lastPollAt = startedAt, lastFetchError = e.message ?: e.javaClass.simpleName)
+            val failure = e.message ?: e.javaClass.simpleName
+            if (loggedFetchError != failure) {
+                log.warn("fetching origin failed; retrying every cycle until it succeeds: {}", failure)
+                loggedFetchError = failure
+            }
+            state = state.copy(lastPollAt = startedAt, lastFetchError = failure)
             return
         }
         val config = configLoader.load(workingDir)

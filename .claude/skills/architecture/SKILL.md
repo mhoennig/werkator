@@ -36,6 +36,7 @@ The web application type is set to `none` in `application.yml`, so plain CLI run
 ## Web UI
 
 The UI is server-rendered Thymeleaf (`UiController`, templates under `src/main/resources/templates/`) plus one hand-written JavaScript file (`static/gittally.js`) — no SPA framework, no frontend build pipeline. Pages render the full state server-side; the script then polls the JSON API and re-renders table bodies from data. Every fetch has a timeout and failures flip an explicit error badge — never re-fetch and diff whole HTML pages, and never leave a spinner without an error path (the legacy defect). Polling pauses while the tab is hidden. `UiFormats`/`gittally.js` must produce the same display formats (timestamps, durations).
+Two independent staleness signals, never merged: the `live-indicator` badge says whether *this browser* reaches the server, and the `watcher-banner` (fed from `/api/watcher`, in the shared `nav` fragment) says whether the *server* reaches origin — a watcher that cannot fetch leaves the server perfectly reachable and every row stale.
 
 ## Configuration System
 

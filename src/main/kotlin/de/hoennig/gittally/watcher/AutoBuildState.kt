@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeParseException
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * One recorded scheduled-build trigger: the result pool [branch] (a branch, or
@@ -29,6 +30,9 @@ data class AutoBuildTrigger(
 object AutoBuildSlots {
     private val log = LoggerFactory.getLogger(AutoBuildSlots::class.java)
 
+    /** Slots already reported as invalid; the poll loop would otherwise warn about each one forever. */
+    private val warnedInvalidSlots = ConcurrentHashMap.newKeySet<String>()
+
     /**
      * The latest valid slot at or before [now], or null when no slot is due yet today.
      * The returned slot is always a concrete `HH:MM` — an hourly pattern is expanded
@@ -44,7 +48,9 @@ object AutoBuildSlots {
                 try {
                     LocalTime.parse(slot) to slot
                 } catch (_: DateTimeParseException) {
-                    log.warn("skipping invalid scheduled-build time slot '{}': expected HH:MM or ??:MM", slot)
+                    if (warnedInvalidSlots.add(slot)) {
+                        log.warn("skipping invalid scheduled-build time slot '{}': expected HH:MM or ??:MM", slot)
+                    }
                     null
                 }
             }.filter { (parsed, _) -> !parsed.isAfter(now) }

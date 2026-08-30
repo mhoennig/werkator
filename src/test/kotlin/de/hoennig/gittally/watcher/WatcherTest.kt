@@ -1,5 +1,8 @@
 package de.hoennig.gittally.watcher
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import de.hoennig.gittally.build.ArtifactKeys
 import de.hoennig.gittally.build.ArtifactStore
 import de.hoennig.gittally.build.BuildExecutor
@@ -24,6 +27,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -32,6 +36,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.mockk.verifyOrder
+import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
@@ -170,6 +175,28 @@ class WatcherTest : FunSpec() {
                 .state()
                 .lastFetchError
                 .shouldBeNull()
+        }
+
+        test("a lasting fetch failure is logged once, and so is the recovery") {
+            val harness = Harness()
+            val logged = captureWatcherLog()
+            every { harness.gitService.fetchOrigin(any()) } throws RuntimeException("origin unreachable")
+
+            repeat(5) { harness.watcher.poll(harness.workingDir) }
+
+            // one wrong token used to write a warning every ten seconds, 297 of them in an hour
+            logged().filter { it.contains("fetching origin failed") } shouldHaveSize 1
+
+            every { harness.gitService.fetchOrigin(any()) } returns Unit
+            repeat(3) { harness.watcher.poll(harness.workingDir) }
+
+            logged().filter { it.contains("fetching origin succeeded again") } shouldHaveSize 1
+
+            // a different failure is a different message and is worth saying again
+            every { harness.gitService.fetchOrigin(any()) } throws RuntimeException("host is down")
+            harness.watcher.poll(harness.workingDir)
+
+            logged().filter { it.contains("fetching origin failed") } shouldHaveSize 2
         }
 
         test("poll enqueues changed local branches before recent new origin branches") {
@@ -744,4 +771,13 @@ class WatcherTest : FunSpec() {
                 .shouldBeFalse()
         }
     }
+}
+
+/** Collects this spec's [Watcher] log messages; the returned lambda reads them at any point. */
+private fun captureWatcherLog(): () -> List<String> {
+    val logger = LoggerFactory.getLogger(Watcher::class.java) as Logger
+    val appender = ListAppender<ILoggingEvent>()
+    appender.start()
+    logger.addAppender(appender)
+    return { appender.list.map { it.formattedMessage } }
 }

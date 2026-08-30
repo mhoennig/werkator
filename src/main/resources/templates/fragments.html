@@ -16,7 +16,8 @@
     <span class="repo-name" th:unless="${#strings.isEmpty(repoName)}" th:text="${repoName}">owner/repo</span>
 </h1>
 
-<div th:fragment="nav(view)" class="view-row">
+<th:block th:fragment="nav(view)">
+<div class="view-row">
     <nav class="view-toggle">
         <span th:if="${view == 'latest'}">Latest</span>
         <a th:unless="${view == 'latest'}" href="/">Latest</a>
@@ -33,6 +34,10 @@
         <button id="reload-button" class="reload-button" type="button" title="Reload view" aria-label="Reload view">⟳</button>
     </span>
 </div>
+<!-- Filled by gittally.js from /api/watcher: while the watcher cannot reach origin, every
+     row below is as old as its last successful poll, and a calm list would imply otherwise. -->
+<div id="watcher-banner" class="watcher-banner" role="status" hidden></div>
+</th:block>
 
 <footer th:fragment="footer" class="site-footer">
     <strong><a href="/releases" title="Release notes"><em th:text="'GitTally v' + ${version}">GitTally</em></a></strong>
