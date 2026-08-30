@@ -21,7 +21,8 @@ ssh tallyman@vm4006.hostsharing.net 'cd ~/hs.hsadmin.ng && grep -n "^branches:" 
 
 Expected output: nothing at all.
 
-As of 2026-08-29 this listed `master` and five `mihoe/…` branches, plus the machine config.
+As of 2026-08-29 this listed `master`, five `mihoe/…` branches, and the machine config;
+the machine config was cleaned up on 2026-08-30, so only the committed ones are left.
 The plan was: merge `mihoe/reactivate-pi-test` (the first branch with the new shape) to master, rebase the other branches onto the new master, then run this step.
 Branches without a committed `.gittally.yml` are fine — they build from the machine config.
 
@@ -69,24 +70,35 @@ Add a test that a build whose definition was removed from the config still resol
 
 ## Production
 
-The machine config on vm4006 was rewritten for v0.9.19 and still carries its legacy block as the rollback path to v0.9.18 (backup: `.git/gittally/.gittally.yml.20260829T085959Z.bak`).
-Delete the block — everything below the comment marking it as legacy — before deploying this release, with a fresh timestamped backup.
-The file keeps `git`, `server`, `builds.default`, and `builds.master`.
-It is 600 by design; a shell redirect creates 644, so check the mode afterwards.
+The machine config on vm4006 was already cleaned up on 2026-08-30, ahead of this step.
+Its legacy `branches` block is deleted, `builds.master` is now `builds.nightly`, and `build/libs` moved into `builds.default.artifactDirs`, so the nightly job inherits the artifact directories instead of repeating them.
+The file holds `git`, `server`, `builds.default`, and `builds.nightly`; `config:print --full` resolves both definitions completely, with `nightly` inheriting the docker settings and all three artifact directories.
+Nothing about the section removal itself is left to do there.
+The file is 600 by design; a shell redirect creates 644, so check the mode after every edit.
+Backups: `.gittally.yml.20260829T085959Z.bak` (the pre-v0.9.19 shape) and `.gittally.yml.20260829T100842Z.bak` (the last one carrying the legacy block).
 
-While rewriting it, shrink it to what is genuinely host-specific: `git`, `server`, and from `builds.default` only the pinned `docker.enabled` and `docker.network`.
+What remains is the shrinking: reduce the file to what is genuinely host-specific — `git`, `server`, and from `builds.default` only the pinned `docker.enabled` and `docker.network`.
 Everything else — the commands, the image, the env — belongs to the repository and is duplicated there today; the machine config wins over the committed one for every branch without its own `.gittally.yml`, which is exactly the shadowing that made master build with a stale command before v0.9.19.
-That move requires the repository's own config to be on master by then, which the precondition check above already establishes.
+That move requires the repository's own config to be on master, which the precondition check above already establishes.
+
+Decide with it where `builds.nightly` belongs.
+The repository's config defines its own `release` job for master, so the nightly rebuild is the only build the host would still contribute.
+Keeping it here makes the schedule host policy; moving it to the repository makes master's committed config describe all of its own builds.
+Either is defensible, but it must not end up in both places: the host layer wins silently, and two definitions would run the same command twice under one Gitea status context.
+
+The `ignoring the branches section` warning the instance logs today comes from master's committed config, not from the machine config, and it disappears with the merge rather than with this step.
+After the removal that same file would be a hard error instead of a warning — which is what the precondition check guards against.
 
 Deploy as usual (`docs/plan/15-runtime-bundle-distribution.md`), only while `/api/builds/current` is `[]`.
 
 ## Verification
 
-- `gittally config:print --full` on vm4006 before the restart: no `branches` in the output, `builds.default` and `builds.master` complete, `master` still inheriting `docker.enabled: true` and `network: host`.
+- `gittally config:print --full` on vm4006 before the restart: no `branches` in the output, `builds.default` and `builds.nightly` complete, `nightly` still inheriting `docker.enabled: true`, `network: host`, and the three artifact directories.
 - After the restart: no warnings about a branches section, the watcher polls without errors, and a branch build starts in `hsadmin-ng-build-env:latest`.
 - Deliberately: point the running instance at a scratch repository whose config still has `branches:` and confirm the error names the file and the way out.
 
 ## Rollback
 
-Keep `~/opt/gittally.<previous>.bak` and the config backup.
-A rollback needs both, because the previous version reads the machine config's `branches` block for its sandbox policy and this step deletes it.
+Keep the `~/opt/gittally.0.9.20.bak` that this step's deployment creates, plus a timestamped copy of the machine config.
+A rollback below v0.9.19 is no longer possible from the current machine config: v0.9.18 reads its sandbox policy from the `branches` block, which is gone, and would build natively on the host.
+Restoring `.gittally.yml.20260829T100842Z.bak` is the only way back to that version.
