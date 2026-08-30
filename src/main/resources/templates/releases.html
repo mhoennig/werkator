@@ -7,6 +7,20 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.21 <span class="muted">— 2026-08-30</span></h2>
+        <ul>
+            <li>An origin the watcher cannot reach is now visible in the web UI: a banner above the
+                table says that the list below is not updating, since when, and why. Until now the
+                page kept showing its last known state, calm and plausible, while GitTally had not
+                been able to fetch for an hour — the failure lived in the log alone. The banner is
+                deliberately separate from the live indicator: that one says whether your browser
+                reaches the server, this one whether the server reaches origin.</li>
+            <li>A lasting fetch failure is logged when its message changes instead of on every poll
+                cycle, and the recovery is logged once. One wrong token used to write several hundred
+                identical warnings an hour. An invalid <code>atTimes</code> slot is likewise reported
+                once per slot.</li>
+        </ul>
+
         <h2>v0.9.20 <span class="muted">— 2026-08-29</span></h2>
         <ul>
             <li>A build definition is now split in two: a <code>trigger</code> block says when the

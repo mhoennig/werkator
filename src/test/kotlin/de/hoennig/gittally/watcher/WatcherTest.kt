@@ -1,5 +1,6 @@
 package de.hoennig.gittally.watcher
 
+import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
@@ -773,11 +774,16 @@ class WatcherTest : FunSpec() {
     }
 }
 
-/** Collects this spec's [Watcher] log messages; the returned lambda reads them at any point. */
+/**
+ * Collects this spec's [Watcher] log messages; the returned lambda reads them at any point.
+ * The level is lowered explicitly — the test JVM logs at WARN, which would drop the very
+ * INFO line that says the fetch recovered.
+ */
 private fun captureWatcherLog(): () -> List<String> {
     val logger = LoggerFactory.getLogger(Watcher::class.java) as Logger
     val appender = ListAppender<ILoggingEvent>()
     appender.start()
+    logger.level = Level.INFO
     logger.addAppender(appender)
     return { appender.list.map { it.formattedMessage } }
 }
