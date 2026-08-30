@@ -84,7 +84,7 @@ Added after v0.9.19 replaced the per-branch settings with build definitions (202
 
 Added after a silent 57-minute fetch outage on vm4006 (2026-08-30):
 
-- [ ] `19-watcher-health-in-ui.md` — show an unreachable origin in the web UI instead of only in the journal
+- [x] `19-watcher-health-in-ui.md` — show an unreachable origin in the web UI instead of only in the journal
 
 Added for running GitTally on Hostsharing Managed Webspaces (2026-08-10):
 

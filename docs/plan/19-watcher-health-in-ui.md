@@ -50,3 +50,12 @@ This is the same class as the `atTimes` warning that repeats every poll for an i
 - Break it deliberately in a scratch repo install: set `git.token` to a wrong value, and watch the banner appear within one poll interval and disappear again after fixing it.
 - Stop the watcher (`running: false`) and confirm the banner says so in its own words rather than reporting a fetch error.
 - On a narrow viewport the banner must not push the table off screen.
+
+## Executed 2026-08-30
+
+Done as described. Two notes:
+
+- `server/WatcherApiControllerTest.kt` already asserted that `lastFetchError` reaches the JSON, so no test was added there; `watcher/WatcherTest.kt` gained the log-volume test instead.
+- The `nav(view)` fragment became a `th:block` wrapping the view row and the banner, so the five templates that include it needed no change and a sixth cannot forget it.
+
+Verified against a scratch repository with an unreachable origin: the banner reads "origin unreachable — the list below is not updating", disappears within one poll interval after the remote is fixed, and the whole outage produced one warning plus one recovery line instead of one warning per cycle.
