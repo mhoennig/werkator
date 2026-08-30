@@ -77,14 +77,15 @@ Nothing about the section removal itself is left to do there.
 The file is 600 by design; a shell redirect creates 644, so check the mode after every edit.
 Backups: `.gittally.yml.20260829T085959Z.bak` (the pre-v0.9.19 shape) and `.gittally.yml.20260829T100842Z.bak` (the last one carrying the legacy block).
 
-What remains is the shrinking: reduce the file to what is genuinely host-specific — `git`, `server`, and from `builds.default` only the pinned `docker.enabled` and `docker.network`.
-Everything else — the commands, the image, the env — belongs to the repository and is duplicated there today; the machine config wins over the committed one for every branch without its own `.gittally.yml`, which is exactly the shadowing that made master build with a stale command before v0.9.19.
-That move requires the repository's own config to be on master, which the precondition check above already establishes.
+What remains is deleting the `builds` section from the machine config entirely, as soon as master carries its own.
+The file then holds `git` and `server` — the secrets and the host's addresses — and nothing that describes a build.
 
-Decide with it where `builds.nightly` belongs.
-The repository's config defines its own `release` job for master, so the nightly rebuild is the only build the host would still contribute.
-Keeping it here makes the schedule host policy; moving it to the repository makes master's committed config describe all of its own builds.
-Either is defensible, but it must not end up in both places: the host layer wins silently, and two definitions would run the same command twice under one Gitea status context.
+That works because the pinning strips the *branch* layer only (`ConfigLoader.stripPinned`, applied in `withBranchLayer`).
+Master's committed `.gittally.yml` is the project layer of the primary checkout and is merged unstripped, so its `docker.enabled: true` and `network: host` are what every branch's builds inherit — including a build a branch invents for itself, because the inheritance from `builds.default` runs after the layers are merged.
+The sandbox policy thereby moves from the host to master, where changing it needs a review; it must therefore actually be in master's file before the host's section goes.
+
+`builds.nightly` goes with it: master's config defines its own `release` job, and the nightly rebuild belongs next to it rather than on the host.
+It must not end up in both places — the host layer wins silently, and two definitions would run the same command twice under one Gitea status context.
 
 The `ignoring the branches section` warning the instance logs today comes from master's committed config, not from the machine config, and it disappears with the merge rather than with this step.
 After the removal that same file would be a hard error instead of a warning — which is what the precondition check guards against.
@@ -93,12 +94,12 @@ Deploy as usual (`docs/plan/15-runtime-bundle-distribution.md`), only while `/ap
 
 ## Verification
 
-- `gittally config:print --full` on vm4006 before the restart: no `branches` in the output, `builds.default` and `builds.nightly` complete, `nightly` still inheriting `docker.enabled: true`, `network: host`, and the three artifact directories.
+- `gittally config:print --full` on vm4006 before the restart: no `branches` in the output, every definition complete, and `docker.enabled: true` plus `network: host` on all of them.
+  Once the machine config's `builds` section is gone, that resolves entirely from master's committed file — which is exactly what the check is for.
 - After the restart: no warnings about a branches section, the watcher polls without errors, and a branch build starts in `hsadmin-ng-build-env:latest`.
 - Deliberately: point the running instance at a scratch repository whose config still has `branches:` and confirm the error names the file and the way out.
 
 ## Rollback
 
 Keep the `~/opt/gittally.0.9.20.bak` that this step's deployment creates, plus a timestamped copy of the machine config.
-A rollback below v0.9.19 is no longer possible from the current machine config: v0.9.18 reads its sandbox policy from the `branches` block, which is gone, and would build natively on the host.
-Restoring `.gittally.yml.20260829T100842Z.bak` is the only way back to that version.
+Going back below v0.9.19 is not provided for: v0.9.18 reads its sandbox policy from the `branches` block that no configuration carries any more, and would build natively on the host.
