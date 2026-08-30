@@ -25,9 +25,9 @@ It leaves every setting at its default, so an installation that updated without 
 
 The fallback is temporary and goes away once the watched repositories have been renamed.
 
-## What Has To Be Moved By Hand
+## What Else the Rename Touches
 
-### 1. The state directory
+### 1. The state directory — done automatically
 
 `.git/gittally/` → `.git/werkator/`, with everything in it:
 
@@ -38,11 +38,19 @@ The fallback is temporary and goes away once the watched repositories have been 
 - `worktrees/<branchKey>/` — the per-branch build worktrees
 - the generated systemd unit and its `EnvironmentFile`
 
-There is no fallback for this path.
-Without the move the instance starts with an empty history, a fresh control token, and no memory of today's scheduled builds — again without a single failure.
+There is no name fallback for this path, so the first start after the update moves it (`StateDirMigration`).
+Without the move the instance would start with an empty history, a fresh control token, and no memory of today's scheduled builds — again without a single failure, which is why it is done rather than documented.
 
-The worktrees hold absolute paths in both directions (`.git/worktrees/<name>/gitdir` and the worktree's own `.git` file).
-Either run `git worktree repair` after the move, or simply delete `.git/werkator/worktrees/` — a worktree is rebuilt on the next build of that branch.
+The move happens only when the old directory exists and the new one does not.
+Where both exist, nothing is moved and a warning names the leftover: which of the two is the live state is not something to guess.
+A move that fails is logged as an error and does not stop the start.
+
+Two things follow from the move, both handled or reported:
+
+- The worktrees hold absolute paths in both directions (`.git/worktrees/<name>/gitdir` and the worktree's own `.git` file), so they are dropped instead of repaired.
+  Each is recreated by its branch's next build, which prunes the stale admin entry first.
+- The generated systemd unit moves with the directory, which leaves its symlink in `~/.config/systemd/user` dangling — the running service is unaffected, the next start is not.
+  A warning names the unit; re-run `werkator init --systemd` and re-link it, see step 3.
 
 ### 2. The artifact root
 
@@ -105,13 +113,12 @@ Move the state directory with the artifact root, and remove the old container so
 Per installation, and only while `/api/builds/current` is `[]` — a running build is interrupted by the restart and re-enqueued, but there is no reason to force that.
 
 1. `systemctl --user stop werkator-<repo>.service` (old name).
-2. Move the state directory, the artifact root, and the bundle.
-3. Repair or delete the worktrees.
-4. Rename the configuration files at the same time, or leave them to the fallback.
-5. Deploy the new version.
-6. `werkator init --systemd`, disable the old units, enable the new ones.
-7. Start the service.
-8. Update the Gitea branch protection rule if it names the check.
+2. Move the artifact root and the bundle; the state directory moves itself at the first start.
+3. Rename the configuration files at the same time, or leave them to the fallback.
+4. Deploy the new version and start it once, so the state directory moves.
+5. `werkator init --systemd`, disable the old units, enable the new ones.
+6. Start the service.
+7. Update the Gitea branch protection rule if it names the check.
 
 ## Verification
 
@@ -124,13 +131,12 @@ Per installation, and only while `/api/builds/current` is `[]` — a running bui
 Keep the previous bundle and a timestamped copy of the machine configuration.
 Note the asymmetry: the new version reads both names, the old one only reads the old name.
 So a rollback works as long as the configuration files still carry — or carry again — their pre-rename names.
-The state directory has to move back with it.
+The state directory has to be moved back by hand; nothing moves it in that direction.
 
 ## Open Points
 
-- **Should the state directory get the same fallback as the configuration?**
-  It would make an update a single step, at the price of a second lookup path in every place that writes state.
-  Currently intended as a deliberate manual move, because unlike a configuration the state is written, not only read, and a fallback that writes would have to decide which of two directories wins.
+- **Settled:** the state directory is moved at the first start instead of getting a name fallback.
+  A fallback would have to decide, on every write, which of two directories wins; a one-time move decides once and leaves one path afterwards.
 - **This repository's own file names** are a separate step: 121 paths still contain `gittally`, package directories included.
   The rename script for it is written and waits.
 - **When the fallback goes away**, `ConfigFiles` loses its legacy entries and a leftover `.gittally.yml` should be rejected by name rather than ignored — the same reasoning as for the legacy `branches` section in [plan step 18](plan/18-remove-branches-section.md).

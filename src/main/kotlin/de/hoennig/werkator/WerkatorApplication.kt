@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 import picocli.CommandLine
 import picocli.CommandLine.IFactory
+import java.nio.file.Paths
 import kotlin.system.exitProcess
 
 @SpringBootApplication
@@ -26,6 +27,8 @@ class CliRunner(
     private var exitCode = 0
 
     override fun run(vararg args: String) {
+        // before any command resolves a path under it, and once per process
+        StateDirMigration.migrateIfNeeded(Paths.get("."))
         exitCode =
             CommandLine(rootCommand, factory)
                 .setExecutionExceptionHandler { exception, commandLine, _ ->
