@@ -24,7 +24,7 @@ Configuration comes from `WerkatorConfig` (`gitea.*`, `git.token`).
 ## Out of Scope
 
 - No callers yet; the build executor (step 04) wires status publishing.
-- No webhook receiving; werkator remains poll-based.
+- No webhook receiving; Werkator remains poll-based.
 
 ## Tests
 

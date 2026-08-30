@@ -6,7 +6,7 @@ Read `README.md` first.
 ## Why
 
 On 2026-08-30 the Gitea token in the machine config on vm4006 was replaced by a placeholder string.
-For 57 minutes werkator failed `git fetch --prune origin` every ten seconds and wrote 297 warnings to the journal.
+For 57 minutes Werkator failed `git fetch --prune origin` every ten seconds and wrote 297 warnings to the journal.
 The branches view showed a calm, ordinary list the whole time: every branch with its last build, nothing amiss.
 The failure was noticed only because an expected build did not start, and it took reading the journal to see why.
 

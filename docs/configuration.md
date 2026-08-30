@@ -1,6 +1,6 @@
-# werkator Configuration Reference
+# Werkator Configuration Reference
 
-werkator is configured via YAML files. Settings are merged from several sources in order — later layers override earlier ones.
+Werkator is configured via YAML files. Settings are merged from several sources in order — later layers override earlier ones.
 
 ## Config File Locations
 
@@ -12,36 +12,41 @@ werkator is configured via YAML files. Settings are merged from several sources 
 
 The repo install config (`.git/werkator/.werkator.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
 
-### Which werkator a file is written for
+Each of the three is also looked up under the name it had before the rename to Werkator, spelled exactly as it was: `.gittally.yml` at the repository root and in a build worktree, `.git/gittally/.gittally.yml` for the machine layer.
+The current name always wins; where both exist the old file is ignored, never merged.
+The fallback exists because a missing configuration is not an error — it leaves every setting at its default, so an installation that updated without moving its files would come up looking healthy while having forgotten its credentials and its builds.
+Rename the files at your convenience; the fallback goes away with a future release.
 
-Every configuration file may declare the werkator it was written for. Without it, a
+### Which Werkator a file is written for
+
+Every configuration file may declare the Werkator it was written for. Without it, a
 version that renames or drops a key does not fail — it silently ignores what it no longer
 understands, and the effect shows up as a build that does the wrong thing.
 
 ```yaml
 werkator:
   version:
-    since: "0.9.16"   # enforced: an older werkator refuses to read this file
-    below: "2.0"      # your release marker; werkator decides how strictly to take it
+    since: "0.9.16"   # enforced: an older Werkator refuses to read this file
+    below: "2.0"      # your release marker; Werkator decides how strictly to take it
 ```
 
 There is deliberately **no version of the file format** (no `apiVersion`): no API is
-involved — werkator reads its own configuration — and only one configuration generation is
+involved — Werkator reads its own configuration — and only one configuration generation is
 ever supported. The declaration exists to make an incompatibility nameable, never to run
 two parsers.
 
 `since` is a hard floor and covers both directions:
 
-- a newer file on an older werkator is refused instead of being half-understood;
+- a newer file on an older Werkator is refused instead of being half-understood;
 - a file written *before* a breaking change and read *after* it is refused as well —
-  werkator knows in which version its configuration format last broke, so the message can
-  name the change: *"is written for werkator 1.4.0, but the configuration format changed
+  Werkator knows in which version its configuration format last broke, so the message can
+  name the change: *"is written for Werkator 1.4.0, but the configuration format changed
   incompatibly in 2.0.0: `builds:` is now `buildSpec:`"*.
 
 `below` is optional and names the first version this file was **not** released for. The
 bound is exclusive, so `below: "2.0"` means everything up to 2.0.0. On its own it only
 warns — a caution marker nobody maintained must never stop a CI. The refusal above comes
-from werkator's own knowledge of its breaking changes, not from this value. The intended
+from Werkator's own knowledge of its breaking changes, not from this value. The intended
 routine is the one known from IDE plugins: a new version appears, the warning shows up, you
 try it (on a test host, or in production with a rollback ready), and then raise `below` and
 commit that.
@@ -95,7 +100,7 @@ single branch may decide it:
   configuration does.
 
 The distinction is documentary.
-werkator applies one rule: every pinned key is stripped from the branch layer, and the
+Werkator applies one rule: every pinned key is stripped from the branch layer, and the
 value then resolves from whichever remaining layer sets it.
 The names say where a key is meant to live, not how it is enforced.
 
@@ -122,14 +127,14 @@ Add `--show-secrets` to print it in clear text.
 Values shown are the defaults.
 
 ```yaml
-# The werkator this file is written for (see the section above).
+# The Werkator this file is written for (see the section above).
 werkator:
   version:
-    since: "0.9.18"   # enforced: older werkator refuses this file
+    since: "0.9.18"   # enforced: older Werkator refuses this file
     below: "2.0"      # optional release marker; warns, does not block
 
 server:
-  # Public base URL of this werkator installation — used for all links posted to Gitea.
+  # Public base URL of this Werkator installation — used for all links posted to Gitea.
   publicBaseUrl: https://ci.example.org/
   # HTTP port of the `server` subcommand (default 18080, like legacy)
   port: 18080
@@ -275,13 +280,13 @@ watcher:
 ### Notes on `server.bindAddress`
 
 The default is `127.0.0.1`.
-Neither the web UI nor the JSON API authenticates read access — which is intended, so build states and artifacts can be linked from anywhere — so werkator is meant to sit behind the host's reverse proxy rather than on a public interface.
-Set `0.0.0.0` only deliberately — for the managed nginx container (which reaches werkator over the Docker bridge, not over loopback), or when the proxy runs on another host.
+Neither the web UI nor the JSON API authenticates read access — which is intended, so build states and artifacts can be linked from anywhere — so Werkator is meant to sit behind the host's reverse proxy rather than on a public interface.
+Set `0.0.0.0` only deliberately — for the managed nginx container (which reaches Werkator over the Docker bridge, not over loopback), or when the proxy runs on another host.
 Installations created before v0.9.9 have `bindAddress: 0.0.0.0` written into their `.werkator.yml` and keep it; the new default only applies where the key is absent or `init` writes a fresh file.
 
 ### Notes on `server.nginx`
 
-With `nginx.enabled`, the `server` subcommand also starts a managed nginx Docker container that serves werkator over HTTPS (ADR 0005).
+With `nginx.enabled`, the `server` subcommand also starts a managed nginx Docker container that serves Werkator over HTTPS (ADR 0005).
 This is meant for hosts that provide Docker but no usable reverse proxy (e.g. Hostsharing managed containers); otherwise prefer the reverse-proxy setup in [deployment.md](deployment.md).
 Certificates are obtained and renewed via Let's Encrypt (certbot Docker container, webroot mode), so `serverName` must be a public DNS name pointing at the host and `httpPort` must be reachable from the internet as port 80 (or via a port forward).
 When `server.publicBaseUrl` is empty and `serverName` is set, it defaults to `https://<serverName>/`.
@@ -334,7 +339,7 @@ Triggers: `onPush: true` builds every new commit of the selected branches; `atTi
 A slot may also be written as `??:MM` — that minute of every hour, expanded to its 24 slots, so the build runs hourly.
 Only the latest due slot of a day triggers, so slots missed while the server was down are skipped instead of piling up, and a slot whose pool is still building is retried on the next poll cycle until it succeeds.
 A definition may have both; one with neither never triggers automatically — which is how `builds.default` is written when it is meant as a settings base only.
-werkator logs a warning once when no definition has a trigger at all, because such an instance never builds anything on its own.
+Werkator logs a warning once when no definition has a trigger at all, because such an instance never builds anything on its own.
 
 Selector: `trigger.branches` lists branch names or glob patterns (`*` matches any characters, also across `/`); empty selects all origin branches.
 A pattern prefixed with `!` excludes instead, and an exclusion always wins regardless of order — `["*", "!master"]` is every branch but master.
@@ -343,7 +348,7 @@ That is how a branch gets a build of its own without being built by the default 
 Both parts combine as an intersection.
 
 Settings: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `requirePullRequest`, `statusContext`, and `docker` with all its keys.
-A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to werkator's own defaults.
+A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to Werkator's own defaults.
 `requirePullRequest`, `statusContext`, `docker.enabled`, and `docker.network` are pinned (master-pinned, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci)): they are read from the repo install/project config even when a branch sets them in its own committed config.
 Inheritance from `builds.default` covers the settings only — the `trigger` block says when and where *this* build runs and is never inherited.
 Definitions are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
@@ -378,7 +383,7 @@ To migrate, move `branches.default` to `builds.default`, add `onPush: true`, and
 ### Notes on `watcher.fastForwardLocalRefs`
 
 Builds run in worktrees that share the primary checkout's `.git`, so a build tool can read `refs/heads/*` there.
-werkator itself never needs those refs to be current — it builds the commit `refs/remotes/origin/<branch>` points at — but build tools do.
+Werkator itself never needs those refs to be current — it builds the commit `refs/remotes/origin/<branch>` points at — but build tools do.
 A common case is a check that refuses to run when the local main branch differs from its origin counterpart; without this key it would fail on every build once origin moved on, because nothing would ever advance the local ref.
 
 The fast-forward runs at the end of the poll cycle, after the due branches were enqueued.
@@ -390,15 +395,15 @@ The branch checked out in the primary checkout is advanced with `git merge --ff-
 
 ### Notes on `builds.<name>.docker`
 
-With `docker.enabled`, werkator shells out to the `docker` CLI; the `docker` command must be on the `PATH`.
+With `docker.enabled`, Werkator shells out to the `docker` CLI; the `docker` command must be on the `PATH`.
 When `dockerfile` is set, the image is (re)built whenever the Dockerfile content, its path, or the context path changed.
 Staleness is tracked via the image label `org.werkator.build-inputs-sha256`.
 A Gradle cache volume `werkator-gradle-<repo-key>` is created per repository and mounted as `GRADLE_USER_HOME`.
 The build worktree is bind-mounted into the container; after each command the ownership of `build/` and `.gradle/` is repaired to the host user.
 Git works inside the container: the primary repository's `.git` is mounted read-only (so build steps can run read-only git commands like `git log` or `git describe`), with `.git/werkator/` masked by an empty tmpfs so the build can never read the machine config (`git.token`) or the control token.
-Note that the rest of `.git` — including `.git/config` — is visible to builds; werkator never stores credentials there, and neither should you.
+Note that the rest of `.git` — including `.git/config` — is visible to builds; Werkator never stores credentials there, and neither should you.
 The Docker socket is mounted into the container and `DOCKER_HOST`/`TESTCONTAINERS_*` variables are set, so Testcontainers-based builds work inside the container.
-All werkator containers carry `org.hoennig.werkator` labels; stale build containers of the repository are removed before the first Docker build after a restart.
+All Werkator containers carry `org.hoennig.werkator` labels; stale build containers of the repository are removed before the first Docker build after a restart.
 
 ## `.git/werkator/.werkator.yml` (not committed)
 

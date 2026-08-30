@@ -7,6 +7,34 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v0.9.22 <span class="muted">— unreleased</span></h2>
+        <ul>
+            <li>GitTally is now <strong>Werkator</strong>. The old name already belongs to another
+                product in the git space, so the rename is a precaution and nothing more: what the
+                build system does, how it is configured, and how it reports to Gitea are unchanged.
+                In prose it is Werkator, everywhere a machine reads the name it is
+                <code>werkator</code>.</li>
+            <li>The rename reaches the file names an installation depends on. The committed
+                configuration is <code>.werkator.yml</code>, the machine-specific one
+                <code>.git/werkator/.werkator.yml</code>, and all state — build results, artifacts,
+                worktrees, the control token — lives under <code>.git/werkator/</code>.</li>
+            <li>Every configuration is still found under its old name, spelled as it was:
+                <code>.gittally.yml</code> at the repository root, in a build worktree and as
+                committed on a branch, and <code>.git/gittally/.gittally.yml</code> for the machine
+                layer. The current name wins where both exist, and the old file is then ignored
+                rather than merged. The fallback is there because a configuration that is not found
+                is not an error — it leaves every setting at its default, so an installation that
+                updated without renaming would have come up looking healthy while having forgotten
+                its credentials and its builds. Rename at your convenience; the state directory
+                <code>.git/werkator/</code> has no such fallback and does have to be moved, or the
+                instance starts without its build history.</li>
+            <li>The default Gitea check context is <code>werkator</code>. Where the old name is
+                pinned in a branch protection rule, the rule has to be updated with it, or a pull
+                request waits forever for a check nobody posts any more. Statuses already written
+                keep their old context, so a commit built before and after the change shows
+                both.</li>
+        </ul>
+
         <h2>v0.9.21 <span class="muted">— 2026-08-30</span></h2>
         <ul>
             <li>An origin the watcher cannot reach is now visible in the web UI: a banner above the
@@ -294,6 +322,6 @@
     </div>
 </main>
 <footer th:replace="~{fragments :: footer}"></footer>
-<script src="/gittally.js"></script>
+<script src="/werkator.js"></script>
 </body>
 </html>

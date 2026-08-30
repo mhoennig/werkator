@@ -1,23 +1,23 @@
 ---
 name: architecture
-description: Detailed werkator subsystem architecture — CLI wiring and exit codes, server mode, web UI, configuration system, git access, build execution (native and Docker), watcher poll cycle, and system metrics. Use when designing or modifying code in the commands, config, git, gitea, build, artifacts, watcher, metrics, or server packages, or when a question goes beyond the overview in AGENTS.md.
+description: Detailed Werkator subsystem architecture — CLI wiring and exit codes, server mode, web UI, configuration system, git access, build execution (native and Docker), watcher poll cycle, and system metrics. Use when designing or modifying code in the commands, config, git, gitea, build, artifacts, watcher, metrics, or server packages, or when a question goes beyond the overview in AGENTS.md.
 ---
 
-# werkator Architecture
+# Werkator Architecture
 
-werkator is a lightweight, declarative CI/CD build system.
+Werkator is a lightweight, declarative CI/CD build system.
 It is a dual-mode application: **CLI** (interactive, status, config) and **Server** (HTTP, persistent).
 
 ## Entry Point and CLI Wiring
 
 Spring Boot starts via `WerkatorApplication`. A separate `CliRunner` component (in the same file) implements both `CommandLineRunner` (runs picocli) and `ExitCodeGenerator` (returns the exit code). `exitProcess` is called only from `main()` via `SpringApplication.exit()` — **never** inside `run()`. This keeps the Spring context alive during tests.
 
-Picocli commands are Spring `@Component` beans. The root command (`werkatorCommand`) declares subcommands as class references in `@Command(subcommands = [...])`. Picocli resolves them from the Spring context via the auto-configured `IFactory` bean.
+Picocli commands are Spring `@Component` beans. The root command (`WerkatorCommand`) declares subcommands as class references in `@Command(subcommands = [...])`. Picocli resolves them from the Spring context via the auto-configured `IFactory` bean.
 
 ```
-werkatorApplication   ← @SpringBootApplication
+WerkatorApplication   ← @SpringBootApplication
 CliRunner             ← CommandLineRunner + ExitCodeGenerator
-werkatorCommand       ← root @Command, delegates to subcommands
+WerkatorCommand       ← root @Command, delegates to subcommands
 commands/
   InitCommand         ← "init [--systemd]"
   ServerCommand       ← "server"
@@ -40,16 +40,18 @@ Two independent staleness signals, never merged: the `live-indicator` badge says
 
 ## Configuration System
 
-werkator is configured by two YAML files, deep-merged by `ConfigLoader` (later wins):
+Werkator is configured by two YAML files, deep-merged by `ConfigLoader` (later wins):
 
 1. `.werkator.yml` at the repo root — committed, shared team settings.
 2. `.git/werkator/.werkator.yml` — not committed; machine-specific overrides and secrets (`git.account`, `git.token`).
 
+Every lookup falls back to the pre-rename name (`ConfigFiles`): `.gittally.yml`, and `.git/gittally/.gittally.yml` for the machine layer. Current name first, and where both exist the old one is ignored rather than merged — a missing config is not an error, so an un-renamed installation would otherwise start on defaults without a single failure.
+
 On top of those comes the **branch layer**: the `.werkator.yml` committed on a branch, applied by `loadWithBranchLayer` (the watcher passes the content read via `git show`, `loadForWorktree` the file in the build worktree). A branch describes its own CI and wins over both layers — the whole `builds` section — so a configuration can be tried out on a branch without touching other branches' builds. `stripPinned` removes what is not a description of this branch's build: `git`, `server`, `gitea`, `executor`, `watcher`, and — inside every `builds` definition as well as every legacy `branches` entry — `requirePullRequest`, `statusContext`, and `docker.enabled`/`docker.network`.
 
-Each file is version-checked before merging (`werkator.version.since`/`below`, `ConfigVersions.verdict`), so the message can name the file to fix: `since` is hard in both directions — too old a werkator, or a file written before `ConfigVersions.FORMAT_BROKE_IN` and read after it — while `below` only warns. There is no format version (`apiVersion`) on purpose: only one configuration generation is supported, and the declared version exists to make the incompatibility nameable.
+Each file is version-checked before merging (`werkator.version.since`/`below`, `ConfigVersions.verdict`), so the message can name the file to fix: `since` is hard in both directions — too old a Werkator, or a file written before `ConfigVersions.FORMAT_BROKE_IN` and read after it — while `below` only warns. There is no format version (`apiVersion`) on purpose: only one configuration generation is supported, and the declared version exists to make the incompatibility nameable.
 
-After merging, `resolveBuildSections` decides which section describes the builds: `builds` or the legacy `branches`, never both. With no real build definition (`builds.maxConcurrent` is not one, `dropNonDefinitionBuilds` already drops it) the legacy path runs and `branches.default` is merged into every other branch entry; otherwise `branches` is dropped with a warning and `mergeBuildDefaults` applies `builds.default` as the base of every other definition — its settings only, never its `trigger` block (`TRIGGER_KEYS`, a single key so that a selector added to `TriggerConfig` later is non-inheritable by construction). `checkTriggerBlocks` refuses a definition still writing `onPush`/`atTimes`/`branches`/`activeWithin` flat, per file and scoped like the version check. Deciding this on the merged map is deliberate: a build defined on a branch and unknown to the host still inherits the host's `builds.default`, sandbox policy included, which is what keeps the pinned keys effective for it. The result is bound to the `WerkatorConfig` data classes (`config/werkatorConfig.kt`), which define the schema and all defaults; `werkatorConfig.buildSettings(branch, build)` is the single answer to "what does this build run".
+After merging, `resolveBuildSections` decides which section describes the builds: `builds` or the legacy `branches`, never both. With no real build definition (`builds.maxConcurrent` is not one, `dropNonDefinitionBuilds` already drops it) the legacy path runs and `branches.default` is merged into every other branch entry; otherwise `branches` is dropped with a warning and `mergeBuildDefaults` applies `builds.default` as the base of every other definition — its settings only, never its `trigger` block (`TRIGGER_KEYS`, a single key so that a selector added to `TriggerConfig` later is non-inheritable by construction). `checkTriggerBlocks` refuses a definition still writing `onPush`/`atTimes`/`branches`/`activeWithin` flat, per file and scoped like the version check. Deciding this on the merged map is deliberate: a build defined on a branch and unknown to the host still inherits the host's `builds.default`, sandbox policy included, which is what keeps the pinned keys effective for it. The result is bound to the `WerkatorConfig` data classes (`config/WerkatorConfig.kt`), which define the schema and all defaults; `WerkatorConfig.buildSettings(branch, build)` is the single answer to "what does this build run".
 
 Three places must stay in sync when config keys change: the `WerkatorConfig` data classes, the commented templates generated by `InitCommand`, and the reference in `docs/configuration.md`.
 

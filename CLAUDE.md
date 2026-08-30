@@ -1,4 +1,4 @@
-# werkator — Claude Code Instructions
+# Werkator — Claude Code Instructions
 
 @AGENTS.md
 

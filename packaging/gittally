@@ -1,6 +1,0 @@
-#!/bin/sh
-# Launcher for the self-contained werkator runtime bundle (jlink JRE + jar).
-# Built by `./gradlew runtimeBundle`; see docs/deployment.md.
-DIR=$(CDPATH='' cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)
-# shellcheck disable=SC2086 # JAVA_OPTS is intentionally word-split
-exec "$DIR/../jre/bin/java" $JAVA_OPTS -jar "$DIR/../lib/werkator.jar" "$@"

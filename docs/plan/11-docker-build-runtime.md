@@ -72,4 +72,4 @@ Manual smoke test (2026-07-07, scratch repo, Rancher Desktop 27.3.1):
 - A second run reused the image (inputs label matched, no rebuild; `success after 0:04`).
 - The command ran as uid 0 inside the container while `build/who.txt` ended up owned by the host user — the in-container ownership repair works.
 - No labelled containers were left behind after the builds.
-- Caveat found while testing (environmental, not werkator): with a VM-based Docker (Rancher Desktop/Lima), workspace bind mounts only work for paths shared into the VM (e.g. `$HOME`); a repo under an unshared `/tmp` builds against an empty VM-side directory.
+- Caveat found while testing (environmental, not Werkator): with a VM-based Docker (Rancher Desktop/Lima), workspace bind mounts only work for paths shared into the VM (e.g. `$HOME`); a repo under an unshared `/tmp` builds against an empty VM-side directory.

@@ -1,0 +1,37 @@
+server:
+  # Public base URL of this Werkator installation — used for all links posted to Gitea.
+  publicBaseUrl: ""
+
+# Gitea integration for fetching commits and posting build statuses.
+gitea:
+  baseUrl: https://github.com   # base URL of the Gitea instance
+  owner: mhoennig                      # repository owner (user or organisation) for Gitea API (e.g. status checks)
+  repo: werkator                      # repository name
+  statusContext: werkator            # label shown on Gitea commit status checks (default: werkator)
+
+# Build artifact retention.
+artifacts:
+  # number of builds to keep per branch
+  retentionPerBranch: 3
+
+# Controls the branch-polling loop.
+watcher:
+  # max commit age for new origin branches to be pulled automatically
+  newBranchMaxAge: 5d
+
+# Per-branch build configuration.
+# Use "default" as the fallback for all branches not listed explicitly.
+branches:
+  default:
+    # run before each build
+    cleanCommand: rm -rf build
+    # shell command for each build 
+    buildCommand: ./gradlew --console=plain --no-daemon test
+    # directories copied as build artifacts
+    artifactDirs:                                         
+      - build/reports
+    stdoutLog: build.stdout.log   # filename for captured stdout
+    stderrLog: build.stderr.log   # filename for captured stderr
+    autoBuild:
+      enabled: false        # whether to rebuild on schedule
+      times: ["01:00"]      # UTC times HH:MM for scheduled builds

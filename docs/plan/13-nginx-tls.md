@@ -6,8 +6,8 @@ Consult `legacy/werkator` for the functions referenced below.
 
 ## Goal
 
-Serve werkator over HTTPS on hosts that provide Docker but no host reverse proxy (e.g. Hostsharing managed container environments).
-werkator optionally manages an nginx Docker container with Let's Encrypt certificates, ported from the legacy subsystem.
+Serve Werkator over HTTPS on hosts that provide Docker but no host reverse proxy (e.g. Hostsharing managed container environments).
+Werkator optionally manages an nginx Docker container with Let's Encrypt certificates, ported from the legacy subsystem.
 This is opt-in; the reverse-proxy deployment from step 12 stays the default (ADR 0005).
 
 ## Design
@@ -38,7 +38,7 @@ Port the legacy nginx subsystem (functions `configure_artifact_nginx_defaults` ~
 - With `server.nginx.enabled: false` (default) nothing changes; no container is touched.
 - Manual walkthrough on a Docker host: nginx container starts with the init config and proxies HTTP to werkator.
   Full ACME issuance needs a public DNS name; if none is available, verify the certbot argv and the full-config path against the legacy script and document that in this file.
-- `docs/deployment.md` gains a section for hosts without a reverse proxy; `docs/migration-from-legacy.md` maps the `werkator_ARTIFACT_NGINX_*`/`werkator_ARTIFACT_LETSENCRYPT_EMAIL` variables.
+- `docs/deployment.md` gains a section for hosts without a reverse proxy; `docs/migration-from-legacy.md` maps the `WERKATOR_ARTIFACT_NGINX_*`/`WERKATOR_ARTIFACT_LETSENCRYPT_EMAIL` variables.
 
 ## Result (2026-07-08)
 

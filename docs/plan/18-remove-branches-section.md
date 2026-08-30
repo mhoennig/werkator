@@ -30,7 +30,7 @@ Note that `branches:` also exists as the *selector* key **inside** a build defin
 
 ## Code
 
-- `config/werkatorConfig.kt`: drop the `branches` property and `AutoBuildConfig`, and `BranchConfig.autoBuild` with it.
+- `config/WerkatorConfig.kt`: drop the `branches` property and `AutoBuildConfig`, and `BranchConfig.autoBuild` with it.
   Rename `BranchConfig` to `BuildSettings` — with the section gone it is no longer a schema type but the resolved answer to "what does this build run", which is all it is used for.
   `buildSettings(branch, build)` then no longer needs the branch lookup: `effectiveBuildDefinitions()[build]?.applyTo(BuildSettings()) ?: BuildSettings()`.
   Keep the `branch` parameter — the callers pass it and a later per-branch concern would need it back.
@@ -66,7 +66,6 @@ Add a test that a build whose definition was removed from the config still resol
 - `docs/configuration.md`: delete the section "The legacy `branches` section"; drop the "only while nothing defines a build" qualifier from the branch-layer section.
 - `AGENTS.md`: the invariant bullet starting "`builds` or the legacy `branches`, never both" becomes the rejection rule.
 - `.claude/skills/architecture/SKILL.md`: `resolveBuildSections` no longer chooses between two sections.
-- `docs/migration-from-legacy.md`: already maps to `builds.<name>`; re-check it reads correctly without the legacy section existing.
 
 ## Production
 

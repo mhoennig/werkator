@@ -6,8 +6,8 @@ This step revises the "Future: Docker-based Deployment" section of `docs/bootstr
 
 ## Goal
 
-Deploy werkator on hosts that provide Docker and git but no Java runtime (Hostsharing container servers, e.g. `tallyman@vm4006`).
-werkator is distributed as a self-contained runtime bundle: a jlink-trimmed JRE plus `werkator.jar` plus a launcher script, packed as one tarball.
+Deploy Werkator on hosts that provide Docker and git but no Java runtime (Hostsharing container servers, e.g. `tallyman@vm4006`).
+Werkator is distributed as a self-contained runtime bundle: a jlink-trimmed JRE plus `werkator.jar` plus a launcher script, packed as one tarball.
 The JAR stays the primary artifact for development and for hosts that already have a JRE.
 
 ## Distribution Format Decision (ADR 0006)
@@ -17,9 +17,9 @@ Three formats were considered; write ADR 0006 recording the decision and this ra
 - **jlink runtime bundle (chosen)** — no production-code changes, plain JVM semantics, one tarball to `scp`.
   git and docker CLIs are used from the host, worktree paths stay host paths, and the `init --systemd` unit works unchanged because `java.home` and the running-jar path resolve into the bundle.
 - **GraalVM native image (rejected)** — Spring AOT evaluates bean conditions at build time.
-  werkator's dual-context design (CLI context without web, second `SpringApplication` with the `server` profile and `WebApplicationType.SERVLET`, `@Profile("!server")` `CliRunner`, `@Profile("server")` lifecycles) cannot be represented in a single AOT arrangement.
+  Werkator's dual-context design (CLI context without web, second `SpringApplication` with the `server` profile and `WebApplicationType.SERVLET`, `@Profile("!server")` `CliRunner`, `@Profile("server")` lifecycles) cannot be represented in a single AOT arrangement.
   Supporting it would require replacing the profile wiring with runtime guards and collapsing the two context shapes — an invasive rewrite with regression risk for the JVM path.
-- **Containerized werkator runtime (rejected, was the `docs/bootstrapping.md` sketch)** — needs git and docker CLIs inside the image, a same-path `$HOME` mount plus docker-socket mount and uid/gid mapping so that `DockerBuildRunner`'s `--volume $workspace:$workspace` sibling mounts keep working, and a hand-edited systemd unit.
+- **Containerized Werkator runtime (rejected, was the `docs/bootstrapping.md` sketch)** — needs git and docker CLIs inside the image, a same-path `$HOME` mount plus docker-socket mount and uid/gid mapping so that `DockerBuildRunner`'s `--volume $workspace:$workspace` sibling mounts keep working, and a hand-edited systemd unit.
   Kept as the documented fallback if the bundle approach ever becomes unworkable.
 
 ## Target Host Facts (verified 2026-08-10)
@@ -43,7 +43,7 @@ Deployment (no code changes expected):
 - Unpack to `~/opt/werkator/` on the target host; run everything via `~/opt/werkator/bin/werkator`.
 - `init --systemd` already generates `ExecStart=<java> $JAVA_OPTS -jar <jar> server` from `java.home` and the running jar path — from the bundle both resolve into `~/opt/werkator/`, so the unit points at the bundle without changes.
   Verify this instead of adapting code; adapt only if the resolution fails.
-- Updating werkator = unpack a new bundle over `~/opt/werkator/` (or switch a symlink) and restart the service.
+- Updating Werkator = unpack a new bundle over `~/opt/werkator/` (or switch a symlink) and restart the service.
 
 Documentation:
 
@@ -99,15 +99,15 @@ Fix: `HSADMINNG_POSTGRES_ADMIN_USERNAME=admin` and `HSADMINNG_POSTGRES_RESTRICTE
 Verified by running both test classes in the build container with the variables set: green.
 Open oddity: the same commit passed on vm2176 although neither its daemon environment, build image, Gradle volume, nor any build-script mechanism supplies these variables there (an unused git-ignored `.environment` file exists in its primary checkout, but nothing in the build reads it); the loading path on vm2176 remains unidentified.
 
-Fourth finding (werkator limitation, worked around in config): with all tests green, the build then failed in hsadmin-ng's `:prQuickCheck` — "fatal: not a git repository".
-werkator builds in a git worktree whose `.git` is a pointer file into the primary repository's `.git/worktrees/…`, and the Docker build container (deliberately, credentials live under `.git/werkator/`) only mounts the worktree — so build steps that call git fail; the legacy script avoided this by building in the primary checkout.
+Fourth finding (Werkator limitation, worked around in config): with all tests green, the build then failed in hsadmin-ng's `:prQuickCheck` — "fatal: not a git repository".
+Werkator builds in a git worktree whose `.git` is a pointer file into the primary repository's `.git/worktrees/…`, and the Docker build container (deliberately, credentials live under `.git/werkator/`) only mounts the worktree — so build steps that call git fail; the legacy script avoided this by building in the primary checkout.
 Workaround: `prQuickCheck` removed from the vm4006 build command — it is a PR quality gate against a base branch and has no meaning in a post-merge master build (on vm2176 it only passed as an accidental no-op).
 The underlying question (safe git availability inside Docker build containers without exposing `.git/werkator/` secrets) is left as a follow-up design task.
 
 Cutover completed (2026-08-10, same day): after three green master builds and verified Gitea statuses from vm4006, the legacy service on vm2176 was disabled and removed from systemd.
 vm4006's `statusContext` was switched to the canonical `werkator` (effective without a restart — the Gitea client loads the config per call), and the branches still carrying red statuses from the buggy first hours were re-queued.
 vm2176 now runs only a redirect nginx container (`werkator-redirect`, ports 8080/8443 like before): HTTP and HTTPS answer 301 to `https://vm4006.hostsharing.net$request_uri`, the ACME webroot keeps serving so the `nginx-letsencrypt-renew.timer` continues to renew the old host's certificate (the renew unit gained an `ExecStartPost` nginx reload).
-werkator answers the legacy static page names (`/index.html`, `/branches.html`, `/history.html`, `/system.html`, `/about.html`, `/license.html`) with permanent redirects to the new routes, so pre-rewrite links survive the host redirect.
+Werkator answers the legacy static page names (`/index.html`, `/branches.html`, `/history.html`, `/system.html`, `/about.html`, `/license.html`) with permanent redirects to the new routes, so pre-rewrite links survive the host redirect.
 
 Update to v0.9.8 (2026-08-10): the running build was awaited first (a restart would have killed it), then service stopped, `~/opt/werkator` backed up to `~/opt/werkator.v0.9.7.bak` and the new bundle unpacked over it, service started.
 Verified live: `/` reports v0.9.8, the nav has no `Current` entry, the permanent `🔗` link appears only on branches whose latest build is their latest green one, and the newly linked reports answer 200 — including the stable `/branches/<branch>/reports/profile/`.
@@ -157,7 +157,7 @@ Shipped fix: a page returning from the background fetches the current state imme
 
 Update to v0.9.18 (2026-08-29): same procedure, `~/opt/werkator.0.9.17.bak` as the rollback copy, no build was running.
 Verified live: `bin/werkator --version` reports v0.9.18 before the start, the service is `active`, `/releases` lists v0.9.18, the watcher polls without fetch or poll errors, and the only warnings are the two known `builds.maxConcurrent` lines from the repository's committed config.
-Shipped feature: a configuration file can declare the werkator it is written for (`werkator.version.since`/`below`), so an incompatibility is named instead of silently ignored.
+Shipped feature: a configuration file can declare the Werkator it is written for (`werkator.version.since`/`below`), so an incompatibility is named instead of silently ignored.
 The configs of the watched repository declare nothing yet and are unaffected — a missing declaration is never an error.
 
 Update to v0.9.19 (2026-08-29): same procedure, `~/opt/werkator.0.9.18.bak` as the rollback copy, no build was running.
@@ -177,5 +177,5 @@ The branch-scoped refusal showed itself in production immediately: `mihoe/reacti
 
 Update to v0.9.21 (2026-08-30): same procedure, `~/opt/werkator.0.9.20.bak` as the rollback copy, no build was running; the machine config needed no change this time.
 Shipped feature: an unreachable origin is shown in the web UI (step 19), and a lasting fetch failure is logged once per message instead of once per poll.
-The occasion was an outage the same morning: the `git.token` in the machine config had been overwritten with a placeholder string, werkator failed every fetch for 57 minutes, and the branches view kept showing its last known list as if nothing were wrong.
+The occasion was an outage the same morning: the `git.token` in the machine config had been overwritten with a placeholder string, Werkator failed every fetch for 57 minutes, and the branches view kept showing its last known list as if nothing were wrong.
 Verified live: `--version` reports v0.9.21, the service is `active`, `/` answers 200 with v0.9.21 in the footer, `/api/watcher` reports `lastFetchError: null`, the served `werkator.js` carries `refreshWatcherBanner`, `/branches` carries the banner element, and the only warnings are the two expected ones from the repository's committed config (`builds.maxConcurrent`, the ignored `branches` section).

@@ -1,4 +1,4 @@
-# werkator — Agent Instructions
+# Werkator — Agent Instructions
 
 This file holds the shared, tool-agnostic instructions for all AI coding agents.
 Claude Code imports it from `CLAUDE.md` via `@AGENTS.md`; Claude-Code-specific instructions belong in `CLAUDE.md`, everything else here.
@@ -24,7 +24,7 @@ java -jar build/libs/werkator.jar init
 
 ## Architecture Overview
 
-werkator is a lightweight, declarative CI/CD build system: git-centric, one instance per repository, builds native or in Docker, statuses reported to Gitea.
+Werkator is a lightweight, declarative CI/CD build system: git-centric, one instance per repository, builds native or in Docker, statuses reported to Gitea.
 It is a dual-mode application: **CLI** (interactive, status, config) and **Server** (HTTP, persistent web UI + JSON API).
 IMPORTANT: Before designing or modifying code in any production package, load the [architecture skill](.claude/skills/architecture/SKILL.md) — it holds the subsystem details (CLI wiring, server mode, web UI, config system, git access, build execution, watcher, metrics).
 
@@ -38,7 +38,7 @@ All production code lives under `de.hoennig.werkator`, with sub-packages `comman
 - Nothing is scheduled during CLI runs or tests: the watcher poll loop and metrics sampling start only via an explicit `start()` in the `server` profile.
 - Builds run detached in worktrees under `.git/werkator/worktrees/<branchKey>`; the primary checkout is never used for builds; never assume a single running build.
 - When config keys change, three places must stay in sync: the `WerkatorConfig` data classes, the `InitCommand` templates, and `docs/configuration.md`.
-- Every config file may declare `werkator.version.since`/`below` (the werkator it is written for, never a format version — no API is involved). `since` is enforced in both directions, using `ConfigVersions.FORMAT_BROKE_IN` for "file predates a breaking change"; `below` only warns. A violation aborts the start for the machine and project config, but fails only that branch's builds for a branch config.
+- Every config file may declare `werkator.version.since`/`below` (the Werkator it is written for, never a format version — no API is involved). `since` is enforced in both directions, using `ConfigVersions.FORMAT_BROKE_IN` for "file predates a breaking change"; `below` only warns. A violation aborts the start for the machine and project config, but fails only that branch's builds for a branch config.
 - A branch describes its own CI: its committed `.werkator.yml` is the branch layer (`ConfigLoader.loadWithBranchLayer`, used by the watcher per origin branch and by `loadForWorktree` at build time) and takes precedence over `.git`/project — including the whole `builds` section, so a new configuration can be tried out on a branch without affecting other branches. Only the pinned set is stripped from that layer: secrets (`git`), host/repository sections (`server`, `gitea`, `executor`, `watcher`), the docker sandbox policy (`docker.enabled`, `docker.network`), and the trust gate (`requirePullRequest`). A branch must never reach credentials, disable its container, change its network, raise global concurrency, or bypass its own pull-request gate; a branch's definitions apply to that branch alone.
 - A build definition carries the complete description of its build, split in two: the `trigger` block (`onPush`, `atTimes`, `branches`, `activeWithin`) says when and for which branches it runs, everything else what it does. `builds.default` is the base every other definition inherits its settings — never its `trigger` — from. The split is structural so that a selector added to `TriggerConfig` later is non-inheritable by construction; writing a trigger key flat is refused, never ignored, because ignoring it leaves a build that silently stops running. A `!` prefix in `trigger.branches` excludes and always wins.
 - The inheritance is applied after all layers are merged: that order is what makes a build a branch invents inherit the host's sandbox policy instead of the data-class default, so the pinning also holds for a build the host has never heard of. Pinned are `requirePullRequest`, `statusContext`, `docker.enabled`, and `docker.network`.
@@ -64,8 +64,8 @@ Keep sentences short.
 - `docs/Werkator-Konzept.md` — product concept and target architecture (in German): git-centric CI, builds in Docker, one instance per repository, status reported back to Gitea.
 - `docs/configuration.md` — configuration reference; keep in sync with `WerkatorConfig` and the `init` templates.
 - `docs/bootstrapping.md` — how `init` prepares a repository.
-- `docs/deployment.md` — running werkator as a systemd user service behind an existing reverse proxy (`init --systemd` generates the unit).
-- `docs/migration-from-legacy.md` — legacy env vars → YAML keys mapping and the manual migration steps; `legacy/werkator` is deprecated.
+- `docs/deployment.md` — running Werkator as a systemd user service behind an existing reverse proxy (`init --systemd` generates the unit).
+- `docs/werkator-migrationsplan.md` — renaming a running installation from GitTally to Werkator: what the name fallback covers and what has to be moved by hand.
 - `docs/plan/` — the step-by-step rewrite plan; `docs/plan/README.md` explains how to execute a step, `docs/plan/00-legacy-analysis.md` summarizes the legacy bash script.
 - `docs/prs/` — one document per pull request; every PR needs one. IMPORTANT: Before opening or finishing a pull request, load the [pr-doc skill](.claude/skills/pr-doc/SKILL.md) and write the PR-doc.
 

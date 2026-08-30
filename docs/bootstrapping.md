@@ -1,4 +1,4 @@
-# werkator Bootstrapping
+# Werkator Bootstrapping
 
 Bootstrapping prepares a git repository for use with werkator.
 It creates the config files described in [configuration.md](configuration.md).
@@ -30,14 +30,14 @@ java -jar <werkator-root>/build/libs/werkator.jar init
 
 ### 1. Detect the Repository Root
 
-werkator resolves the repository root by running `git rev-parse --show-toplevel`.
+Werkator resolves the repository root by running `git rev-parse --show-toplevel`.
 If the current directory is not inside a git repository, `init` exits with an error.
 
 ### 2. Auto-detect Gitea Connection from `origin`
 
 If `gitea.baseUrl`, `gitea.owner`, and `gitea.repo` are already set in `.werkator.yml`, these values are used.
 
-Otherwise, werkator inspects the `origin` remote URL and derives the Gitea connection defaults:
+Otherwise, Werkator inspects the `origin` remote URL and derives the Gitea connection defaults:
 
 | Origin URL form                            | Detected values                        |
 |--------------------------------------------|----------------------------------------|
@@ -84,7 +84,7 @@ gitea:
 ...
 ```
 
-Then, you have to configure *werkator* by amending this config file according to [configuration.md](configuration.md). 
+Then, you have to configure *Werkator* by amending this config file according to [configuration.md](configuration.md). 
 
 ## Output
 
@@ -104,9 +104,9 @@ Or, when files already exist:
 
 ## Hosts Without a Java Runtime
 
-werkator is intended to run on Hostsharing Container Server environments, which provide Docker and git but no Java runtime.
+Werkator is intended to run on Hostsharing Container Server environments, which provide Docker and git but no Java runtime.
 For these hosts, `./gradlew runtimeBundle` builds a self-contained runtime bundle (jlink-trimmed JRE + JAR + launcher) — see [deployment.md](deployment.md) and ADR 0006.
-A containerized werkator runtime was considered and rejected there.
+A containerized Werkator runtime was considered and rejected there.
 
 ## Next Steps After `init`
 
@@ -124,15 +124,15 @@ A containerized werkator runtime was considered and rejected there.
 
 ## Example: Test Server with a Fake Build
 
-[examples/setup-werkator-testserver.sh](examples/setup-werkator-testserver.sh) starts a werkator server against a scratch repository with a fake build — the setup used for the manual UI/API smoke tests during development.
+[examples/setup-werkator-testserver.sh](examples/setup-werkator-testserver.sh) starts a Werkator server against a scratch repository with a fake build — the setup used for the manual UI/API smoke tests during development.
 It creates a local bare origin plus a `work` clone, commits a slow fake build script (live log output, demo report artifact) with a `pollInterval: 5s` config, and starts the server on port 18980.
 The origin gets a second branch (`feature/demo`), so the Branches view shows more than one entry.
 No Gitea, no credentials, no Docker; `INSTALL_DIR`, `SERVER_PORT`, and `BUILD_SECONDS` can be overridden via environment variables.
 While the server runs, push empty commits from the `work` clone to trigger builds; a commit message containing `[fail]` makes the build fail, and pushing a new branch exercises the new-origin-branch path.
 
-## Example: Self-Hosting werkator
+## Example: Self-Hosting Werkator
 
-[examples/setup-werkator-selfhost.sh](examples/setup-werkator-selfhost.sh) shows the full sequence as a runnable script: it sets up a werkator instance that watches and builds werkator itself.
+[examples/setup-werkator-selfhost.sh](examples/setup-werkator-selfhost.sh) shows the full sequence as a runnable script: it sets up a Werkator instance that watches and builds Werkator itself.
 Run it from a working checkout; it builds the JAR, creates a dedicated clone, runs `init`, writes the machine-specific config, and starts the server.
 `INSTALL_DIR`, `ORIGIN_URL`, `SERVER_PORT`, `GIT_ACCOUNT`, and `GIT_TOKEN` can be overridden via environment variables.
 The script also demonstrates the kick-start trick: resetting the local ref one commit behind origin makes the very first poll build immediately, instead of waiting for the next push.

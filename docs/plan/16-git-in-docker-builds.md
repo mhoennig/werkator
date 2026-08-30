@@ -22,11 +22,11 @@ Hard invariant to preserve: a branch build must never be able to reach credentia
 `DockerBuildRunner.gitMetadataMounts(workspace, repoDir)` adds three mounts when (and only when) the workspace is a worktree of `repoDir` (detected via the `gitdir:` pointer file, which must resolve into `repoDir/.git`):
 
 1. `repoDir/.git` → same path, **read-only**: objects, refs, and the worktree admin metadata become resolvable; object and ref writes stay impossible.
-2. An empty **tmpfs over `repoDir/.git/werkator`**: masks the machine config (`git.token`), the control token, and all werkator state; the workspace bind (deeper path, Docker nests mounts by target depth) resurfaces only this build's own worktree inside the masked directory.
+2. An empty **tmpfs over `repoDir/.git/werkator`**: masks the machine config (`git.token`), the control token, and all Werkator state; the workspace bind (deeper path, Docker nests mounts by target depth) resurfaces only this build's own worktree inside the masked directory.
 3. `repoDir/.git/worktrees/<key>` → same path, **read-write**: the worktree's admin dir (HEAD, index), so index-refreshing commands like `git status` work.
 
 No configuration key: the exposure is strictly smaller than the legacy baseline, and a knob would join the pinned sandbox-policy set without a known use case.
-Remaining, documented exposure: the rest of `.git` — including `.git/config` — is readable by builds; werkator never stores credentials there (fetch auth uses a secret-free `GIT_ASKPASS` with env-passed credentials).
+Remaining, documented exposure: the rest of `.git` — including `.git/config` — is readable by builds; Werkator never stores credentials there (fetch auth uses a secret-free `GIT_ASKPASS` with env-passed credentials).
 
 ## Tests
 

@@ -1,4 +1,4 @@
-# Legacy werkator Analysis
+# Legacy Werkator Analysis
 
 Condensed analysis of `legacy/werkator` (bash, ~6000 lines) as input for the rewrite.
 Line numbers refer to the legacy script at the time of analysis (version 0.7.8).
@@ -90,7 +90,7 @@ No status changes observable during a build (control loop):
 
 Verify need before porting any of these:
 
-- `werkator_BUILD_DOCKER_PREFLIGHT_COMMAND`, `werkator_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — highly hsadmin-ng-specific defaults.
-- `werkator_ARTIFACT_NGINX_*`, `werkator_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management; revived as `server.nginx.*` by step 13 (ADR 0005).
-- `werkator_IMPRESSUM_URL` — keep as optional simple footer link if wanted.
-- `werkator_INSTALL_DIR` — dropped with self-install.
+- `WERKATOR_BUILD_DOCKER_PREFLIGHT_COMMAND`, `WERKATOR_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — highly hsadmin-ng-specific defaults.
+- `WERKATOR_ARTIFACT_NGINX_*`, `WERKATOR_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management; revived as `server.nginx.*` by step 13 (ADR 0005).
+- `WERKATOR_IMPRESSUM_URL` — keep as optional simple footer link if wanted.
+- `WERKATOR_INSTALL_DIR` — dropped with self-install.

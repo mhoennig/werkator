@@ -5,7 +5,7 @@ Read `README.md` and `00-legacy-analysis.md` first.
 
 ## Goal
 
-Make the new werkator deployable as a service and retire the legacy script.
+Make the new Werkator deployable as a service and retire the legacy script.
 
 ## Design
 
@@ -40,6 +40,7 @@ Housekeeping:
 Implemented as designed: `init --systemd` (an option on `init`, not a separate subcommand) generates the unit and its `EnvironmentFile` under `.git/werkator/`, prints the install commands, and never touches `~/.config/systemd` itself (no self-install).
 `SystemdServiceFiles` builds the file contents and is unit-tested by content assertions, including the legacy `%` escaping and `ExecStart` quoting.
 `docs/deployment.md` and `docs/migration-from-legacy.md` were written; `README.md`, `docs/bootstrapping.md`, `../Werkator-Konzept.md`, and `CLAUDE.md` were updated to reference them.
+`docs/migration-from-legacy.md` was deleted again on 2026-08-30 with the rename to Werkator: every host it addressed had long since moved to the YAML configuration.
 
 Deviations and decisions:
 

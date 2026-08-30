@@ -1,8 +1,8 @@
-# werkator Deployment
+# Werkator Deployment
 
-This document describes how to run werkator as a permanent service.
+This document describes how to run Werkator as a permanent service.
 The recommended setup is a systemd user service behind an existing reverse proxy.
-By default werkator does not manage nginx or TLS certificates itself; it relies on the host's existing web server and certbot.
+By default Werkator does not manage nginx or TLS certificates itself; it relies on the host's existing web server and certbot.
 For hosts without one, an opt-in managed nginx/TLS container is available, see [Hosts Without a Reverse Proxy](#hosts-without-a-reverse-proxy-managed-nginxtls).
 
 ## Prerequisites
@@ -34,7 +34,7 @@ So always run it via the stable path, not via `build/libs/`.
 
 ## Install the Service
 
-Initialize werkator in the repository to watch (see [bootstrapping.md](bootstrapping.md) for details):
+Initialize Werkator in the repository to watch (see [bootstrapping.md](bootstrapping.md) for details):
 
 ```bash
 cd /path/to/repo
@@ -68,7 +68,7 @@ The unit name contains the repository name, so several repositories can be serve
 The `werkator-docker-prune.timer` runs `docker system prune -af` every night at 02:00 (host time), before the usual auto-build slots.
 It removes stopped containers, unused images, unused networks, and dangling build cache, so nightly builds start from freshly built images.
 Unlike the legacy cleanup it does **not** prune volumes — the per-repository Gradle cache volumes survive.
-The units are host-global (no repository name): with several werkator instances on one host, every `init --systemd` generates the same files and the symlinks coincide.
+The units are host-global (no repository name): with several Werkator instances on one host, every `init --systemd` generates the same files and the symlinks coincide.
 On hosts without a `docker` CLI the service is skipped, not failed (`ExecCondition`).
 `Persistent=true` catches up a missed run after downtime.
 
@@ -136,7 +136,7 @@ Config file changes are not needed for an update; new keys take their defaults.
 ## Control Token
 
 Viewing is public by design: build states, logs and artifacts are readable without any login, so they can be linked from Gitea, chats or tickets.
-That is safe as long as the builds themselves handle no real secrets — werkator has no per-endpoint gating, so an installation whose build output could contain credentials must stay off the public internet (reverse proxy with access control, or `server.bindAddress: 127.0.0.1`).
+That is safe as long as the builds themselves handle no real secrets — Werkator has no per-endpoint gating, so an installation whose build output could contain credentials must stay off the public internet (reverse proxy with access control, or `server.bindAddress: 127.0.0.1`).
 Only the three mutating actions — restart, cancel, delete — require the control token from `.git/werkator/control-token`, a random secret the server generates on first start (mode `0600`; delete the file to rotate it).
 
 The token is never embedded in a page.
@@ -158,12 +158,12 @@ curl -X POST -H "X-werkator-Token: $(cat .git/werkator/control-token)" \
 
 `.git/werkator/werkator.env` is loaded by the unit as `EnvironmentFile`.
 It only tunes the JVM process, e.g. `JAVA_OPTS=-Xmx256m`.
-All werkator configuration lives in the YAML files described in [configuration.md](configuration.md), not in environment variables.
+All Werkator configuration lives in the YAML files described in [configuration.md](configuration.md), not in environment variables.
 `init --systemd` never overwrites an existing environment file.
 
 ## Reverse Proxy (nginx)
 
-Bind werkator to localhost — the default since v0.9.9 — and set the public URL in `.werkator.yml`:
+Bind Werkator to localhost — the default since v0.9.9 — and set the public URL in `.werkator.yml`:
 
 ```yaml
 server:
@@ -204,7 +204,7 @@ This replaces the legacy script's managed nginx/Let's Encrypt Docker container f
 ## Hosts Without a Java Runtime (Runtime Bundle)
 
 Some hosts provide git and Docker but no Java runtime and no way to install one, e.g. Hostsharing container servers.
-For these, werkator ships as a self-contained runtime bundle: a jlink-trimmed JRE, `werkator.jar`, and a launcher script in one tarball (ADR 0006).
+For these, Werkator ships as a self-contained runtime bundle: a jlink-trimmed JRE, `werkator.jar`, and a launcher script in one tarball (ADR 0006).
 
 Build the bundle on a Linux x86_64 machine whose glibc is not newer than the target's:
 
@@ -231,12 +231,12 @@ cd /path/to/repo
 `init --systemd` detects the bundle automatically: the generated unit's `ExecStart` points at the bundle's `jre/bin/java` and `lib/werkator.jar`, so the install commands printed by `init --systemd` work unchanged.
 `JAVA_OPTS` from the environment file applies as usual.
 
-To update werkator, stop the service, unpack the new bundle over `~/opt/werkator`, and restart the service.
+To update Werkator, stop the service, unpack the new bundle over `~/opt/werkator`, and restart the service.
 
 ## Hosts Without a Reverse Proxy (Managed nginx/TLS)
 
 Some hosts provide Docker but no root access and no host web server, e.g. Hostsharing managed container environments.
-For these, werkator can manage its own nginx+certbot Docker container (ADR 0005).
+For these, Werkator can manage its own nginx+certbot Docker container (ADR 0005).
 This is opt-in; where a host web server exists, prefer the reverse-proxy setup above.
 
 Enable it in the server section of the configuration:
@@ -252,12 +252,12 @@ server:
     letsencryptEmail: admin@example.org
 ```
 
-On server start, werkator writes the nginx configuration, starts a labelled nginx container publishing `httpPort` and `httpsPort`, obtains a Let's Encrypt certificate via a certbot container (webroot mode), and restarts nginx with the full HTTPS configuration.
+On server start, Werkator writes the nginx configuration, starts a labelled nginx container publishing `httpPort` and `httpsPort`, obtains a Let's Encrypt certificate via a certbot container (webroot mode), and restarts nginx with the full HTTPS configuration.
 A renewal check runs daily; certificates and nginx state persist in `server.nginx.stateDir` across restarts.
 On shutdown the container is removed.
 All nginx and certificate failures are non-fatal warnings — the plain HTTP server keeps running without the proxy.
 
 `serverName` must be a public DNS name pointing at the host, reachable from the internet on port 80/443 (directly or via a port forward to `httpPort`/`httpsPort`), otherwise the ACME challenge fails.
 The nginx container cannot reach `localhost` of the host, so the proxy upstream defaults to `serverName`; set `server.nginx.upstreamHost` if the host is reachable under a different name from inside containers.
-With the managed nginx, set `server.bindAddress: 0.0.0.0` explicitly (or an address reachable from the Docker network) — the default `127.0.0.1` makes werkator unreachable for the proxy container.
+With the managed nginx, set `server.bindAddress: 0.0.0.0` explicitly (or an address reachable from the Docker network) — the default `127.0.0.1` makes Werkator unreachable for the proxy container.
 See [configuration.md](configuration.md) for all `server.nginx.*` keys.

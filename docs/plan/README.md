@@ -1,4 +1,4 @@
-# werkator Rewrite Plan
+# Werkator Rewrite Plan
 
 This directory contains the step-by-step plan for rewriting `legacy/werkator` (bash) as the Kotlin/Spring application in this repository.
 Each step file is self-contained and sized for one focused Claude Code session.
@@ -86,9 +86,9 @@ Added after a silent 57-minute fetch outage on vm4006 (2026-08-30):
 
 - [x] `19-watcher-health-in-ui.md` — show an unreachable origin in the web UI instead of only in the journal
 
-Added for running werkator on Hostsharing Managed Webspaces (2026-08-10):
+Added for running Werkator on Hostsharing Managed Webspaces (2026-08-10):
 
-- [ ] `17-bwrap-build-runtime.md` — werkator on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
+- [ ] `17-bwrap-build-runtime.md` — Werkator on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
 
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.
