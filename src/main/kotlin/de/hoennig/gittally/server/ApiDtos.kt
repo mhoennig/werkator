@@ -1,7 +1,7 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildStatus
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildStatus
 import java.time.Instant
 
 /** JSON statuses are lowercase like the legacy TSV/HTML statuses. */

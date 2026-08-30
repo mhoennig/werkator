@@ -1,4 +1,4 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -16,7 +16,7 @@ import java.time.Instant
 class FileBuildResultRepositoryTest : FunSpec() {
     private val baseTime = Instant.parse("2026-07-07T10:00:00Z")
 
-    private fun newFile(): Path = Files.createTempDirectory("gittally-results-test").resolve("build-results.json")
+    private fun newFile(): Path = Files.createTempDirectory("werkator-results-test").resolve("build-results.json")
 
     private fun result(
         branch: String = "main",

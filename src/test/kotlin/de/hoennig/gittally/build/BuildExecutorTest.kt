@@ -1,7 +1,7 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.gitea.GiteaClient
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.gitea.GiteaClient
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -33,7 +33,7 @@ class BuildExecutorTest : FunSpec() {
         workspaceSubdir: String? = null,
         val buildRunner: BuildRunner = ProcessBuildRunner(),
     ) {
-        val workingDir: Path = Files.createTempDirectory("gittally-executor-test")
+        val workingDir: Path = Files.createTempDirectory("werkator-executor-test")
         val repository = FileBuildResultRepository(workingDir.resolve("build-results.json"))
         val giteaClient = mockk<GiteaClient>(relaxed = true)
         val artifactStore = mockk<ArtifactStore>(relaxed = true)
@@ -65,7 +65,7 @@ class BuildExecutorTest : FunSpec() {
             )
 
         init {
-            Files.writeString(workingDir.resolve(".gittally.yml"), configYaml)
+            Files.writeString(workingDir.resolve(".werkator.yml"), configYaml)
         }
     }
 
@@ -195,7 +195,7 @@ class BuildExecutorTest : FunSpec() {
                         workingDir: java.nio.file.Path,
                         environment: Map<String, String>,
                         repoDir: java.nio.file.Path,
-                        branchConfig: de.hoennig.gittally.config.BranchConfig,
+                        branchConfig: de.hoennig.werkator.config.BranchConfig,
                         onAuxProcess: (Process) -> Unit,
                     ): Process {
                         val aux = ProcessBuilder("bash", "-c", "sleep 60").directory(workingDir.toFile()).start()

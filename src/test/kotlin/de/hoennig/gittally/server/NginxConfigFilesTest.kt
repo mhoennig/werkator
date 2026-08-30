@@ -1,4 +1,4 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain

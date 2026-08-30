@@ -1,8 +1,8 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.git.GitCommandRunner
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.git.GitCommandRunner
+import de.hoennig.werkator.git.GitService
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -20,16 +20,16 @@ class GitWorktreeWorkspacesTest : FunSpec() {
     // hermetic git: fixed identity, no user/system config (hooks, gpg signing, ...)
     private val gitEnvironment =
         mapOf(
-            "GIT_AUTHOR_NAME" to "GitTally Test",
+            "GIT_AUTHOR_NAME" to "werkator Test",
             "GIT_AUTHOR_EMAIL" to "test@example.com",
-            "GIT_COMMITTER_NAME" to "GitTally Test",
+            "GIT_COMMITTER_NAME" to "werkator Test",
             "GIT_COMMITTER_EMAIL" to "test@example.com",
             "GIT_CONFIG_GLOBAL" to "/dev/null",
             "GIT_CONFIG_SYSTEM" to "/dev/null",
         )
 
     private inner class Fixture {
-        val repo: Path = Files.createTempDirectory("gittally-workspaces-test").resolve("repo")
+        val repo: Path = Files.createTempDirectory("werkator-workspaces-test").resolve("repo")
 
         init {
             Files.createDirectories(repo)

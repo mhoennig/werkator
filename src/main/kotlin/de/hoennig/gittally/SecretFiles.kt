@@ -1,4 +1,4 @@
-package de.hoennig.gittally
+package de.hoennig.werkator
 
 import java.nio.ByteBuffer
 import java.nio.file.Files
@@ -8,7 +8,7 @@ import java.nio.file.attribute.PosixFilePermissions
 
 /**
  * Creation of files and directories that hold secrets — the Gitea token in
- * `.git/gittally/.gittally.yml` and the control token.
+ * `.git/werkator/.werkator.yml` and the control token.
  *
  * The permissions are set *at creation*, never with a `chmod` after the write:
  * writing at the umask default first (typically `0644`) would leave a window in

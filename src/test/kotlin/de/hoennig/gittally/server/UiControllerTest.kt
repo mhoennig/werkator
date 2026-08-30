@@ -1,22 +1,22 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import com.ninjasquad.springmockk.MockkBean
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.build.RunningBuild
-import de.hoennig.gittally.config.BranchConfig
-import de.hoennig.gittally.config.BuildDefinition
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.GitTallyConfig
-import de.hoennig.gittally.config.GiteaConfig
-import de.hoennig.gittally.config.ServerConfig
-import de.hoennig.gittally.git.GitService
-import de.hoennig.gittally.metrics.MetricAggregate
-import de.hoennig.gittally.metrics.SystemMetrics
-import de.hoennig.gittally.metrics.SystemMetricsCollector
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.build.RunningBuild
+import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.WerkatorConfig
+import de.hoennig.werkator.config.GiteaConfig
+import de.hoennig.werkator.config.ServerConfig
+import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.metrics.MetricAggregate
+import de.hoennig.werkator.metrics.SystemMetrics
+import de.hoennig.werkator.metrics.SystemMetricsCollector
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -41,7 +41,7 @@ import java.time.Instant
 
 @WebMvcTest(UiController::class, properties = ["spring.main.web-application-type=servlet"])
 class UiControllerTest : FunSpec() {
-    private val tempDir: Path = Files.createTempDirectory("gittally-ui-test")
+    private val tempDir: Path = Files.createTempDirectory("werkator-ui-test")
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -115,11 +115,11 @@ class UiControllerTest : FunSpec() {
                 branchPermalinks,
             )
             every { configLoader.load(any()) } returns
-                GitTallyConfig(
+                WerkatorConfig(
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),
                     gitea = GiteaConfig(baseUrl = "https://git.example.org", owner = "acme", repo = "widget"),
                 )
-            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns GitTallyConfig()
+            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns WerkatorConfig()
             every { gitService.showFileAtCommit(any(), any(), any()) } returns null
             every { controlTokens.token() } returns "test-token"
             every { repository.latestGreenFor(any()) } returns null
@@ -151,7 +151,7 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("""data-action="restart"""")))
                 .andExpect(content().string(containsString("""data-action="delete"""")))
                 // the control token must never reach the browser: reading a page is unauthenticated
-                .andExpect(content().string(not(containsString("gittally-control-token"))))
+                .andExpect(content().string(not(containsString("werkator-control-token"))))
                 .andExpect(content().string(not(containsString("test-token"))))
                 .andExpect(content().string(containsString("https://example.org/imprint")))
                 .andExpect(content().string(containsString("1:23")))
@@ -283,7 +283,7 @@ class UiControllerTest : FunSpec() {
             every { repository.history() } returns listOf(pitestResult)
             every { artifactStore.artifactDir("main-pitest-key") } returns null
             every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns
-                GitTallyConfig(
+                WerkatorConfig(
                     branches = mapOf("default" to BranchConfig(buildCommand = "./gradlew quick-check")),
                     buildDefinitions = mapOf("pitest" to BuildDefinition(buildCommand = "./gradlew pitestFull")),
                 )

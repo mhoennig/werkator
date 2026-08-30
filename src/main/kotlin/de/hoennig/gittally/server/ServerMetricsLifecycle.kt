@@ -1,6 +1,6 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.metrics.SystemMetricsCollector
+import de.hoennig.werkator.metrics.SystemMetricsCollector
 import jakarta.annotation.PreDestroy
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.annotation.Profile

@@ -1,9 +1,9 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.ArtifactKeys
-import de.hoennig.gittally.build.DockerBuildRunner.Companion.GITTALLY_LABEL
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.git.GitCommandRunner
+import de.hoennig.werkator.build.ArtifactKeys
+import de.hoennig.werkator.build.DockerBuildRunner.Companion.werkator_LABEL
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.git.GitCommandRunner
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.nio.file.Files
@@ -11,10 +11,10 @@ import java.nio.file.Path
 import java.nio.file.Paths
 
 /**
- * Manages the opt-in nginx+certbot Docker container that serves GitTally over
+ * Manages the opt-in nginx+certbot Docker container that serves werkator over
  * HTTPS on hosts without a reverse proxy (ADR 0005), ported from the legacy
  * `start_artifact_nginx` subsystem. Shells out to the `docker` CLI via the
- * generic [GitCommandRunner] process wrapper, like [de.hoennig.gittally.build.DockerBuildRunner].
+ * generic [GitCommandRunner] process wrapper, like [de.hoennig.werkator.build.DockerBuildRunner].
  *
  * Startup is two-phase: an HTTP-only init config serves the ACME webroot
  * challenge, the certificate is obtained via a certbot container, then nginx is
@@ -197,7 +197,7 @@ class NginxProxyManager(
     /**
      * Legacy `cleanup_stale_artifact_nginx_containers`: remove the container by
      * name, all nginx-role containers of this repository by label, and any
-     * GitTally container still occupying the configured ports.
+     * werkator container still occupying the configured ports.
      */
     private fun cleanupStaleContainers(settings: NginxSettings) {
         commandRunner.run(listOf("docker", "rm", "-f", settings.containerName), workingDir)
@@ -208,11 +208,11 @@ class NginxProxyManager(
                     "ps",
                     "-aq",
                     "--filter",
-                    "label=$GITTALLY_LABEL=true",
+                    "label=$werkator_LABEL=true",
                     "--filter",
-                    "label=$GITTALLY_LABEL.repository=${settings.repoKey}",
+                    "label=$werkator_LABEL.repository=${settings.repoKey}",
                     "--filter",
-                    "label=$GITTALLY_LABEL.role=nginx",
+                    "label=$werkator_LABEL.role=nginx",
                 ),
                 workingDir,
             )
@@ -220,11 +220,11 @@ class NginxProxyManager(
             commandRunner.run(listOf("docker", "rm", "-f") + labelled.lines(), workingDir)
         }
         for (container in listContainersUsingPorts(settings)) {
-            if (container.labels.contains("$GITTALLY_LABEL=true") ||
-                container.name.startsWith("gittally-") ||
+            if (container.labels.contains("$werkator_LABEL=true") ||
+                container.name.startsWith("werkator-") ||
                 container.name.startsWith("git-watch-origin-and-test-nginx-")
             ) {
-                log.info("removing stale GitTally container using an nginx port: {}", container.name)
+                log.info("removing stale werkator container using an nginx port: {}", container.name)
                 commandRunner.run(listOf("docker", "rm", "-f", container.id), workingDir)
             }
         }
@@ -303,11 +303,11 @@ class NginxProxyManager(
             "--volume",
             "${settings.nginxConf}:/etc/nginx/nginx.conf:ro",
             "--label",
-            "$GITTALLY_LABEL=true",
+            "$werkator_LABEL=true",
             "--label",
-            "$GITTALLY_LABEL.repository=${settings.repoKey}",
+            "$werkator_LABEL.repository=${settings.repoKey}",
             "--label",
-            "$GITTALLY_LABEL.role=nginx",
+            "$werkator_LABEL.role=nginx",
             "nginx",
         )
 
@@ -405,16 +405,16 @@ class NginxProxyManager(
                 System.getenv("XDG_STATE_HOME")?.takeIf { it.isNotBlank() }?.let { Paths.get(it) }
                     ?: Paths.get(System.getProperty("user.home"), ".local", "state")
             return stateHome
-                .resolve("gittally")
+                .resolve("werkator")
                 .resolve("nginx")
                 .resolve(ArtifactKeys.repoKey(repoDir))
                 .toAbsolutePath()
                 .normalize()
         }
 
-        /** Legacy default `gittally-nginx-<repo-name>` with unsafe characters replaced. */
+        /** Legacy default `werkator-nginx-<repo-name>` with unsafe characters replaced. */
         fun defaultContainerName(repoDir: Path): String =
-            "gittally-nginx-" + repoDir.fileName.toString().replace(Regex("[^A-Za-z0-9_.-]"), "-")
+            "werkator-nginx-" + repoDir.fileName.toString().replace(Regex("[^A-Za-z0-9_.-]"), "-")
 
         /**
          * Certbot's pinned DH parameters (RFC 7919 ffdhe2048), bundled as a resource:

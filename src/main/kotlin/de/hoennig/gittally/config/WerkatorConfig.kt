@@ -1,10 +1,10 @@
-package de.hoennig.gittally.config
+package de.hoennig.werkator.config
 
 import com.fasterxml.jackson.annotation.JsonProperty
 
-data class GitTallyConfig(
-    /** What this file declares about the GitTally that reads it; see [VersionRequirement]. */
-    val gitTally: GitTallyMeta = GitTallyMeta(),
+data class WerkatorConfig(
+    /** What this file declares about the werkator that reads it; see [VersionRequirement]. */
+    val werkator: werkatorMeta = werkatorMeta(),
     val server: ServerConfig = ServerConfig(),
     val git: GitConfig = GitConfig(),
     val gitea: GiteaConfig = GiteaConfig(),
@@ -61,7 +61,7 @@ data class ServerConfig(
 )
 
 /**
- * Opt-in managed nginx+certbot Docker container serving GitTally over HTTPS,
+ * Opt-in managed nginx+certbot Docker container serving werkator over HTTPS,
  * for hosts without a usable reverse proxy (ADR 0005). Off by default; the
  * reverse-proxy deployment from `docs/deployment.md` stays the recommended setup.
  */
@@ -76,11 +76,11 @@ data class NginxConfig(
     val httpsPort: Int = 8443,
     /** Host nginx proxies to; empty uses [serverName] (the container cannot reach `localhost`). */
     val upstreamHost: String = "",
-    /** Name of the managed container; empty means `gittally-nginx-<repo-name>`. */
+    /** Name of the managed container; empty means `werkator-nginx-<repo-name>`. */
     val containerName: String = "",
     /**
      * Directory for nginx config, certificates, and logs; empty means the platform
-     * default `XDG_STATE_HOME` (or `~/.local/state`) + `/gittally/nginx/<repo-key>`.
+     * default `XDG_STATE_HOME` (or `~/.local/state`) + `/werkator/nginx/<repo-key>`.
      */
     val stateDir: String = "",
     /** E-mail for the Let's Encrypt account; empty registers without one. */
@@ -96,7 +96,7 @@ data class GiteaConfig(
     val baseUrl: String = "",
     val owner: String = "",
     val repo: String = "",
-    val statusContext: String = "GitTally",
+    val statusContext: String = "werkator",
 )
 
 data class ArtifactsConfig(
@@ -117,7 +117,7 @@ data class ArtifactsConfig(
     val keepLatestGreen: Boolean = true,
     /**
      * Root directory for stored build artifacts; empty means the platform default
-     * `XDG_STATE_HOME` (or `~/.local/state`) + `/gittally/artifacts/<repo-key>`.
+     * `XDG_STATE_HOME` (or `~/.local/state`) + `/werkator/artifacts/<repo-key>`.
      */
     val rootDir: String = "",
 )
@@ -130,7 +130,7 @@ data class WatcherConfig(
      * Honor the `branches.<name>.requirePullRequest` gates. Set false for a plain git
      * origin without pull-request refs (no Gitea/GitHub) — gated branches then build
      * on new commits like any other branch. Typically overridden per machine in
-     * `.git/gittally/.gittally.yml` when the committed config enables the gates.
+     * `.git/werkator/.werkator.yml` when the committed config enables the gates.
      */
     val pullRequestGate: Boolean = true,
     /**

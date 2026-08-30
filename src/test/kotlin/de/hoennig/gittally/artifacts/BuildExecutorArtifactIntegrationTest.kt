@@ -1,11 +1,11 @@
-package de.hoennig.gittally.artifacts
+package de.hoennig.werkator.artifacts
 
-import de.hoennig.gittally.build.BranchWorkspaces
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.FileBuildResultRepository
-import de.hoennig.gittally.build.ProcessBuildRunner
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.gitea.GiteaClient
+import de.hoennig.werkator.build.BranchWorkspaces
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.FileBuildResultRepository
+import de.hoennig.werkator.build.ProcessBuildRunner
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.gitea.GiteaClient
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -20,10 +20,10 @@ import kotlin.time.Duration.Companion.seconds
 class BuildExecutorArtifactIntegrationTest : FunSpec() {
     init {
         test("the executor persists a successful build's logs and reports through the real store") {
-            val workingDir = Files.createTempDirectory("gittally-artifact-integration-test")
+            val workingDir = Files.createTempDirectory("werkator-artifact-integration-test")
             val root = workingDir.resolve("artifact-root")
             Files.writeString(
-                workingDir.resolve(".gittally.yml"),
+                workingDir.resolve(".werkator.yml"),
                 """
                 artifacts:
                   rootDir: "$root"

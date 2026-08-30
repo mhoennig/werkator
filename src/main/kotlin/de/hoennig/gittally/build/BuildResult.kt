@@ -1,6 +1,6 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.BuildDefinition
+import de.hoennig.werkator.config.BuildDefinition
 import java.time.Duration
 import java.time.Instant
 

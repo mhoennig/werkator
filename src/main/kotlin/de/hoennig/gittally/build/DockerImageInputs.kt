@@ -1,4 +1,4 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -10,7 +10,7 @@ import java.security.MessageDigest
  * with the configured Dockerfile and context paths, stored as an image label.
  */
 object DockerImageInputs {
-    const val INPUTS_LABEL = "org.gittally.build-inputs-sha256"
+    const val INPUTS_LABEL = "org.werkator.build-inputs-sha256"
 
     fun dockerfileSha256(dockerfile: Path): String = sha256Hex(Files.readAllBytes(dockerfile))
 

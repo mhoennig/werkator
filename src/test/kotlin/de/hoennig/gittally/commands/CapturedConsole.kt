@@ -1,4 +1,4 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream

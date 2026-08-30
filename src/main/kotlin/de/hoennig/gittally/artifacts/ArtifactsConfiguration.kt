@@ -1,7 +1,7 @@
-package de.hoennig.gittally.artifacts
+package de.hoennig.werkator.artifacts
 
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.config.ConfigLoader
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 

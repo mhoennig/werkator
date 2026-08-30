@@ -1,9 +1,9 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.BranchConfig
-import de.hoennig.gittally.config.DockerConfig
-import de.hoennig.gittally.git.GitCommandResult
-import de.hoennig.gittally.git.GitCommandRunner
+import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.DockerConfig
+import de.hoennig.werkator.git.GitCommandResult
+import de.hoennig.werkator.git.GitCommandRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
@@ -47,7 +47,7 @@ class DockerBuildRunnerTest : FunSpec() {
         beforeEach {
             clearMocks(commandRunner, socketLocator)
             captured.clear()
-            repoDir = Files.createTempDirectory("gittally-docker-runner")
+            repoDir = Files.createTempDirectory("werkator-docker-runner")
             workspace = repoDir.resolve("workspace")
             every { commandRunner.run(any(), any(), any(), any()) } returns GitCommandResult(0, "", "")
             every { commandRunner.runOrThrow(any(), any(), any(), any()) } returns GitCommandResult(0, "", "")
@@ -77,19 +77,19 @@ class DockerBuildRunnerTest : FunSpec() {
                     "--rm",
                     "--init",
                     "--name",
-                    "gittally-build-$repoKey-${ArtifactKeys.branchKey("main")}",
+                    "werkator-build-$repoKey-${ArtifactKeys.branchKey("main")}",
                     "--label",
-                    "org.hoennig.gittally=true",
+                    "org.hoennig.werkator=true",
                     "--label",
-                    "org.hoennig.gittally.repository=$repoKey",
+                    "org.hoennig.werkator.repository=$repoKey",
                     "--label",
-                    "org.hoennig.gittally.role=build",
+                    "org.hoennig.werkator.role=build",
                     "--workdir",
                     "$workspace",
                     "--volume",
                     "$workspace:$workspace",
                     "--volume",
-                    "gittally-gradle-$repoKey:/gradle-user-home",
+                    "werkator-gradle-$repoKey:/gradle-user-home",
                     "--env",
                     "HOME=/tmp/docker-home",
                     "--env",
@@ -150,11 +150,11 @@ class DockerBuildRunnerTest : FunSpec() {
             }
         }
 
-        test("exposes git metadata read-only with the gittally dir masked for a worktree workspace") {
+        test("exposes git metadata read-only with the werkator dir masked for a worktree workspace") {
             val gitDir = repoDir.resolve(".git")
             val adminDir = gitDir.resolve("worktrees/workspace")
             Files.createDirectories(adminDir)
-            Files.createDirectories(gitDir.resolve("gittally"))
+            Files.createDirectories(gitDir.resolve("werkator"))
             Files.createDirectories(workspace)
             Files.writeString(workspace.resolve(".git"), "gitdir: $adminDir\n")
 
@@ -162,7 +162,7 @@ class DockerBuildRunnerTest : FunSpec() {
 
             val args = captured.single()
             args shouldContain "$gitDir:$gitDir:ro"
-            args[args.indexOf("--tmpfs") + 1] shouldBe "${gitDir.resolve("gittally")}"
+            args[args.indexOf("--tmpfs") + 1] shouldBe "${gitDir.resolve("werkator")}"
             args shouldContain "$adminDir:$adminDir"
         }
 
@@ -209,13 +209,13 @@ class DockerBuildRunnerTest : FunSpec() {
                         "docker",
                         "build",
                         "--label",
-                        "org.gittally.dockerfile=Dockerfile",
+                        "org.werkator.dockerfile=Dockerfile",
                         "--label",
-                        "org.gittally.dockerfile-sha256=$dockerfileHash",
+                        "org.werkator.dockerfile-sha256=$dockerfileHash",
                         "--label",
-                        "org.gittally.build-context=.",
+                        "org.werkator.build-context=.",
                         "--label",
-                        "org.gittally.build-inputs-sha256=$inputsHash",
+                        "org.werkator.build-inputs-sha256=$inputsHash",
                         "-t",
                         "build-env:latest",
                         "-f",
@@ -251,11 +251,11 @@ class DockerBuildRunnerTest : FunSpec() {
 
             val repoKey = ArtifactKeys.repoKey(repoDir)
             verify(exactly = 1) {
-                commandRunner.runOrThrow(listOf("docker", "volume", "create", "gittally-gradle-$repoKey"), repoDir, any(), any())
+                commandRunner.runOrThrow(listOf("docker", "volume", "create", "werkator-gradle-$repoKey"), repoDir, any(), any())
             }
             verify(exactly = 2) {
                 commandRunner.run(
-                    listOf("docker", "rm", "-f", "gittally-build-$repoKey-${ArtifactKeys.branchKey("main")}"),
+                    listOf("docker", "rm", "-f", "werkator-build-$repoKey-${ArtifactKeys.branchKey("main")}"),
                     repoDir,
                     any(),
                     any(),

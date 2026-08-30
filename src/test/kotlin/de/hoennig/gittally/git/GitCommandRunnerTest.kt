@@ -1,4 +1,4 @@
-package de.hoennig.gittally.git
+package de.hoennig.werkator.git
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -12,7 +12,7 @@ import java.nio.file.Files
 
 class GitCommandRunnerTest : FunSpec() {
     private val runner = GitCommandRunner()
-    private val tempDir = Files.createTempDirectory("gittally-runner-test")
+    private val tempDir = Files.createTempDirectory("werkator-runner-test")
 
     init {
         test("captures stdout, stderr and exit code") {
@@ -41,7 +41,7 @@ class GitCommandRunnerTest : FunSpec() {
         }
 
         test("passes extra environment variables") {
-            val result = runner.run(listOf("sh", "-c", "echo \"\$GITTALLY_TEST_VAR\""), tempDir, mapOf("GITTALLY_TEST_VAR" to "hello"))
+            val result = runner.run(listOf("sh", "-c", "echo \"\$werkator_TEST_VAR\""), tempDir, mapOf("werkator_TEST_VAR" to "hello"))
 
             result.stdout.trim() shouldBe "hello"
         }

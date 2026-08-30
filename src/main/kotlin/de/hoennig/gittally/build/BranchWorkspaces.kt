@@ -1,6 +1,6 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.git.GitService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.nio.file.Files
@@ -20,7 +20,7 @@ fun interface BranchWorkspaces {
 }
 
 /**
- * One reusable git worktree per branch under `.git/gittally/worktrees/<branchKey>`,
+ * One reusable git worktree per branch under `.git/werkator/worktrees/<branchKey>`,
  * checked out detached at the requested commit. Reuse keeps incremental build
  * caches; the branch's `cleanCommand` decides how much of them survives.
  */
@@ -50,6 +50,6 @@ class GitWorktreeWorkspaces(
     }
 
     companion object {
-        const val WORKTREES_DIR = ".git/gittally/worktrees"
+        const val WORKTREES_DIR = ".git/werkator/worktrees"
     }
 }

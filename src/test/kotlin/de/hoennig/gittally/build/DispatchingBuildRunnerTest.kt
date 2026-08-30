@@ -1,7 +1,7 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.BranchConfig
-import de.hoennig.gittally.config.DockerConfig
+import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.DockerConfig
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.Called

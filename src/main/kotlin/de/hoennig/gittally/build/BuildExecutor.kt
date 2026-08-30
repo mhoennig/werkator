@@ -1,9 +1,9 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.BranchConfig
-import de.hoennig.gittally.config.BuildDefinition
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.gitea.GiteaClient
+import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.gitea.GiteaClient
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.ContextClosedEvent
@@ -93,7 +93,7 @@ class BuildExecutor(
             return duplicate.runningBuild
         }
         val startedAt = Instant.now()
-        val stagingDir = Files.createTempDirectory("gittally-build-")
+        val stagingDir = Files.createTempDirectory("werkator-build-")
         val runningBuild =
             RunningBuild(
                 branch = branch,
@@ -249,7 +249,7 @@ class BuildExecutor(
 
     private fun serialWorker(branch: String): ExecutorService =
         Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "gittally-build-${ArtifactKeys.branchKey(branch)}").apply { isDaemon = true }
+            Thread(runnable, "werkator-build-${ArtifactKeys.branchKey(branch)}").apply { isDaemon = true }
         }
 
     private fun runBuildCommands(
@@ -324,7 +324,7 @@ class BuildExecutor(
         input: InputStream,
         vararg sinks: OutputStream,
     ): Thread =
-        thread(isDaemon = true, name = "gittally-build-log") {
+        thread(isDaemon = true, name = "werkator-build-log") {
             val buffer = ByteArray(8192)
             try {
                 while (true) {
@@ -480,7 +480,7 @@ class BuildExecutor(
 
     /**
      * The effective settings of this run: the branch config with the build [worktree]'s
-     * `.gittally.yml` layered on top (see [ConfigLoader.loadForWorktree]), then the
+     * `.werkator.yml` layered on top (see [ConfigLoader.loadForWorktree]), then the
      * build definition's overrides applied last — the job wins, and it always comes
      * from the primary config (`builds` is a pinned section). An unknown build name
      * (a stale result whose job was removed) falls back to the plain branch settings.

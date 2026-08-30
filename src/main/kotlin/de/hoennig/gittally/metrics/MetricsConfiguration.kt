@@ -1,6 +1,6 @@
-package de.hoennig.gittally.metrics
+package de.hoennig.werkator.metrics
 
-import de.hoennig.gittally.build.ArtifactStore
+import de.hoennig.werkator.build.ArtifactStore
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock

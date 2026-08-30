@@ -1,6 +1,6 @@
-package de.hoennig.gittally.gitea
+package de.hoennig.werkator.gitea
 
-import de.hoennig.gittally.build.BuildStatus
+import de.hoennig.werkator.build.BuildStatus
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe

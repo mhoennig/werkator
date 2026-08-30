@@ -9,7 +9,7 @@ A tested client for the Gitea commit-status API.
 
 ## Design
 
-Create package `de.hoennig.gittally.gitea`:
+Create package `de.hoennig.werkator.gitea`:
 
 - `GiteaClient` using Spring's `RestClient`.
 - `publishStatus(sha, state, description, targetUrl)` → `POST /api/v1/repos/{owner}/{repo}/statuses/{sha}` with header `Authorization: token <git.token>`; body fields `state`, `context`, `description`, `target_url`.
@@ -19,12 +19,12 @@ Create package `de.hoennig.gittally.gitea`:
 - `isEnabled()` — true only when `gitea.baseUrl`, `gitea.owner`, `gitea.repo`, and `git.token` are configured.
   All callers must treat a disabled or failing client as non-fatal (log and continue); the legacy behaved the same but failed silently.
 
-Configuration comes from `GitTallyConfig` (`gitea.*`, `git.token`).
+Configuration comes from `WerkatorConfig` (`gitea.*`, `git.token`).
 
 ## Out of Scope
 
 - No callers yet; the build executor (step 04) wires status publishing.
-- No webhook receiving; GitTally remains poll-based.
+- No webhook receiving; werkator remains poll-based.
 
 ## Tests
 
@@ -50,4 +50,4 @@ Implemented as designed; deviations and decisions:
 - `resolveUsername` only requires `gitea.baseUrl` and `git.token`; legacy gated it on the full status-enabled check including owner/repo, which the `/api/v1/user` endpoint does not need.
 - Responses are read as strings and parsed with a dedicated Jackson `ObjectMapper` instead of RestClient message converters, keeping malformed-JSON handling explicit and independent of converter auto-detection.
 - The legacy "Build status deleted" description marker is not ported; it belongs to the result-delete feature of later steps.
-- No config changes were needed: `gitea.*` and `git.token` already exist in `GitTallyConfig`, the `init` templates, and `docs/configuration.md`.
+- No config changes were needed: `gitea.*` and `git.token` already exist in `WerkatorConfig`, the `init` templates, and `docs/configuration.md`.

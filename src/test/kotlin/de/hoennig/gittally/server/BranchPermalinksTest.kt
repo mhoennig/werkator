@@ -1,9 +1,9 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.ArtifactKeys
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
+import de.hoennig.werkator.build.ArtifactKeys
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

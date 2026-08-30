@@ -1,7 +1,7 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.GitTallyApplication
-import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.werkator.WerkatorApplication
+import de.hoennig.werkator.config.ConfigLoader
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.context.ApplicationListener
@@ -24,7 +24,7 @@ import java.util.concurrent.CountDownLatch
 @Component
 @Command(
     name = "server",
-    description = ["Start the GitTally server"],
+    description = ["Start the werkator server"],
     mixinStandardHelpOptions = true,
 )
 class ServerCommand(
@@ -35,7 +35,7 @@ class ServerCommand(
     override fun run() {
         val config = configLoader.load(workingDir)
         val context =
-            SpringApplicationBuilder(GitTallyApplication::class.java)
+            SpringApplicationBuilder(WerkatorApplication::class.java)
                 .web(WebApplicationType.SERVLET)
                 .profiles(SERVER_PROFILE)
                 .properties(
@@ -43,7 +43,7 @@ class ServerCommand(
                     "server.address=${config.server.bindAddress}",
                 ).run()
         val port = context.environment.getProperty("local.server.port", config.server.port.toString())
-        println("GitTally server listening on http://${config.server.bindAddress}:$port/ — Ctrl-C to stop")
+        println("werkator server listening on http://${config.server.bindAddress}:$port/ — Ctrl-C to stop")
         awaitShutdown(context)
     }
 

@@ -1,4 +1,4 @@
-package de.hoennig.gittally.framework
+package de.hoennig.werkator.framework
 
 import com.ninjasquad.springmockk.MockkBean
 import io.kotest.core.spec.style.FunSpec

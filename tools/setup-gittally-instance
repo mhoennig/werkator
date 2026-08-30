@@ -1,39 +1,39 @@
 #!/usr/bin/env bash
 #
-# Set up a fresh GitTally instance on a new Docker host by converting a legacy
-# .gitTally env configuration to the new YAML format.
+# Set up a fresh werkator instance on a new Docker host by converting a legacy
+# .werkator env configuration to the new YAML format.
 #
 # The legacy config comes either from a file passed as the optional third
 # argument, or — when omitted — from the embedded snapshot of the hs.hsadmin.ng
-# .gitTally on vm2176. Either way the script sources it, converts it to YAML
+# .werkator on vm2176. Either way the script sources it, converts it to YAML
 # (mapping per docs/migration-from-legacy.md), substitutes the public hostname
 # from the command line, and prompts for the Gitea secrets.
 #
 # Run this ON the new Docker host. The repository must already be cloned at the
-# given repo-dir. Builds run in Docker; GitTally itself runs from the jar via
+# given repo-dir. Builds run in Docker; werkator itself runs from the jar via
 # java, so a JRE and the jar are required (see checks below).
 #
-# Usage: setup-gittally-instance [--force] <public-hostname> <repo-dir> [legacy-config]
+# Usage: setup-werkator-instance [--force] <public-hostname> <repo-dir> [legacy-config]
 #   <public-hostname>  FQDN this instance is reachable at, e.g. vm2180.hostsharing.net
 #                      (used for server.publicBaseUrl)
 #   <repo-dir>         path to the cloned git repository to configure,
 #                      e.g. ~/hs.hsadmin.ng
-#   [legacy-config]    optional path to a legacy .gitTally file to convert;
+#   [legacy-config]    optional path to a legacy .werkator file to convert;
 #                      if omitted, the embedded vm2176 snapshot is used
-#   --force            overwrite .gittally.yml files that already exist
+#   --force            overwrite .werkator.yml files that already exist
 
 set -euo pipefail
 
 # ---------------------------------------------------------------- settings --
 
-JAR_PATH="$HOME/bin/gittally.jar"              # where the GitTally jar is expected
+JAR_PATH="$HOME/bin/werkator.jar"              # where the werkator jar is expected
 
 die()  { echo "ERROR: $*" >&2; exit 1; }
 warn() { echo "WARNING: $*" >&2; }
 
 usage() {
-    echo "usage: setup-gittally-instance [--force] <public-hostname> <repo-dir> [legacy-config]" >&2
-    echo "example: setup-gittally-instance vm2180.hostsharing.net ~/hs.hsadmin.ng" >&2
+    echo "usage: setup-werkator-instance [--force] <public-hostname> <repo-dir> [legacy-config]" >&2
+    echo "example: setup-werkator-instance vm2180.hostsharing.net ~/hs.hsadmin.ng" >&2
     exit 1
 }
 
@@ -59,7 +59,7 @@ REPO_DIR="${positional[1]}"
 [ -z "$legacy_file" ] || [ -f "$legacy_file" ] || die "legacy config not found: $legacy_file"
 
 # ---------------------------------------------------- legacy config source --
-# load_legacy_config populates the GITTALLY_* variables, either by sourcing the
+# load_legacy_config populates the werkator_* variables, either by sourcing the
 # file passed on the command line, or from the embedded vm2176 snapshot below.
 # Secrets (git username/token) are intentionally never read here — they are
 # prompted for, so a token in a legacy file is not echoed or reused implicitly.
@@ -70,28 +70,28 @@ load_legacy_config() {
         . "$legacy_file"
         return
     fi
-    # embedded, non-secret snapshot of tallyman@vm2176:~/hs.hsadmin.ng/.gitTally
-    export GITTALLY_BUILD_COMMAND='./gradlew --console=plain --no-daemon --no-build-cache jacocoTestReport check generateDocumentation -x pitest -x dependencyCheckAnalyze'
-    export GITTALLY_BUILD_CLEAN_COMMAND='rm -rf build'
-    export GITTALLY_BUILD_ARTEFACT_DIRS='build/reports:build/doc'
-    export GITTALLY_BUILD_STDOUT_LOG='build.stdout.log'
-    export GITTALLY_BUILD_STDERR_LOG='build.stderr.log'
-    export GITTALLY_BUILD_DOCKER_IMAGE='hsadmin-ng-build-env:latest'
-    export GITTALLY_BUILD_DOCKERFILE='Jenkins/jenkins-agent/Dockerfile'
-    export GITTALLY_BUILD_DOCKER_CONTEXT='Jenkins/jenkins-agent'
-    export GITTALLY_BUILD_DOCKER_NETWORK='host'
-    export GITTALLY_BUILD_DOCKER_ENV='TESTCONTAINERS_RYUK_DISABLED=true'
+    # embedded, non-secret snapshot of tallyman@vm2176:~/hs.hsadmin.ng/.werkator
+    export werkator_BUILD_COMMAND='./gradlew --console=plain --no-daemon --no-build-cache jacocoTestReport check generateDocumentation -x pitest -x dependencyCheckAnalyze'
+    export werkator_BUILD_CLEAN_COMMAND='rm -rf build'
+    export werkator_BUILD_ARTEFACT_DIRS='build/reports:build/doc'
+    export werkator_BUILD_STDOUT_LOG='build.stdout.log'
+    export werkator_BUILD_STDERR_LOG='build.stderr.log'
+    export werkator_BUILD_DOCKER_IMAGE='hsadmin-ng-build-env:latest'
+    export werkator_BUILD_DOCKERFILE='Jenkins/jenkins-agent/Dockerfile'
+    export werkator_BUILD_DOCKER_CONTEXT='Jenkins/jenkins-agent'
+    export werkator_BUILD_DOCKER_NETWORK='host'
+    export werkator_BUILD_DOCKER_ENV='TESTCONTAINERS_RYUK_DISABLED=true'
     # legacy hsadmin-ng-specific JAVA_TOOL_OPTIONS — carried into docker.env so the
     # Testcontainers builds keep finding the docker socket (see migration doc).
-    export GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS='-Ddocker.client.strategy=org.testcontainers.dockerclient.UnixSocketClientProviderStrategy -Dtestcontainers.docker.socket.override=/var/run/docker.sock'
-    export GITTALLY_ARTIFACT_SERVER_PORT='18080'
-    export GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS='0.0.0.0'
-    export GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH='3'
-    export GITTALLY_IMPRESSUM_URL='https://michael.hoennig.de/imprint.html'
-    export GITTALLY_GITEA_BASE_URL='https://dev.hostsharing.net'
-    export GITTALLY_GITEA_OWNER='hostsharing'
-    export GITTALLY_GITEA_REPO='hs.hsadmin.ng'
-    export GITTALLY_GITEA_STATUS_CONTEXT='GitTally'
+    export werkator_BUILD_DOCKER_JAVA_TOOL_OPTIONS='-Ddocker.client.strategy=org.testcontainers.dockerclient.UnixSocketClientProviderStrategy -Dtestcontainers.docker.socket.override=/var/run/docker.sock'
+    export werkator_ARTIFACT_SERVER_PORT='18080'
+    export werkator_ARTIFACT_SERVER_BIND_ADDRESS='0.0.0.0'
+    export werkator_ARTIFACT_BUILD_RETENTION_PER_BRANCH='3'
+    export werkator_IMPRESSUM_URL='https://michael.hoennig.de/imprint.html'
+    export werkator_GITEA_BASE_URL='https://dev.hostsharing.net'
+    export werkator_GITEA_OWNER='hostsharing'
+    export werkator_GITEA_REPO='hs.hsadmin.ng'
+    export werkator_GITEA_STATUS_CONTEXT='werkator'
 }
 
 # ----------------------------------------------------------------- helpers --
@@ -120,7 +120,7 @@ fi
 # ----------------------------------------------------------- prompt secrets --
 
 # suggest the account from the legacy config's git username, if it sets one
-suggested_account=$( set +u; load_legacy_config >/dev/null 2>&1; printf '%s' "${GITTALLY_GITEA_GIT_USERNAME:-jenkins-ci}" )
+suggested_account=$( set +u; load_legacy_config >/dev/null 2>&1; printf '%s' "${werkator_GITEA_GIT_USERNAME:-jenkins-ci}" )
 
 echo "== Gitea credentials for this instance (used for git HTTPS auth + status API)"
 read -r -p "  Gitea git account [$suggested_account]: " git_account
@@ -130,8 +130,8 @@ read -r -s -p "  Gitea API token: " git_token; echo
 
 # -------------------------------------------------------------- convert cfg --
 
-project_yml="$REPO_DIR/.gittally.yml"
-machine_yml="$REPO_DIR/.git/gittally/.gittally.yml"
+project_yml="$REPO_DIR/.werkator.yml"
+machine_yml="$REPO_DIR/.git/werkator/.werkator.yml"
 public_base_url="https://$hostname/"
 
 if ! $force; then
@@ -149,16 +149,16 @@ echo "== writing $project_yml (public host: $hostname, source: $config_source)"
 
     # warn about legacy keys that have no counterpart in the new config
     for var in \
-        GITTALLY_ARTIFACT_NGINX_SERVER_NAME GITTALLY_ARTIFACT_NGINX_HTTP_PORT \
-        GITTALLY_ARTIFACT_NGINX_HTTPS_PORT GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL \
-        GITTALLY_ARTIFACT_AUTH_MODE GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND \
-        GITTALLY_INSTALL_DIR
+        werkator_ARTIFACT_NGINX_SERVER_NAME werkator_ARTIFACT_NGINX_HTTP_PORT \
+        werkator_ARTIFACT_NGINX_HTTPS_PORT werkator_ARTIFACT_LETSENCRYPT_EMAIL \
+        werkator_ARTIFACT_AUTH_MODE werkator_BUILD_DOCKER_PREFLIGHT_COMMAND \
+        werkator_INSTALL_DIR
     do
         [ -n "${!var}" ] && warn "$var is set but has no counterpart in the new config — skipped (see docs/migration-from-legacy.md)"
     done
 
     # retention: strip a legacy age suffix (h/d), only the build count is supported
-    retention="$GITTALLY_ARTIFACT_BUILD_RETENTION_PER_BRANCH"
+    retention="$werkator_ARTIFACT_BUILD_RETENTION_PER_BRANCH"
     if [ -n "$retention" ] && [[ ! "$retention" =~ ^[0-9]+$ ]]; then
         warn "retention '$retention' has an age suffix — only the build count is supported, using '${retention%%[!0-9]*}'"
         retention=${retention%%[!0-9]*}
@@ -167,71 +167,71 @@ echo "== writing $project_yml (public host: $hostname, source: $config_source)"
     emit() { printf '%s\n' "$1" >>"$project_yml"; }
 
     : >"$project_yml"
-    emit "# GitTally configuration, converted from $config_source"
-    emit "# by tools/setup-gittally-instance; public host set to $hostname."
+    emit "# werkator configuration, converted from $config_source"
+    emit "# by tools/setup-werkator-instance; public host set to $hostname."
     emit "# Omitted keys fall back to the application defaults — see docs/configuration.md."
     emit ""
 
     emit "server:"
     emit "  publicBaseUrl: $(yaml_quote "$public_base_url")"
-    [ -n "$GITTALLY_ARTIFACT_SERVER_PORT" ]         && emit "  port: $GITTALLY_ARTIFACT_SERVER_PORT"
-    [ -n "$GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS" ] && emit "  bindAddress: $GITTALLY_ARTIFACT_SERVER_BIND_ADDRESS"
-    [ -n "$GITTALLY_IMPRESSUM_URL" ]                && emit "  impressumUrl: $(yaml_quote "$GITTALLY_IMPRESSUM_URL")"
+    [ -n "$werkator_ARTIFACT_SERVER_PORT" ]         && emit "  port: $werkator_ARTIFACT_SERVER_PORT"
+    [ -n "$werkator_ARTIFACT_SERVER_BIND_ADDRESS" ] && emit "  bindAddress: $werkator_ARTIFACT_SERVER_BIND_ADDRESS"
+    [ -n "$werkator_IMPRESSUM_URL" ]                && emit "  impressumUrl: $(yaml_quote "$werkator_IMPRESSUM_URL")"
     emit ""
 
     emit "gitea:"
-    [ -n "$GITTALLY_GITEA_BASE_URL" ]       && emit "  baseUrl: $(yaml_quote "$GITTALLY_GITEA_BASE_URL")"
-    [ -n "$GITTALLY_GITEA_OWNER" ]          && emit "  owner: $(yaml_quote "$GITTALLY_GITEA_OWNER")"
-    [ -n "$GITTALLY_GITEA_REPO" ]           && emit "  repo: $(yaml_quote "$GITTALLY_GITEA_REPO")"
-    [ -n "$GITTALLY_GITEA_STATUS_CONTEXT" ] && emit "  statusContext: $(yaml_quote "$GITTALLY_GITEA_STATUS_CONTEXT")"
+    [ -n "$werkator_GITEA_BASE_URL" ]       && emit "  baseUrl: $(yaml_quote "$werkator_GITEA_BASE_URL")"
+    [ -n "$werkator_GITEA_OWNER" ]          && emit "  owner: $(yaml_quote "$werkator_GITEA_OWNER")"
+    [ -n "$werkator_GITEA_REPO" ]           && emit "  repo: $(yaml_quote "$werkator_GITEA_REPO")"
+    [ -n "$werkator_GITEA_STATUS_CONTEXT" ] && emit "  statusContext: $(yaml_quote "$werkator_GITEA_STATUS_CONTEXT")"
     emit ""
 
     [ -n "$retention" ] && { emit "artifacts:"; emit "  retentionPerBranch: $retention"; emit ""; }
 
-    [ -n "$GITTALLY_NEW_BRANCH_COMMIT_MAX_AGE" ] && { emit "watcher:"; emit "  newBranchMaxAge: $GITTALLY_NEW_BRANCH_COMMIT_MAX_AGE"; emit ""; }
+    [ -n "$werkator_NEW_BRANCH_COMMIT_MAX_AGE" ] && { emit "watcher:"; emit "  newBranchMaxAge: $werkator_NEW_BRANCH_COMMIT_MAX_AGE"; emit ""; }
 
     emit "branches:"
     emit "  default:"
-    [ -n "$GITTALLY_BUILD_CLEAN_COMMAND" ] && emit "    cleanCommand: $(yaml_quote "$GITTALLY_BUILD_CLEAN_COMMAND")"
-    [ -n "$GITTALLY_BUILD_COMMAND" ]       && emit "    buildCommand: $(yaml_quote "$GITTALLY_BUILD_COMMAND")"
-    if [ -n "$GITTALLY_BUILD_ARTEFACT_DIRS" ]; then
+    [ -n "$werkator_BUILD_CLEAN_COMMAND" ] && emit "    cleanCommand: $(yaml_quote "$werkator_BUILD_CLEAN_COMMAND")"
+    [ -n "$werkator_BUILD_COMMAND" ]       && emit "    buildCommand: $(yaml_quote "$werkator_BUILD_COMMAND")"
+    if [ -n "$werkator_BUILD_ARTEFACT_DIRS" ]; then
         emit "    artifactDirs:"
         # legacy separators: ';' (documented) and ':' (as used on vm2176)
-        IFS=';:' read -r -a dirs <<<"$GITTALLY_BUILD_ARTEFACT_DIRS"
+        IFS=';:' read -r -a dirs <<<"$werkator_BUILD_ARTEFACT_DIRS"
         for dir in "${dirs[@]}"; do
             [ -n "$dir" ] && emit "      - $(yaml_quote "$dir")"
         done
     fi
-    [ -n "$GITTALLY_BUILD_STDOUT_LOG" ] && emit "    stdoutLog: $(yaml_quote "$GITTALLY_BUILD_STDOUT_LOG")"
-    [ -n "$GITTALLY_BUILD_STDERR_LOG" ] && emit "    stderrLog: $(yaml_quote "$GITTALLY_BUILD_STDERR_LOG")"
+    [ -n "$werkator_BUILD_STDOUT_LOG" ] && emit "    stdoutLog: $(yaml_quote "$werkator_BUILD_STDOUT_LOG")"
+    [ -n "$werkator_BUILD_STDERR_LOG" ] && emit "    stderrLog: $(yaml_quote "$werkator_BUILD_STDERR_LOG")"
 
-    if [ -n "$GITTALLY_BUILD_DOCKER_IMAGE" ] || [ -n "$GITTALLY_BUILD_DOCKERFILE" ]; then
+    if [ -n "$werkator_BUILD_DOCKER_IMAGE" ] || [ -n "$werkator_BUILD_DOCKERFILE" ]; then
         emit "    docker:"
         emit "      enabled: true"
-        [ -n "$GITTALLY_BUILD_DOCKER_IMAGE" ]    && emit "      image: $(yaml_quote "$GITTALLY_BUILD_DOCKER_IMAGE")"
-        [ -n "$GITTALLY_BUILD_DOCKERFILE" ]      && emit "      dockerfile: $(yaml_quote "$GITTALLY_BUILD_DOCKERFILE")"
-        [ -n "$GITTALLY_BUILD_DOCKER_CONTEXT" ]  && emit "      context: $(yaml_quote "$GITTALLY_BUILD_DOCKER_CONTEXT")"
+        [ -n "$werkator_BUILD_DOCKER_IMAGE" ]    && emit "      image: $(yaml_quote "$werkator_BUILD_DOCKER_IMAGE")"
+        [ -n "$werkator_BUILD_DOCKERFILE" ]      && emit "      dockerfile: $(yaml_quote "$werkator_BUILD_DOCKERFILE")"
+        [ -n "$werkator_BUILD_DOCKER_CONTEXT" ]  && emit "      context: $(yaml_quote "$werkator_BUILD_DOCKER_CONTEXT")"
         # legacy default network was host; new default is Docker's default
-        emit "      network: $(yaml_quote "${GITTALLY_BUILD_DOCKER_NETWORK:-host}")"
-        if [ -n "$GITTALLY_BUILD_DOCKER_ENV" ] || [ -n "$GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS" ]; then
+        emit "      network: $(yaml_quote "${werkator_BUILD_DOCKER_NETWORK:-host}")"
+        if [ -n "$werkator_BUILD_DOCKER_ENV" ] || [ -n "$werkator_BUILD_DOCKER_JAVA_TOOL_OPTIONS" ]; then
             emit "      env:"
-            for assignment in $GITTALLY_BUILD_DOCKER_ENV; do
+            for assignment in $werkator_BUILD_DOCKER_ENV; do
                 emit "        ${assignment%%=*}: $(yaml_quote "${assignment#*=}")"
             done
             # hsadmin-ng-specific JAVA_TOOL_OPTIONS carried into docker.env so the
             # Testcontainers builds keep finding the docker socket (see migration doc)
-            [ -n "$GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS" ] && \
-                emit "        JAVA_TOOL_OPTIONS: $(yaml_quote "$GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS")"
+            [ -n "$werkator_BUILD_DOCKER_JAVA_TOOL_OPTIONS" ] && \
+                emit "        JAVA_TOOL_OPTIONS: $(yaml_quote "$werkator_BUILD_DOCKER_JAVA_TOOL_OPTIONS")"
         fi
     fi
 
     # legacy auto-build: a branch list plus global times -> per-branch autoBuild
-    if [ -n "$GITTALLY_AUTO_BUILD_BRANCHES" ]; then
+    if [ -n "$werkator_AUTO_BUILD_BRANCHES" ]; then
         times_yaml=""
-        for t in ${GITTALLY_AUTO_BUILD_TIMES//,/ }; do
+        for t in ${werkator_AUTO_BUILD_TIMES//,/ }; do
             times_yaml+="${times_yaml:+, }$(yaml_quote "$t")"
         done
-        for branch in ${GITTALLY_AUTO_BUILD_BRANCHES//,/ }; do
+        for branch in ${werkator_AUTO_BUILD_BRANCHES//,/ }; do
             emit "  $(yaml_quote "$branch"):"
             emit "    autoBuild:"
             emit "      enabled: true"
@@ -251,7 +251,7 @@ rm -f "$machine_yml"
 (
     umask 077
     {
-        echo "# Machine-specific overrides and secrets. Keys here win over .gittally.yml."
+        echo "# Machine-specific overrides and secrets. Keys here win over .werkator.yml."
         echo "git:"
         echo "  account: $(yaml_quote "$git_account")"
         echo "  token: $(yaml_quote "$git_token")"
@@ -270,7 +270,7 @@ fi
 
 cat <<EOF
 
-Done. GitTally config for $hostname is in place.
+Done. werkator config for $hostname is in place.
 
 Verify and start on this host:
 
@@ -279,7 +279,7 @@ Verify and start on this host:
     java -jar $JAR_PATH config:print --full --show-secrets   # ... including git.token in clear text
     java -jar $JAR_PATH server                  # or: java -jar $JAR_PATH init --systemd
 
-Note: GitTally binds to $hostname:${GITTALLY_ARTIFACT_SERVER_PORT:-18080} over plain HTTP.
+Note: werkator binds to $hostname:${werkator_ARTIFACT_SERVER_PORT:-18080} over plain HTTP.
 publicBaseUrl is https://$hostname/ — terminate TLS in front of it with the host's
 reverse proxy (managed nginx/TLS is ADR 0005 / docs/plan/13-nginx-tls.md, not yet built).
 EOF

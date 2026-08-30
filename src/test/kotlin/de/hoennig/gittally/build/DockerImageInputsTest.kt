@@ -1,4 +1,4 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -9,7 +9,7 @@ import java.nio.file.Files
 class DockerImageInputsTest : FunSpec() {
     init {
         test("dockerfileSha256 is a stable hex checksum of the file contents") {
-            val dir = Files.createTempDirectory("gittally-docker-inputs")
+            val dir = Files.createTempDirectory("werkator-docker-inputs")
             val dockerfile = dir.resolve("Dockerfile")
             Files.writeString(dockerfile, "FROM eclipse-temurin:21\n")
 
@@ -20,7 +20,7 @@ class DockerImageInputsTest : FunSpec() {
         }
 
         test("inputs checksum changes when the Dockerfile contents change") {
-            val dir = Files.createTempDirectory("gittally-docker-inputs")
+            val dir = Files.createTempDirectory("werkator-docker-inputs")
             val dockerfile = dir.resolve("Dockerfile")
             Files.writeString(dockerfile, "FROM eclipse-temurin:21\n")
             val before =

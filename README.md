@@ -1,4 +1,4 @@
-# GitTally
+# werkator
 
 Lightweight, declarative and highly opinionated software build system (CI/CD).
 
@@ -6,12 +6,12 @@ Lightweight, declarative and highly opinionated software build system (CI/CD).
 
 - [docs/configuration.md](docs/configuration.md) — configuration reference
 - [docs/bootstrapping.md](docs/bootstrapping.md) — initializing a repository with `init`
-- [docs/deployment.md](docs/deployment.md) — running GitTally as a systemd service behind a reverse proxy
+- [docs/deployment.md](docs/deployment.md) — running werkator as a systemd service behind a reverse proxy
 - [docs/migration-from-legacy.md](docs/migration-from-legacy.md) — migrating from the legacy bash script
 
 ## Legacy Script
 
-`legacy/gitTally` (bash) is **deprecated** and kept only as a behavioral reference for the rewrite.
+`legacy/werkator` (bash) is **deprecated** and kept only as a behavioral reference for the rewrite.
 Do not use it for new installations; see [docs/migration-from-legacy.md](docs/migration-from-legacy.md).
 
 ## Developer Setup

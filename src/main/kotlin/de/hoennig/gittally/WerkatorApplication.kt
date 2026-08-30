@@ -1,6 +1,6 @@
-package de.hoennig.gittally
+package de.hoennig.werkator
 
-import de.hoennig.gittally.config.ConfigException
+import de.hoennig.werkator.config.ConfigException
 import org.springframework.boot.CommandLineRunner
 import org.springframework.boot.ExitCodeGenerator
 import org.springframework.boot.SpringApplication
@@ -13,14 +13,14 @@ import picocli.CommandLine.IFactory
 import kotlin.system.exitProcess
 
 @SpringBootApplication
-class GitTallyApplication
+class WerkatorApplication
 
 /** Not in the `server` profile: the second context started by `ServerCommand` must not run picocli again. */
 @Component
 @Profile("!server")
 class CliRunner(
     private val factory: IFactory,
-    private val rootCommand: GitTallyCommand,
+    private val rootCommand: werkatorCommand,
 ) : CommandLineRunner,
     ExitCodeGenerator {
     private var exitCode = 0
@@ -29,7 +29,7 @@ class CliRunner(
         exitCode =
             CommandLine(rootCommand, factory)
                 .setExecutionExceptionHandler { exception, commandLine, _ ->
-                    // a config GitTally must not read is a stated fact, not a crash: the message
+                    // a config werkator must not read is a stated fact, not a crash: the message
                     // names the file, the versions, and the way out — a stack trace would bury it
                     if (exception is ConfigException) {
                         commandLine.err.println("Error: ${exception.message}")
@@ -49,5 +49,5 @@ class CliRunner(
 }
 
 fun main(args: Array<String>) {
-    exitProcess(SpringApplication.exit(runApplication<GitTallyApplication>(*args)))
+    exitProcess(SpringApplication.exit(runApplication<WerkatorApplication>(*args)))
 }

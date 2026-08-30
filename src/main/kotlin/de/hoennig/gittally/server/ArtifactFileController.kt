@@ -1,6 +1,6 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.ArtifactStore
+import de.hoennig.werkator.build.ArtifactStore
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource

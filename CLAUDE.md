@@ -1,4 +1,4 @@
-# GitTally — Claude Code Instructions
+# werkator — Claude Code Instructions
 
 @AGENTS.md
 

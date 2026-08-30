@@ -1,4 +1,4 @@
-package de.hoennig.gittally.watcher
+package de.hoennig.werkator.watcher
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration

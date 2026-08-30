@@ -1,4 +1,4 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import jakarta.annotation.PreDestroy
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -26,7 +26,7 @@ class ServerNginxLifecycle(
     /** Replaceable for tests: the scheduler running startup and renewal checks. */
     internal var schedulerFactory: () -> ScheduledExecutorService = {
         Executors.newSingleThreadScheduledExecutor { runnable ->
-            Thread(runnable, "gittally-nginx").apply { isDaemon = true }
+            Thread(runnable, "werkator-nginx").apply { isDaemon = true }
         }
     }
 

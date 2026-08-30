@@ -1,4 +1,4 @@
-package de.hoennig.gittally.git
+package de.hoennig.werkator.git
 
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
@@ -15,10 +15,10 @@ object GitAskPass {
         #!/bin/sh
         case "${'$'}1" in
             *[Uu]sername*)
-                printf '%s\n' "${'$'}GITTALLY_GIT_ACCOUNT"
+                printf '%s\n' "${'$'}werkator_GIT_ACCOUNT"
                 ;;
             *)
-                printf '%s\n' "${'$'}GITTALLY_GIT_TOKEN"
+                printf '%s\n' "${'$'}werkator_GIT_TOKEN"
                 ;;
         esac
         """.trimIndent() + "\n"
@@ -30,7 +30,7 @@ object GitAskPass {
     ): T {
         val script =
             Files.createTempFile(
-                "gittally-askpass",
+                "werkator-askpass",
                 ".sh",
                 PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")),
             )
@@ -40,8 +40,8 @@ object GitAskPass {
                 mapOf(
                     "GIT_ASKPASS" to script.toAbsolutePath().toString(),
                     "GIT_TERMINAL_PROMPT" to "0",
-                    "GITTALLY_GIT_ACCOUNT" to account,
-                    "GITTALLY_GIT_TOKEN" to token,
+                    "werkator_GIT_ACCOUNT" to account,
+                    "werkator_GIT_TOKEN" to token,
                 ),
             )
         } finally {

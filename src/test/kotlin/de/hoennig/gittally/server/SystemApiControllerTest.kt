@@ -1,9 +1,9 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import com.ninjasquad.springmockk.MockkBean
-import de.hoennig.gittally.metrics.MetricAggregate
-import de.hoennig.gittally.metrics.SystemMetrics
-import de.hoennig.gittally.metrics.SystemMetricsCollector
+import de.hoennig.werkator.metrics.MetricAggregate
+import de.hoennig.werkator.metrics.SystemMetrics
+import de.hoennig.werkator.metrics.SystemMetricsCollector
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every

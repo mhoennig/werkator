@@ -1,4 +1,4 @@
-package de.hoennig.gittally.metrics
+package de.hoennig.werkator.metrics
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -30,7 +30,7 @@ data class PersistedMetricsState(
  * repository size every 60 seconds and keeps running min/max/avg per metric.
  * The aggregation state is persisted, so restarts continue the series.
  * Every source degrades gracefully: an unreadable source makes its metric null
- * (shown as `n/a`), never fails a sample. Like the [de.hoennig.gittally.watcher.Watcher],
+ * (shown as `n/a`), never fails a sample. Like the [de.hoennig.werkator.watcher.Watcher],
  * nothing is scheduled until [start] is called (server mode only).
  */
 class SystemMetricsCollector(
@@ -83,7 +83,7 @@ class SystemMetricsCollector(
         scheduler =
             Executors
                 .newSingleThreadScheduledExecutor { runnable ->
-                    Thread(runnable, "gittally-metrics").apply { isDaemon = true }
+                    Thread(runnable, "werkator-metrics").apply { isDaemon = true }
                 }.also {
                     it.scheduleWithFixedDelay(::sampleSafely, 0, SAMPLE_INTERVAL_SECONDS, TimeUnit.SECONDS)
                 }

@@ -1,4 +1,4 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -8,7 +8,7 @@ import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
 
 class ControlTokenServiceTest : FunSpec() {
-    private fun newTokenFile(): Path = Files.createTempDirectory("gittally-token-test").resolve("control-token")
+    private fun newTokenFile(): Path = Files.createTempDirectory("werkator-token-test").resolve("control-token")
 
     init {
         test("generates a hex token once and persists it") {

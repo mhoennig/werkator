@@ -1,13 +1,13 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import com.ninjasquad.springmockk.MockkBean
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.build.RunningBuild
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.build.RunningBuild
+import de.hoennig.werkator.git.GitService
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -27,7 +27,7 @@ import java.time.Instant
 
 @WebMvcTest(BuildsApiController::class, properties = ["spring.main.web-application-type=servlet"])
 class BuildsApiControllerTest : FunSpec() {
-    private val tempDir: Path = Files.createTempDirectory("gittally-server-test")
+    private val tempDir: Path = Files.createTempDirectory("werkator-server-test")
 
     @Autowired
     lateinit var mockMvc: MockMvc

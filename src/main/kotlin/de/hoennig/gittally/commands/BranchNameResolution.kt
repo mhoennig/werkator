@@ -1,4 +1,4 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
 /**
  * Port of the legacy `resolve_branch_name` partial-name matching: a branch-name

@@ -1,4 +1,4 @@
-package de.hoennig.gittally.metrics
+package de.hoennig.werkator.metrics
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -50,7 +50,7 @@ class SystemMetricsCollectorTest : FunSpec() {
 
     init {
         beforeEach {
-            tempDir = Files.createTempDirectory("gittally-metrics-test")
+            tempDir = Files.createTempDirectory("werkator-metrics-test")
         }
 
         afterEach {

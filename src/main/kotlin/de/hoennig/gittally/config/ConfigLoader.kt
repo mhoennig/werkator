@@ -1,4 +1,4 @@
-package de.hoennig.gittally.config
+package de.hoennig.werkator.config
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class ConfigLoader(
-    /** The running version, for the `gitTally.version` check; absent outside a built jar (IDE, tests). */
+    /** The running version, for the `werkator.version` check; absent outside a built jar (IDE, tests). */
     private val buildProperties: ObjectProvider<BuildProperties>? = null,
 ) {
     private val log = LoggerFactory.getLogger(ConfigLoader::class.java)
@@ -37,21 +37,21 @@ class ConfigLoader(
     /** Section-level warnings already reported, keyed by a fixed slug; the config is loaded on every poll cycle. */
     private val warnedSections = ConcurrentHashMap.newKeySet<String>()
 
-    fun load(workingDir: Path = Paths.get(".")): GitTallyConfig = toConfig(loadRaw(workingDir))
+    fun load(workingDir: Path = Paths.get(".")): WerkatorConfig = toConfig(loadRaw(workingDir))
 
     /**
-     * Config for building a branch in [worktreeDir]: the worktree's `.gittally.yml`
+     * Config for building a branch in [worktreeDir]: the worktree's `.werkator.yml`
      * (the committed config of the branch being built) is applied as the branch layer,
-     * see [loadWithBranchLayer]. With no worktree `.gittally.yml` this is identical
+     * see [loadWithBranchLayer]. With no worktree `.werkator.yml` this is identical
      * to [load].
      */
     fun loadForWorktree(
         workingDir: Path,
         worktreeDir: Path,
-    ): GitTallyConfig = withBranchLayer(workingDir, loadFile(worktreeDir.resolve(".gittally.yml").toFile()))
+    ): WerkatorConfig = withBranchLayer(workingDir, loadFile(worktreeDir.resolve(".werkator.yml").toFile()))
 
     /**
-     * The primary/`.git` config with the committed `.gittally.yml` of one branch
+     * The primary/`.git` config with the committed `.werkator.yml` of one branch
      * ([branchConfigYaml], null or blank for a branch without one) merged on top:
      * precedence branch > `.git` > project. A branch describes its own CI — build
      * settings (`buildCommand`, `cleanCommand`, `artifactDirs`, `docker.image`/`env`, …)
@@ -70,25 +70,25 @@ class ConfigLoader(
     fun loadWithBranchLayer(
         workingDir: Path,
         branchConfigYaml: String?,
-    ): GitTallyConfig = withBranchLayer(workingDir, parseYaml(branchConfigYaml))
+    ): WerkatorConfig = withBranchLayer(workingDir, parseYaml(branchConfigYaml))
 
     private fun withBranchLayer(
         workingDir: Path,
         branchLayer: Map<String, Any?>,
-    ): GitTallyConfig {
+    ): WerkatorConfig {
         // scoped to this branch: an incompatible branch config fails its own builds and
         // must never stop the server or hold up the branches that are fine
-        checkVersion(branchLayer, "the committed .gittally.yml of this branch", BRANCH_HINT)
-        checkTriggerBlocks(branchLayer, "the committed .gittally.yml of this branch", BRANCH_HINT)
+        checkVersion(branchLayer, "the committed .werkator.yml of this branch", BRANCH_HINT)
+        checkTriggerBlocks(branchLayer, "the committed .werkator.yml of this branch", BRANCH_HINT)
         return toConfig(deepMerge(loadRaw(workingDir), stripPinned(branchLayer)))
     }
 
-    private fun toConfig(raw: Map<String, Any?>): GitTallyConfig {
+    private fun toConfig(raw: Map<String, Any?>): WerkatorConfig {
         val config =
             if (raw.isEmpty()) {
-                GitTallyConfig()
+                WerkatorConfig()
             } else {
-                yaml.convertValue(resolveBuildSections(dropNonDefinitionBuilds(raw)), GitTallyConfig::class.java)
+                yaml.convertValue(resolveBuildSections(dropNonDefinitionBuilds(raw)), WerkatorConfig::class.java)
             }
         return defaultPublicBaseUrl(config)
     }
@@ -265,7 +265,7 @@ class ConfigLoader(
     }
 
     /** Legacy default: an empty `server.publicBaseUrl` becomes `https://<nginx.serverName>/`. */
-    private fun defaultPublicBaseUrl(config: GitTallyConfig): GitTallyConfig {
+    private fun defaultPublicBaseUrl(config: WerkatorConfig): WerkatorConfig {
         if (config.server.publicBaseUrl.isNotBlank() ||
             config.server.nginx.serverName
                 .isBlank()
@@ -276,18 +276,18 @@ class ConfigLoader(
     }
 
     fun loadRaw(workingDir: Path = Paths.get(".")): Map<String, Any?> {
-        val repoInstall = loadFile(workingDir.resolve(".git/gittally/.gittally.yml").toFile())
-        val project = loadFile(workingDir.resolve(".gittally.yml").toFile())
+        val repoInstall = loadFile(workingDir.resolve(".git/werkator/.werkator.yml").toFile())
+        val project = loadFile(workingDir.resolve(".werkator.yml").toFile())
         // per file, so the message names the file to fix — the merged map has no provenance
-        checkVersion(project, ".gittally.yml", ROLLBACK_HINT)
-        checkVersion(repoInstall, ".git/gittally/.gittally.yml", ROLLBACK_HINT)
-        checkTriggerBlocks(project, ".gittally.yml", ROLLBACK_HINT)
-        checkTriggerBlocks(repoInstall, ".git/gittally/.gittally.yml", ROLLBACK_HINT)
+        checkVersion(project, ".werkator.yml", ROLLBACK_HINT)
+        checkVersion(repoInstall, ".git/werkator/.werkator.yml", ROLLBACK_HINT)
+        checkTriggerBlocks(project, ".werkator.yml", ROLLBACK_HINT)
+        checkTriggerBlocks(repoInstall, ".git/werkator/.werkator.yml", ROLLBACK_HINT)
         return deepMerge(project, repoInstall)
     }
 
     /**
-     * Enforces the `gitTally.version` declaration of one configuration file.
+     * Enforces the `werkator.version` declaration of one configuration file.
      * An incompatible file throws — reading it would mean honoring keys that mean
      * something else now, which is worse than not building. A file that merely exceeds
      * its own `below` marker is a warning, logged once: an unmaintained marker must
@@ -314,7 +314,7 @@ class ConfigLoader(
 
     @Suppress("UNCHECKED_CAST")
     private fun requirementOf(raw: Map<String, Any?>): VersionRequirement {
-        val version = (raw["gitTally"] as? Map<String, Any?>)?.get("version") as? Map<String, Any?> ?: return VersionRequirement()
+        val version = (raw["werkator"] as? Map<String, Any?>)?.get("version") as? Map<String, Any?> ?: return VersionRequirement()
         return VersionRequirement(
             since = version["since"]?.toString()?.trim().orEmpty(),
             below = version["below"]?.toString()?.trim().orEmpty(),
@@ -329,7 +329,7 @@ class ConfigLoader(
         return yaml.readValue(file, Map::class.java) as Map<String, Any?>
     }
 
-    /** Parses a `.gittally.yml` read from git (not from disk); blank or null yields no layer. */
+    /** Parses a `.werkator.yml` read from git (not from disk); blank or null yields no layer. */
     private fun parseYaml(text: String?): Map<String, Any?> {
         if (text.isNullOrBlank()) return emptyMap()
         @Suppress("UNCHECKED_CAST")
@@ -411,7 +411,7 @@ class ConfigLoader(
         private const val NO_TRIGGER_WARNING = "no-build-triggered"
 
         private const val ROLLBACK_HINT =
-            "Migrate the file, or roll back to the GitTally version it was written for."
+            "Migrate the file, or roll back to the werkator version it was written for."
 
         private const val BRANCH_HINT =
             "Migrate the file on this branch; the other branches keep building."

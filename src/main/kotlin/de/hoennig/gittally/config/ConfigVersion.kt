@@ -1,33 +1,33 @@
-package de.hoennig.gittally.config
+package de.hoennig.werkator.config
 
 /**
- * The GitTally version a configuration file declares itself for, the `gitTally.version`
+ * The werkator version a configuration file declares itself for, the `werkator.version`
  * section:
  *
  * ```yaml
- * gitTally:
+ * werkator:
  *   version:
- *     since: "0.9.16"   # always hard: an older GitTally refuses this file
- *     below: "2.0"      # GitTally decides how hard, see ConfigVersions.verdict
+ *     since: "0.9.16"   # always hard: an older werkator refuses this file
+ *     below: "2.0"      # werkator decides how hard, see ConfigVersions.verdict
  * ```
  *
  * There is deliberately no version of the file format itself (no `apiVersion`): no API is
- * involved — GitTally reads its own configuration — and only one configuration generation
+ * involved — werkator reads its own configuration — and only one configuration generation
  * is ever supported. The declared version exists to make an incompatibility nameable,
  * never to run two parsers.
  */
 data class VersionRequirement(
-    /** Oldest GitTally that understands this file; empty means the file does not say. */
+    /** Oldest werkator that understands this file; empty means the file does not say. */
     val since: String = "",
-    /** First GitTally this file was not released for; empty means no ceiling. */
+    /** First werkator this file was not released for; empty means no ceiling. */
     val below: String = "",
 )
 
-data class GitTallyMeta(
+data class werkatorMeta(
     val version: VersionRequirement = VersionRequirement(),
 )
 
-/** What a [VersionRequirement] means for the GitTally that reads the file. */
+/** What a [VersionRequirement] means for the werkator that reads the file. */
 sealed interface VersionVerdict {
     /** The running version is covered by the declaration. */
     data object Compatible : VersionVerdict
@@ -37,24 +37,24 @@ sealed interface VersionVerdict {
         val message: String,
     ) : VersionVerdict
 
-    /** Not usable: the file predates a change that GitTally cannot bridge. */
+    /** Not usable: the file predates a change that werkator cannot bridge. */
     data class Incompatible(
         val message: String,
     ) : VersionVerdict
 }
 
-/** A configuration file this GitTally must not read; carries the file's name in its message. */
+/** A configuration file this werkator must not read; carries the file's name in its message. */
 open class ConfigException(
     message: String,
 ) : RuntimeException(message)
 
-/** The file declares a GitTally that cannot read it, see [ConfigVersions]. */
+/** The file declares a werkator that cannot read it, see [ConfigVersions]. */
 class ConfigVersionException(
     message: String,
 ) : ConfigException(message)
 
 /**
- * The file is written in a shape this GitTally no longer reads. Refusing it is the point:
+ * The file is written in a shape this werkator no longer reads. Refusing it is the point:
  * a key that moved and is silently ignored means a build that quietly stops happening.
  */
 class ConfigFormatException(
@@ -64,7 +64,7 @@ class ConfigFormatException(
 object ConfigVersions {
     /**
      * The version in which the configuration format last changed incompatibly — a file
-     * written before it cannot be read by this GitTally. Empty while no such change has
+     * written before it cannot be read by this werkator. Empty while no such change has
      * happened; set it to the release that introduces one, together with the migration
      * note the message points at.
      */
@@ -76,13 +76,13 @@ object ConfigVersions {
     /**
      * Decides what [requirement] means for [running].
      *
-     * `since` is always hard — a file that needs a newer GitTally cannot be honored, and
+     * `since` is always hard — a file that needs a newer werkator cannot be honored, and
      * silently ignoring its unknown keys is exactly the failure mode this section exists
      * to prevent.
      *
      * `below` alone only warns: it is the team's release marker, and an unmaintained
      * marker must never stop a CI. Whether the running version really broke the file is
-     * GitTally's own knowledge ([FORMAT_BROKE_IN]) — a file written before that change
+     * werkator's own knowledge ([FORMAT_BROKE_IN]) — a file written before that change
      * and read after it is incompatible regardless of what it declares as its ceiling.
      */
     fun verdict(
@@ -95,13 +95,13 @@ object ConfigVersions {
         val since = parse(requirement.since)
         if (since != null && version < since) {
             return VersionVerdict.Incompatible(
-                "needs GitTally ${requirement.since} or newer (gitTally.version.since), this is $running",
+                "needs werkator ${requirement.since} or newer (werkator.version.since), this is $running",
             )
         }
         val broke = parse(brokeIn)
         if (since != null && broke != null && since < broke && version >= broke) {
             return VersionVerdict.Incompatible(
-                "is written for GitTally ${requirement.since} (gitTally.version.since), " +
+                "is written for werkator ${requirement.since} (werkator.version.since), " +
                     "but the configuration format changed incompatibly in $brokeIn" +
                     brokeDescription.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty(),
             )
@@ -109,7 +109,7 @@ object ConfigVersions {
         val below = parse(requirement.below)
         if (below != null && version >= below) {
             return VersionVerdict.Warn(
-                "was released for GitTally below ${requirement.below} (gitTally.version.below), this is $running",
+                "was released for werkator below ${requirement.below} (werkator.version.below), this is $running",
             )
         }
         return VersionVerdict.Compatible

@@ -1,7 +1,7 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.git.GitService
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain

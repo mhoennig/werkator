@@ -1,9 +1,9 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.config.GiteaConfig
-import de.hoennig.gittally.metrics.MetricAggregate
-import de.hoennig.gittally.metrics.SystemMetrics
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.config.GiteaConfig
+import de.hoennig.werkator.metrics.MetricAggregate
+import de.hoennig.werkator.metrics.SystemMetrics
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.Duration
@@ -32,7 +32,7 @@ class GiteaWebLinks(
             .joinToString("/") { URLEncoder.encode(it, StandardCharsets.UTF_8).replace("+", "%20") }
 }
 
-/** Display formatting shared by the server-rendered views; `gittally.js` renders the same formats. */
+/** Display formatting shared by the server-rendered views; `werkator.js` renders the same formats. */
 object UiFormats {
     private val timestampFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
@@ -69,7 +69,7 @@ object UiFormats {
     /**
      * CSS class highlighting a critical utilization: `metric-warn` from 80% of [total],
      * `metric-crit` from 90%, empty below or when either value is unavailable.
-     * `gittally.js` (`utilizationClass`) must apply the same thresholds.
+     * `werkator.js` (`utilizationClass`) must apply the same thresholds.
      */
     fun utilizationClass(
         used: Double?,
@@ -176,7 +176,7 @@ data class LogFileView(
     val failed: Boolean,
 )
 
-/** One card of the current-builds view; the live log is fetched by `gittally.js`. */
+/** One card of the current-builds view; the live log is fetched by `werkator.js`. */
 data class CurrentBuildView(
     val branch: String,
     /** The displayed build name; = [branch] unless a named auto-build slot triggered the build. */
@@ -194,7 +194,7 @@ data class CurrentBuildView(
 
 /**
  * One row of the system-metrics table. The [key] matches the JSON field of
- * `GET /api/system`, so `gittally.js` can update the cells in place.
+ * `GET /api/system`, so `werkator.js` can update the cells in place.
  */
 data class MetricRowView(
     val key: String,

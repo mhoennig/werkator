@@ -1,6 +1,6 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.git.GitService
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.file.shouldExist
 import io.kotest.matchers.shouldBe
@@ -17,7 +17,7 @@ class InitCommandTest : FunSpec() {
 
     init {
         test("creates config files with auto-detected values") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
 
             every { gitService.getTopLevel(tempDir) } returns tempDir
@@ -25,21 +25,21 @@ class InitCommandTest : FunSpec() {
 
             initCommand.run()
 
-            val projectConfig = tempDir.resolve(".gittally.yml")
+            val projectConfig = tempDir.resolve(".werkator.yml")
             projectConfig.toFile().shouldExist()
             val projectContent = projectConfig.toFile().readText()
             projectContent shouldContain "baseUrl: https://git.example.org"
             projectContent shouldContain "owner: my-org"
             projectContent shouldContain "repo: my-repo"
 
-            val repoConfig = tempDir.resolve(".git/gittally/.gittally.yml")
+            val repoConfig = tempDir.resolve(".git/werkator/.werkator.yml")
             repoConfig.toFile().shouldExist()
             val repoContent = repoConfig.toFile().readText()
             repoContent shouldContain "account: \"\"" // no user in https URL
         }
 
         test("creates the secrets config and its directory readable only by the owner") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
 
             every { gitService.getTopLevel(tempDir) } returns tempDir
@@ -47,13 +47,13 @@ class InitCommandTest : FunSpec() {
 
             initCommand.run()
 
-            val repoConfig = tempDir.resolve(".git/gittally/.gittally.yml")
+            val repoConfig = tempDir.resolve(".git/werkator/.werkator.yml")
             PosixFilePermissions.toString(Files.getPosixFilePermissions(repoConfig)) shouldBe "rw-------"
             PosixFilePermissions.toString(Files.getPosixFilePermissions(repoConfig.parent)) shouldBe "rwx------"
         }
 
         test("detects account from https url") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
 
             every { gitService.getTopLevel(tempDir) } returns tempDir
@@ -61,13 +61,13 @@ class InitCommandTest : FunSpec() {
 
             initCommand.run()
 
-            val repoConfig = tempDir.resolve(".git/gittally/.gittally.yml")
+            val repoConfig = tempDir.resolve(".git/werkator/.werkator.yml")
             val repoContent = repoConfig.toFile().readText()
             repoContent shouldContain "account: \"ci-user\""
         }
 
         test("parses ssh url") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
 
             every { gitService.getTopLevel(tempDir) } returns tempDir
@@ -75,7 +75,7 @@ class InitCommandTest : FunSpec() {
 
             initCommand.run()
 
-            val projectConfig = tempDir.resolve(".gittally.yml")
+            val projectConfig = tempDir.resolve(".werkator.yml")
             val projectContent = projectConfig.toFile().readText()
             projectContent shouldContain "baseUrl: https://git.example.org" // fallback to https
             projectContent shouldContain "owner: my-org"
@@ -83,10 +83,10 @@ class InitCommandTest : FunSpec() {
         }
 
         test("does not overwrite existing files") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
 
-            val projectConfig = tempDir.resolve(".gittally.yml")
+            val projectConfig = tempDir.resolve(".werkator.yml")
             projectConfig.toFile().writeText("existing: content")
 
             every { gitService.getTopLevel(tempDir) } returns tempDir
@@ -98,10 +98,10 @@ class InitCommandTest : FunSpec() {
         }
 
         test("--systemd generates unit and environment file with install instructions") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
             initCommand.systemd = true
-            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/gittally.jar") }
+            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/werkator.jar") }
             initCommand.javaExecutableResolver = { Paths.get("/usr/bin/java") }
 
             every { gitService.getTopLevel(tempDir) } returns tempDir
@@ -110,20 +110,20 @@ class InitCommandTest : FunSpec() {
             initCommand.run()
 
             val unitName = SystemdServiceFiles.unitName(tempDir)
-            val unitFile = tempDir.resolve(".git/gittally/$unitName")
+            val unitFile = tempDir.resolve(".git/werkator/$unitName")
             unitFile.toFile().shouldExist()
             val unitContent = unitFile.toFile().readText()
             unitContent shouldContain "WorkingDirectory=$tempDir"
-            unitContent shouldContain """ExecStart="/usr/bin/java" ${'$'}JAVA_OPTS -jar "/home/ci/bin/gittally.jar" server"""
+            unitContent shouldContain """ExecStart="/usr/bin/java" ${'$'}JAVA_OPTS -jar "/home/ci/bin/werkator.jar" server"""
 
-            tempDir.resolve(".git/gittally/gittally.env").toFile().shouldExist()
+            tempDir.resolve(".git/werkator/werkator.env").toFile().shouldExist()
         }
 
         test("--systemd also generates the nightly Docker cleanup timer") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
             initCommand.systemd = true
-            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/gittally.jar") }
+            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/werkator.jar") }
             initCommand.javaExecutableResolver = { Paths.get("/usr/bin/java") }
 
             every { gitService.getTopLevel(tempDir) } returns tempDir
@@ -131,22 +131,22 @@ class InitCommandTest : FunSpec() {
 
             initCommand.run()
 
-            val pruneService = tempDir.resolve(".git/gittally/gittally-docker-prune.service")
+            val pruneService = tempDir.resolve(".git/werkator/werkator-docker-prune.service")
             pruneService.toFile().shouldExist()
             pruneService.toFile().readText() shouldContain "docker system prune -af"
-            val pruneTimer = tempDir.resolve(".git/gittally/gittally-docker-prune.timer")
+            val pruneTimer = tempDir.resolve(".git/werkator/werkator-docker-prune.timer")
             pruneTimer.toFile().shouldExist()
             pruneTimer.toFile().readText() shouldContain "OnCalendar=*-*-* 02:00:00"
         }
 
         test("--systemd keeps an existing environment file") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
             initCommand.systemd = true
-            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/gittally.jar") }
+            initCommand.jarPathResolver = { Paths.get("/home/ci/bin/werkator.jar") }
             initCommand.javaExecutableResolver = { Paths.get("/usr/bin/java") }
 
-            val envFile = tempDir.resolve(".git/gittally/gittally.env")
+            val envFile = tempDir.resolve(".git/werkator/werkator.env")
             Files.createDirectories(envFile.parent)
             envFile.toFile().writeText("JAVA_OPTS=-Xmx1g\n")
 
@@ -159,7 +159,7 @@ class InitCommandTest : FunSpec() {
         }
 
         test("--systemd without a resolvable jar path generates no unit file") {
-            val tempDir = Files.createTempDirectory("gittally-init-test")
+            val tempDir = Files.createTempDirectory("werkator-init-test")
             initCommand.workingDir = tempDir
             initCommand.systemd = true
             initCommand.jarPathResolver = { null }
@@ -169,12 +169,12 @@ class InitCommandTest : FunSpec() {
 
             initCommand.run()
 
-            val unitFile = tempDir.resolve(".git/gittally/${SystemdServiceFiles.unitName(tempDir)}")
+            val unitFile = tempDir.resolve(".git/werkator/${SystemdServiceFiles.unitName(tempDir)}")
             unitFile.toFile().exists() shouldBe false
         }
 
         test("reproduces path root mismatch issue") {
-            val tempDir = Files.createTempDirectory("gittally-init-test").toAbsolutePath().normalize()
+            val tempDir = Files.createTempDirectory("werkator-init-test").toAbsolutePath().normalize()
             initCommand.workingDir = Paths.get(".") // Set to relative path as in real app
 
             // We need to mock getTopLevel to return the absolute path

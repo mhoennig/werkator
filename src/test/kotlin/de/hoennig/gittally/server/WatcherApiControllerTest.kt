@@ -1,8 +1,8 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import com.ninjasquad.springmockk.MockkBean
-import de.hoennig.gittally.watcher.Watcher
-import de.hoennig.gittally.watcher.WatcherState
+import de.hoennig.werkator.watcher.Watcher
+import de.hoennig.werkator.watcher.WatcherState
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every

@@ -1,6 +1,6 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.SecretFiles
+import de.hoennig.werkator.SecretFiles
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest

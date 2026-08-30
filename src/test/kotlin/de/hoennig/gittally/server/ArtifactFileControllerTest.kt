@@ -1,9 +1,9 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import com.ninjasquad.springmockk.MockkBean
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildStatus
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildStatus
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -32,7 +32,7 @@ class ArtifactFileControllerTest : FunSpec() {
     @MockkBean
     lateinit var branchPermalinks: BranchPermalinks
 
-    private val artifactDir: Path = Files.createTempDirectory("gittally-artifact-serve-test")
+    private val artifactDir: Path = Files.createTempDirectory("werkator-artifact-serve-test")
 
     private val greenBuild =
         BuildResult(

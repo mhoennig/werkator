@@ -1,10 +1,10 @@
-package de.hoennig.gittally.artifacts
+package de.hoennig.werkator.artifacts
 
-import de.hoennig.gittally.build.ArtifactKeys
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.config.BranchConfig
-import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.werkator.build.ArtifactKeys
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.ConfigLoader
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.FileVisitResult
@@ -22,7 +22,7 @@ import kotlin.concurrent.write
 /**
  * Stores build artifacts on the filesystem under `<root>/branches/<artifactKey>/`.
  * The root is `artifacts.rootDir` from the config, or the platform default
- * `XDG_STATE_HOME` (falling back to `~/.local/state`) plus `/gittally/artifacts/<repo-key>` when unset —
+ * `XDG_STATE_HOME` (falling back to `~/.local/state`) plus `/werkator/artifacts/<repo-key>` when unset —
  * deliberately not `/tmp` like legacy, where artifacts vanished on reboot.
  *
  * Each build is assembled in a temporary directory next to its target and moved
@@ -115,7 +115,7 @@ class FileArtifactStore(
             env("XDG_STATE_HOME")?.takeIf { it.isNotBlank() }?.let { Paths.get(it) }
                 ?: Paths.get(System.getProperty("user.home"), ".local", "state")
         return stateHome
-            .resolve("gittally")
+            .resolve("werkator")
             .resolve("artifacts")
             .resolve(ArtifactKeys.repoKey(workingDir))
             .toAbsolutePath()
@@ -160,9 +160,9 @@ class FileArtifactStore(
         }
 
     /**
-     * The settings [build] ran with, from the build [workspace]'s `.gittally.yml` layered
+     * The settings [build] ran with, from the build [workspace]'s `.werkator.yml` layered
      * on top of the primary config (see [ConfigLoader.loadForWorktree]) — resolved through
-     * [GitTallyConfig.buildSettings], so a job's own `artifactDirs` are archived and not
+     * [werkatorConfig.buildSettings], so a job's own `artifactDirs` are archived and not
      * only the ones its branch would have used.
      */
     private fun buildSettings(

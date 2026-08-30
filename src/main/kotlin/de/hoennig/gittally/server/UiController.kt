@@ -1,14 +1,14 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.git.GitService
-import de.hoennig.gittally.metrics.SystemMetricsCollector
-import de.hoennig.gittally.watcher.Watcher
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.metrics.SystemMetricsCollector
+import de.hoennig.werkator.watcher.Watcher
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
@@ -28,7 +28,7 @@ import kotlin.streams.asSequence
 
 /**
  * Server-rendered Thymeleaf views over the JSON API. The pages render the full
- * state server-side (usable without JavaScript); `gittally.js` then polls the
+ * state server-side (usable without JavaScript); `werkator.js` then polls the
  * `/api/…` endpoints and re-renders the table bodies — pages are never re-fetched
  * and diffed like legacy, so the UI cannot get stuck on a loading animation.
  */

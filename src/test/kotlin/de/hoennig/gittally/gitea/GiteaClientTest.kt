@@ -1,4 +1,4 @@
-package de.hoennig.gittally.gitea
+package de.hoennig.werkator.gitea
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
@@ -12,11 +12,11 @@ import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.GitConfig
-import de.hoennig.gittally.config.GitTallyConfig
-import de.hoennig.gittally.config.GiteaConfig
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.GitConfig
+import de.hoennig.werkator.config.WerkatorConfig
+import de.hoennig.werkator.config.GiteaConfig
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -41,9 +41,9 @@ class GiteaClientTest :
             token: String = "secret-token",
         ) {
             every { configLoader.load(any()) } returns
-                GitTallyConfig(
+                WerkatorConfig(
                     git = GitConfig(token = token),
-                    gitea = GiteaConfig(baseUrl = baseUrl, owner = owner, repo = repo, statusContext = "GitTally"),
+                    gitea = GiteaConfig(baseUrl = baseUrl, owner = owner, repo = repo, statusContext = "werkator"),
                 )
         }
 
@@ -93,7 +93,7 @@ class GiteaClientTest :
                                 """
                                 {
                                   "state": "success",
-                                  "context": "GitTally",
+                                  "context": "werkator",
                                   "description": "Build succeeded",
                                   "target_url": "https://ci.example.org/branches/main/index.html"
                                 }
@@ -111,12 +111,12 @@ class GiteaClientTest :
                     sha = "abc123",
                     status = BuildStatus.SUCCESS,
                     description = "d",
-                    context = "GitTally/quick",
+                    context = "werkator/quick",
                 ) shouldBe true
 
                 server.verify(
                     postRequestedFor(urlEqualTo(publishUrl))
-                        .withRequestBody(matchingJsonPath("${'$'}.context", equalTo("GitTally/quick"))),
+                        .withRequestBody(matchingJsonPath("${'$'}.context", equalTo("werkator/quick"))),
                 )
             }
 
@@ -127,7 +127,7 @@ class GiteaClientTest :
 
                 server.verify(
                     postRequestedFor(urlEqualTo(publishUrl))
-                        .withRequestBody(matchingJsonPath("${'$'}.context", equalTo("GitTally"))),
+                        .withRequestBody(matchingJsonPath("${'$'}.context", equalTo("werkator"))),
                 )
             }
 
@@ -139,7 +139,7 @@ class GiteaClientTest :
                 server.verify(
                     postRequestedFor(urlEqualTo(publishUrl))
                         .withRequestBody(
-                            equalToJson("""{"state": "pending", "context": "GitTally", "description": "Build running"}"""),
+                            equalToJson("""{"state": "pending", "context": "werkator", "description": "Build running"}"""),
                         ),
                 )
             }
@@ -162,7 +162,7 @@ class GiteaClientTest :
                     client.publishStatus("abc123", status, "d") shouldBe true
                     server.verify(
                         postRequestedFor(urlEqualTo(publishUrl))
-                            .withRequestBody(equalToJson("""{"state": "$state", "context": "GitTally", "description": "d"}""")),
+                            .withRequestBody(equalToJson("""{"state": "$state", "context": "werkator", "description": "d"}""")),
                     )
                 }
             }
@@ -207,8 +207,8 @@ class GiteaClientTest :
                             """
                             [
                               {"context": "other-ci", "state": "failure"},
-                              {"context": "GitTally", "state": "success", "description": "Build succeeded"},
-                              {"context": "GitTally", "state": "pending"}
+                              {"context": "werkator", "state": "success", "description": "Build succeeded"},
+                              {"context": "werkator", "state": "pending"}
                             ]
                             """.trimIndent(),
                         ),
@@ -237,7 +237,7 @@ class GiteaClientTest :
             }
 
             test("returns Error for an unknown state value") {
-                server.stubFor(get(readUrl).willReturn(okJson("""[{"context": "GitTally", "state": "hovering"}]""")))
+                server.stubFor(get(readUrl).willReturn(okJson("""[{"context": "werkator", "state": "hovering"}]""")))
 
                 client.readStatus("abc123").shouldBeInstanceOf<GiteaStatusResult.Error>()
             }

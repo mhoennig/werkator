@@ -1,4 +1,4 @@
-package de.hoennig.gittally.metrics
+package de.hoennig.werkator.metrics
 
 import java.time.Instant
 

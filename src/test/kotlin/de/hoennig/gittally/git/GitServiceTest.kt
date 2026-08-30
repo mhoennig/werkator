@@ -1,6 +1,6 @@
-package de.hoennig.gittally.git
+package de.hoennig.werkator.git
 
-import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.werkator.config.ConfigLoader
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -27,16 +27,16 @@ class GitServiceTest : FunSpec() {
     // hermetic git: fixed identity, no user/system config (hooks, gpg signing, ...)
     private val gitEnvironment =
         mapOf(
-            "GIT_AUTHOR_NAME" to "GitTally Test",
+            "GIT_AUTHOR_NAME" to "werkator Test",
             "GIT_AUTHOR_EMAIL" to "test@example.com",
-            "GIT_COMMITTER_NAME" to "GitTally Test",
+            "GIT_COMMITTER_NAME" to "werkator Test",
             "GIT_COMMITTER_EMAIL" to "test@example.com",
             "GIT_CONFIG_GLOBAL" to "/dev/null",
             "GIT_CONFIG_SYSTEM" to "/dev/null",
         )
 
     private inner class Fixture {
-        val root: Path = Files.createTempDirectory("gittally-git-test")
+        val root: Path = Files.createTempDirectory("werkator-git-test")
         val origin: Path = root.resolve("origin.git")
         val seed: Path = root.resolve("seed")
         val work: Path = root.resolve("work")
@@ -310,7 +310,7 @@ class GitServiceTest : FunSpec() {
         test("worktreeAdd creates a detached worktree at the commit") {
             val fixture = Fixture()
             val head = service.headCommit(fixture.work)
-            val worktree = fixture.work.resolve(".git/gittally/worktrees/main-test")
+            val worktree = fixture.work.resolve(".git/werkator/worktrees/main-test")
 
             service.worktreeAdd(worktree, head, fixture.work)
 
@@ -324,7 +324,7 @@ class GitServiceTest : FunSpec() {
             val firstCommit = service.headCommit(fixture.work)
             fixture.commitFile(fixture.work, "second.txt", "second")
             val secondCommit = service.headCommit(fixture.work)
-            val worktree = fixture.work.resolve(".git/gittally/worktrees/main-test")
+            val worktree = fixture.work.resolve(".git/werkator/worktrees/main-test")
             service.worktreeAdd(worktree, firstCommit, fixture.work)
             Files.writeString(worktree.resolve("README.md"), "dirty")
 
@@ -338,7 +338,7 @@ class GitServiceTest : FunSpec() {
         test("worktreePrune allows re-adding a worktree whose directory was deleted") {
             val fixture = Fixture()
             val head = service.headCommit(fixture.work)
-            val worktree = fixture.work.resolve(".git/gittally/worktrees/main-test")
+            val worktree = fixture.work.resolve(".git/werkator/worktrees/main-test")
             service.worktreeAdd(worktree, head, fixture.work)
             worktree.toFile().deleteRecursively()
 

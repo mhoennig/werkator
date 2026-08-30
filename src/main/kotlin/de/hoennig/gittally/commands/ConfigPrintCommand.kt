@@ -1,6 +1,6 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.werkator.config.ConfigLoader
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option

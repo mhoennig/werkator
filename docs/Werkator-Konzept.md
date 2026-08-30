@@ -1,8 +1,8 @@
-# GitTally – Konzept und Architekturübersicht
+# Werkator – Konzept und Architekturübersicht
 
 ## Motivation
 
-GitTally ist ein bewusst minimalistisches und stark opinionated Continuous-Integration-System (CI), das später um Continuous Delivery (CD) erweitert werden kann.
+Werkator ist ein bewusst minimalistisches und stark opinionated Continuous-Integration-System (CI), das später um Continuous Delivery (CD) erweitert werden kann.
 
 Ziel ist es, die Komplexität klassischer CI-Systeme wie Jenkins erheblich zu reduzieren und stattdessen einen einfachen, nachvollziehbaren und git-zentrierten Ansatz zu verfolgen.
 
@@ -119,15 +119,15 @@ flowchart LR
 
 ### Commit-basierte Builds
 
-GitTally baut immer einen konkreten Commit und niemals nur einen Branchnamen.
+Werkator baut immer einen konkreten Commit und niemals nur einen Branchnamen.
 Buildergebnisse werden intern trotzdem pro Branch geführt: derselbe Commit auf zwei Branches ergibt zwei getrennte Builds mit eigenem Status, eigenen Artefakten und eigenem Worktree.
 Das ist gewollt, weil Buildläufe den Branchnamen einbeziehen können (Umgebungsvariable `branch`).
 In Gitea hängt der Commit-Status dagegen am Commit-SHA: zeigen zwei Branches auf denselben Commit, überschreiben sich ihre Statusmeldungen gegenseitig (der zuletzt gemeldete gewinnt).
-Falls das je stört, kann der Branchname später in den Status-Context aufgenommen werden (z. B. `GitTally/main`), sodass ein Commit mehrere unabhängige Statuszeilen bekommt.
+Falls das je stört, kann der Branchname später in den Status-Context aufgenommen werden (z. B. `werkator/main`), sodass ein Commit mehrere unabhängige Statuszeilen bekommt.
 
 ### Worktree pro Branch
 
-Jeder Branch erhält einen eigenen, wiederverwendeten Worktree unter `.git/gittally/worktrees/<branchKey>`.
+Jeder Branch erhält einen eigenen, wiederverwendeten Worktree unter `.git/werkator/worktrees/<branchKey>`.
 Der Branch-Key ist der dateisystem-sicher bereinigte Branchname plus 12 Zeichen SHA-256 des Originalnamens (z. B. `main-0d6e4079e367`).
 Der Hash schützt nur vor Kollisionen durch die Bereinigung (`feature/x` vs. `feature_x`); der Commit ist bewusst nicht Teil des Keys, damit das Verzeichnis über alle Builds des Branches stabil bleibt.
 Der zu bauende Commit wird darin detached ausgecheckt.
@@ -145,8 +145,8 @@ Ob ein neuer Commit den laufenden Build seines Branches stattdessen abbrechen so
 
 1. Eingebaute Defaults
 2. Globale Server-Konfiguration
-3. Repository-Installation (.git/gittally/.gittally.yml)
-4. Projektkonfiguration (.gittally.yml)
+3. Repository-Installation (.git/werkator/.werkator.yml)
+4. Projektkonfiguration (.werkator.yml)
 5. Branchprofile
 
 ## Bootstrapping
@@ -156,18 +156,18 @@ Ob ein neuer Commit den laufenden Build seines Branches stattdessen abbrechen so
 - Java Runtime
 - Git Repository
 - Ausgecheckter Workspace
-- GitTally JAR
+- Werkator JAR
 
 ### Initialisierung
 
 ```bash
-java -jar build/libs/gittally.jar init
+java -jar build/libs/werkator.jar init
 ```
 
 ### Serverstart
 
 ```bash
-java -jar build/libs/gittally.jar server
+java -jar build/libs/werkator.jar server
 ```
 
 Für den Dauerbetrieb als systemd-User-Service siehe [deployment.md](deployment.md) (`init --systemd`).
@@ -175,13 +175,13 @@ Für den Dauerbetrieb als systemd-User-Service siehe [deployment.md](deployment.
 ### Konfigurationsanzeige
 
 ```bash
-java -jar build/libs/gittally.jar config:print
-java -jar build/libs/gittally.jar config:print --full
+java -jar build/libs/werkator.jar config:print
+java -jar build/libs/werkator.jar config:print --full
 ```
 
 ## Erweiterungen
 
-- Continuous Delivery (CD; das Deployment von GitTally selbst ist in [deployment.md](deployment.md) beschrieben)
+- Continuous Delivery (CD; das Deployment von Werkator selbst ist in [deployment.md](deployment.md) beschrieben)
 - SQLite statt Dateisystem
 - Mehrere BuildWorker
 - Multi-Repository-Verwaltung

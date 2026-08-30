@@ -1,4 +1,4 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 enum class BuildStatus {
     PENDING,

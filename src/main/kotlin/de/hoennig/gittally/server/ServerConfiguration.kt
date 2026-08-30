@@ -1,4 +1,4 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -12,5 +12,5 @@ class ServerConfiguration {
      * until the first guarded request, so the bean is safe outside a git repository.
      */
     @Bean
-    fun controlTokenService(): ControlTokenService = ControlTokenService(Paths.get(".git/gittally/control-token"))
+    fun controlTokenService(): ControlTokenService = ControlTokenService(Paths.get(".git/werkator/control-token"))
 }

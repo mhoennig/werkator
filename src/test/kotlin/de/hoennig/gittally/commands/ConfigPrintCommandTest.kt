@@ -1,8 +1,8 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.GitConfig
-import de.hoennig.gittally.config.GitTallyConfig
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.GitConfig
+import de.hoennig.werkator.config.WerkatorConfig
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -26,7 +26,7 @@ class ConfigPrintCommandTest : FunSpec() {
             clearMocks(configLoader)
             every { configLoader.toYaml(any()) } answers { yamlWriter.toYaml(firstArg()) }
             every { configLoader.loadRaw() } returns rawConfig
-            every { configLoader.load() } returns GitTallyConfig(git = GitConfig(account = "ci-user", token = "s3cr3t-token"))
+            every { configLoader.load() } returns WerkatorConfig(git = GitConfig(account = "ci-user", token = "s3cr3t-token"))
             command.full = false
             command.showSecrets = false
         }

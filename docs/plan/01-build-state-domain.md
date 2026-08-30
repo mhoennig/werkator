@@ -9,14 +9,14 @@ A tested domain model for build results plus a persistent repository, replacing 
 
 ## Design
 
-Create package `de.hoennig.gittally.build`:
+Create package `de.hoennig.werkator.build`:
 
 - `BuildStatus` enum: `PENDING`, `RUNNING`, `SUCCESS`, `FAILED`, `INTERRUPTED`, `CANCELLED`.
   Add `isTerminal`, `isRestartable` (pending/running/interrupted) properties.
 - `BuildResult` data class: branch, commit SHA, status, startedAt, duration, artifactKey.
   Use `java.time.Instant`/`Duration`; format only at the edges.
 - `BuildResultRepository` interface: append, update status of latest entry for a branch, query latest per branch, query history, delete entry, prune.
-- `FileBuildResultRepository`: JSON file at `.git/gittally/build-results.json`.
+- `FileBuildResultRepository`: JSON file at `.git/werkator/build-results.json`.
   Write atomically (write temp file, then `Files.move` with `ATOMIC_MOVE`).
   Reuse the Jackson YAML/JSON setup style from `ConfigLoader`.
 
@@ -52,7 +52,7 @@ Kotest `FunSpec`, no Spring context needed.
 
 ## Execution Notes (done 2026-07-07)
 
-Implemented as specified in `de.hoennig.gittally.build`; build green, 19 new tests.
+Implemented as specified in `de.hoennig.werkator.build`; build green, 19 new tests.
 Deviations and details:
 
 - Added `jackson-datatype-jsr310` to `build.gradle.kts` for `Instant`/`Duration` JSON support (ISO-8601 strings).

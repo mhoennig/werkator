@@ -1,4 +1,4 @@
-package de.hoennig.gittally.watcher
+package de.hoennig.werkator.watcher
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -11,7 +11,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 class AutoBuildStateTest : FunSpec() {
-    private fun stateFile(): Path = Files.createTempDirectory("gittally-autobuild-test").resolve("auto-builds.json")
+    private fun stateFile(): Path = Files.createTempDirectory("werkator-autobuild-test").resolve("auto-builds.json")
 
     init {
         test("latestDueSlot picks the latest slot at or before now") {

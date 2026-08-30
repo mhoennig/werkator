@@ -1,8 +1,8 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.BranchConfig
-import de.hoennig.gittally.config.DockerConfig
-import de.hoennig.gittally.git.GitCommandRunner
+import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.DockerConfig
+import de.hoennig.werkator.git.GitCommandRunner
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.nio.file.Files
@@ -23,7 +23,7 @@ import java.nio.file.Path
  * same container run; under a rootless daemon the container runs as root, which
  * already is the host user, so the repair chown degenerates to `0:0`.
  * Git works inside the container: the primary `.git` is mounted read-only with
- * `.git/gittally/` masked, see [gitMetadataMounts].
+ * `.git/werkator/` masked, see [gitMetadataMounts].
  */
 @Component
 class DockerBuildRunner(
@@ -114,11 +114,11 @@ class DockerBuildRunner(
                 "docker",
                 "build",
                 "--label",
-                "org.gittally.dockerfile=${docker.dockerfile}",
+                "org.werkator.dockerfile=${docker.dockerfile}",
                 "--label",
-                "org.gittally.dockerfile-sha256=$dockerfileHash",
+                "org.werkator.dockerfile-sha256=$dockerfileHash",
                 "--label",
-                "org.gittally.build-context=${docker.context}",
+                "org.werkator.build-context=${docker.context}",
                 "--label",
                 "${DockerImageInputs.INPUTS_LABEL}=$inputsHash",
                 "-t",
@@ -194,11 +194,11 @@ class DockerBuildRunner(
                     "ps",
                     "-aq",
                     "--filter",
-                    "label=$GITTALLY_LABEL=true",
+                    "label=$werkator_LABEL=true",
                     "--filter",
-                    "label=$GITTALLY_LABEL.repository=$repoKey",
+                    "label=$werkator_LABEL.repository=$repoKey",
                     "--filter",
-                    "label=$GITTALLY_LABEL.role=build",
+                    "label=$werkator_LABEL.role=build",
                 ),
                 repoDir,
             )
@@ -238,11 +238,11 @@ class DockerBuildRunner(
         args +=
             listOf(
                 "--label",
-                "$GITTALLY_LABEL=true",
+                "$werkator_LABEL=true",
                 "--label",
-                "$GITTALLY_LABEL.repository=$repoKey",
+                "$werkator_LABEL.repository=$repoKey",
                 "--label",
-                "$GITTALLY_LABEL.role=build",
+                "$werkator_LABEL.role=build",
             )
         args += listOf("--workdir", "$workspace", "--volume", "$workspace:$workspace")
         args += gitMetadataMounts(workspace, repoDir)
@@ -279,12 +279,12 @@ class DockerBuildRunner(
     }
 
     /**
-     * Makes git work inside the build container without exposing GitTally's secrets.
+     * Makes git work inside the build container without exposing werkator's secrets.
      *
      * The workspace is a git worktree whose `.git` file points into the primary
      * repository's `.git`, which is not part of the workspace mount — so any git call
      * in the build would fail. Three layered mounts fix that (Docker nests mounts by
-     * target path): the primary `.git` read-only, an empty tmpfs masking `.git/gittally/`
+     * target path): the primary `.git` read-only, an empty tmpfs masking `.git/werkator/`
      * (machine config with `git.token`, control token, build state — the workspace bind
      * resurfaces only this build's own worktree inside it), and this worktree's admin
      * directory read-write, so index-refreshing commands like `git status` keep working.
@@ -312,9 +312,9 @@ class DockerBuildRunner(
             return emptyList()
         }
         val args = mutableListOf("--volume", "$gitDir:$gitDir:ro")
-        val gittallyDir = gitDir.resolve("gittally")
-        if (Files.isDirectory(gittallyDir)) {
-            args += listOf("--tmpfs", "$gittallyDir")
+        val werkatorDir = gitDir.resolve("werkator")
+        if (Files.isDirectory(werkatorDir)) {
+            args += listOf("--tmpfs", "$werkatorDir")
         }
         args += listOf("--volume", "$adminDir:$adminDir")
         return args
@@ -326,15 +326,15 @@ class DockerBuildRunner(
     ): String = commandRunner.runOrThrow(listOf("id", flag), repoDir).stdout.trim()
 
     companion object {
-        /** Container label namespace; legacy used `org.hostsharing.gittally`. */
-        const val GITTALLY_LABEL = "org.hoennig.gittally"
+        /** Container label namespace; legacy used `org.hostsharing.werkator`. */
+        const val werkator_LABEL = "org.hoennig.werkator"
 
-        fun gradleVolumeName(repoKey: String): String = "gittally-gradle-$repoKey"
+        fun gradleVolumeName(repoKey: String): String = "werkator-gradle-$repoKey"
 
         fun containerName(
             repoKey: String,
             branch: String?,
-        ): String = "gittally-build-$repoKey" + (branch?.let { "-${ArtifactKeys.branchKey(it)}" } ?: "")
+        ): String = "werkator-build-$repoKey" + (branch?.let { "-${ArtifactKeys.branchKey(it)}" } ?: "")
 
         private val INSPECT_INPUTS_LABEL_FORMAT = """{{ index .Config.Labels "${DockerImageInputs.INPUTS_LABEL}" }}"""
 

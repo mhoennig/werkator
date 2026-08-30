@@ -1,4 +1,4 @@
-package de.hoennig.gittally.config
+package de.hoennig.werkator.config
 
 import java.time.Duration
 

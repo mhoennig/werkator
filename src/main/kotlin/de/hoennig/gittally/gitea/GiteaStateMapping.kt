@@ -1,6 +1,6 @@
-package de.hoennig.gittally.gitea
+package de.hoennig.werkator.gitea
 
-import de.hoennig.gittally.build.BuildStatus
+import de.hoennig.werkator.build.BuildStatus
 
 /**
  * Gitea commit-status state published for this build status.

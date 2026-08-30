@@ -1,7 +1,7 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.watcher.Watcher
-import de.hoennig.gittally.watcher.WatcherState
+import de.hoennig.werkator.watcher.Watcher
+import de.hoennig.werkator.watcher.WatcherState
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
 

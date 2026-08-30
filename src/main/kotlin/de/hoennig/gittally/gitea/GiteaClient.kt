@@ -1,13 +1,13 @@
-package de.hoennig.gittally.gitea
+package de.hoennig.werkator.gitea
 
 import com.fasterxml.jackson.core.JacksonException
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.GitTallyConfig
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.WerkatorConfig
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
@@ -170,7 +170,7 @@ class GiteaClient(
         }
     }
 
-    private fun isEnabled(config: GitTallyConfig): Boolean =
+    private fun isEnabled(config: WerkatorConfig): Boolean =
         config.gitea.baseUrl.isNotBlank() &&
             config.gitea.owner.isNotBlank() &&
             config.gitea.repo.isNotBlank() &&
@@ -182,7 +182,7 @@ class GiteaClient(
             HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build(),
         ).apply { setReadTimeout(REQUEST_TIMEOUT) }
 
-    private fun restClient(config: GitTallyConfig): RestClient =
+    private fun restClient(config: WerkatorConfig): RestClient =
         RestClient
             .builder()
             .requestFactory(requestFactory)

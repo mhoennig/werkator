@@ -1,11 +1,11 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 import java.nio.file.Path
 
 /**
  * Persists the artifacts of finished builds (logs plus configured report directories)
  * and prunes them together with the result retention.
- * Implemented by `de.hoennig.gittally.artifacts.FileArtifactStore`.
+ * Implemented by `de.hoennig.werkator.artifacts.FileArtifactStore`.
  */
 interface ArtifactStore {
     /**

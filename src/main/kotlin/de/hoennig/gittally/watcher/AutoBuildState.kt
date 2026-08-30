@@ -1,4 +1,4 @@
-package de.hoennig.gittally.watcher
+package de.hoennig.werkator.watcher
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -74,7 +74,7 @@ object AutoBuildSlots {
 
 /**
  * Persists which auto-build slots already triggered as a JSON file,
- * e.g. `.git/gittally/auto-builds.json` (replaces the legacy `auto-builds.tsv`).
+ * e.g. `.git/werkator/auto-builds.json` (replaces the legacy `auto-builds.tsv`).
  * Entries of past days are dropped on write, so the file never grows unbounded.
  */
 class FileAutoBuildState(

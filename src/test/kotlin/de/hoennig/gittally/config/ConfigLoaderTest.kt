@@ -1,4 +1,4 @@
-package de.hoennig.gittally.config
+package de.hoennig.werkator.config
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -18,7 +18,7 @@ import java.util.Properties
 class ConfigLoaderTest : FunSpec() {
     private val loader = ConfigLoader()
 
-    /** A loader that knows which GitTally it is, for the `gitTally.version` checks. */
+    /** A loader that knows which werkator it is, for the `werkator.version` checks. */
     private fun loaderRunning(version: String): ConfigLoader {
         val provider = mockk<ObjectProvider<BuildProperties>>()
         every { provider.getIfAvailable() } returns BuildProperties(Properties().apply { setProperty("version", version) })
@@ -27,18 +27,18 @@ class ConfigLoaderTest : FunSpec() {
 
     init {
         test("returns defaults when no config files exist") {
-            val dir = Files.createTempDirectory("gittally-test")
-            loader.load(dir) shouldBe GitTallyConfig()
+            val dir = Files.createTempDirectory("werkator-test")
+            loader.load(dir) shouldBe WerkatorConfig()
         }
 
         test("loadRaw returns empty map when no config files exist") {
-            val dir = Files.createTempDirectory("gittally-test")
+            val dir = Files.createTempDirectory("werkator-test")
             loader.loadRaw(dir).shouldBeEmpty()
         }
 
-        test("reads gitea config from .gittally.yml") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+        test("reads gitea config from .werkator.yml") {
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 gitea:
                   owner: my-org
@@ -51,10 +51,10 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("reads executor.maxConcurrent and defaults it to 1") {
-            val dir = Files.createTempDirectory("gittally-test")
+            val dir = Files.createTempDirectory("werkator-test")
             loader.load(dir).executor.maxConcurrent shouldBe 1
 
-            dir.resolve(".gittally.yml").toFile().writeText(
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 executor:
                   maxConcurrent: 3
@@ -64,8 +64,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("the builds section holds named build definitions") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 executor:
                   maxConcurrent: 2
@@ -100,8 +100,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("an explicit builds.default entry overrides the implicit default build") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   default:
@@ -113,11 +113,11 @@ class ConfigLoaderTest : FunSpec() {
             loader.load(dir).effectiveBuildDefinitions()["default"] shouldBe BuildDefinition(trigger = TriggerConfig(onPush = false))
         }
 
-        test("a config that needs a newer GitTally is refused, naming the file and both versions") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+        test("a config that needs a newer werkator is refused, naming the file and both versions") {
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
-                gitTally:
+                werkator:
                   version:
                     since: "0.9.16"
                 """.trimIndent(),
@@ -126,7 +126,7 @@ class ConfigLoaderTest : FunSpec() {
             val error = shouldThrow<ConfigVersionException> { loaderRunning("0.9.15").load(dir) }
 
             error.message.shouldNotBeNull().let {
-                it shouldContain ".gittally.yml"
+                it shouldContain ".werkator.yml"
                 it shouldContain "0.9.16"
                 it shouldContain "0.9.15"
                 it shouldContain "roll back"
@@ -134,10 +134,10 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("a config within its declared range loads, and exceeding only the ceiling still loads") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
-                gitTally:
+                werkator:
                   version:
                     since: "0.9.16"
                     below: "1.0"
@@ -149,20 +149,20 @@ class ConfigLoaderTest : FunSpec() {
             loaderRunning("0.9.16").load(dir).gitea.owner shouldBe "my-org"
             // beyond `below`: a warning, never a refusal — an unmaintained marker must not stop a CI
             loaderRunning("1.4.0").load(dir).gitea.owner shouldBe "my-org"
-            loaderRunning("0.9.16").load(dir).gitTally.version shouldBe
+            loaderRunning("0.9.16").load(dir).werkator.version shouldBe
                 VersionRequirement(since = "0.9.16", below = "1.0")
         }
 
         test("an incompatible branch config is refused as the branch's problem, not the server's") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText("gitea:\n  owner: my-org")
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText("gitea:\n  owner: my-org")
 
             val error =
                 shouldThrow<ConfigVersionException> {
                     loaderRunning("0.9.15").loadWithBranchLayer(
                         dir,
                         """
-                        gitTally:
+                        werkator:
                           version:
                             since: "2.0.0"
                         """.trimIndent(),
@@ -178,11 +178,11 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("the machine config is checked as its own file") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".git/gittally").toFile().mkdirs()
-            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".git/werkator").toFile().mkdirs()
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText(
                 """
-                gitTally:
+                werkator:
                   version:
                     since: "1.0.0"
                 """.trimIndent(),
@@ -190,12 +190,12 @@ class ConfigLoaderTest : FunSpec() {
 
             shouldThrow<ConfigVersionException> {
                 loaderRunning("0.9.16").load(dir)
-            }.message.shouldNotBeNull() shouldContain ".git/gittally/.gittally.yml"
+            }.message.shouldNotBeNull() shouldContain ".git/werkator/.werkator.yml"
         }
 
         test("a leftover builds.maxConcurrent is ignored instead of failing the config") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   maxConcurrent: 1
@@ -211,8 +211,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("a branch may redefine the builds section for its own builds") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   pitest:
@@ -221,8 +221,8 @@ class ConfigLoaderTest : FunSpec() {
                     buildCommand: ./gradlew piTestPartial
                 """.trimIndent(),
             )
-            val worktree = Files.createTempDirectory("gittally-test-worktree")
-            worktree.resolve(".gittally.yml").toFile().writeText(
+            val worktree = Files.createTempDirectory("werkator-test-worktree")
+            worktree.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   pitest:
@@ -246,21 +246,21 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("a branch cannot raise the concurrency limit or reach the sandbox policy through a build definition") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   default:
                     requirePullRequest: true
-                    statusContext: GitTally
+                    statusContext: werkator
                     docker:
                       enabled: true
                       network: none
                       image: host-image
                 """.trimIndent(),
             )
-            val worktree = Files.createTempDirectory("gittally-test-worktree")
-            worktree.resolve(".gittally.yml").toFile().writeText(
+            val worktree = Files.createTempDirectory("werkator-test-worktree")
+            worktree.resolve(".werkator.yml").toFile().writeText(
                 """
                 executor:
                   maxConcurrent: 99
@@ -269,7 +269,7 @@ class ConfigLoaderTest : FunSpec() {
                 builds:
                   default:
                     requirePullRequest: false
-                    statusContext: GitTally/impersonated
+                    statusContext: werkator/impersonated
                     docker:
                       enabled: false
                       network: host
@@ -285,14 +285,14 @@ class ConfigLoaderTest : FunSpec() {
             settings.requirePullRequest shouldBe true
             settings.docker.enabled shouldBe true
             settings.docker.network shouldBe "none"
-            settings.statusContext shouldBe "GitTally"
+            settings.statusContext shouldBe "werkator"
             // everything that describes the build itself stays the branch's own business
             settings.docker.image shouldBe "attacker-image"
         }
 
         test("a build the branch invents inherits the host's sandbox policy") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   default:
@@ -302,8 +302,8 @@ class ConfigLoaderTest : FunSpec() {
                       network: none
                 """.trimIndent(),
             )
-            val worktree = Files.createTempDirectory("gittally-test-worktree")
-            worktree.resolve(".gittally.yml").toFile().writeText(
+            val worktree = Files.createTempDirectory("werkator-test-worktree")
+            worktree.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   invented:
@@ -327,8 +327,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("an exclusion pattern takes a branch out of a build that would otherwise select it") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   default:
@@ -374,8 +374,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("a trigger key written outside the trigger block is refused, naming the definition") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   nightly:
@@ -388,14 +388,14 @@ class ConfigLoaderTest : FunSpec() {
             // stops running is worse than a configuration that refuses to load
             val thrown = shouldThrow<ConfigFormatException> { loader.load(dir) }
 
-            thrown.message.shouldContain(".gittally.yml")
+            thrown.message.shouldContain(".werkator.yml")
             thrown.message.shouldContain("builds.nightly: atTimes")
             thrown.message.shouldContain("trigger:")
         }
 
         test("a branch writing its trigger flat fails only its own builds") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   default:
@@ -424,8 +424,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("builds.default is the base of every other build, but never its trigger") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 builds:
                   default:
@@ -455,7 +455,7 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("branches is honored while no build is defined and ignored as soon as one is") {
-            val dir = Files.createTempDirectory("gittally-test")
+            val dir = Files.createTempDirectory("werkator-test")
             val legacy =
                 """
                 branches:
@@ -464,14 +464,14 @@ class ConfigLoaderTest : FunSpec() {
                     docker:
                       enabled: true
                 """.trimIndent()
-            dir.resolve(".gittally.yml").toFile().writeText(legacy)
+            dir.resolve(".werkator.yml").toFile().writeText(legacy)
 
             // the leftover execution key is not a definition, so the legacy section still wins
             loader.load(dir).buildSettings("main", "default").buildCommand shouldBe "from-branches"
-            dir.resolve(".gittally.yml").toFile().writeText("builds:\n  maxConcurrent: 1\n" + legacy)
+            dir.resolve(".werkator.yml").toFile().writeText("builds:\n  maxConcurrent: 1\n" + legacy)
             loader.load(dir).buildSettings("main", "default").buildCommand shouldBe "from-branches"
 
-            dir.resolve(".gittally.yml").toFile().writeText(
+            dir.resolve(".werkator.yml").toFile().writeText(
                 legacy +
                     "\n" +
                     """
@@ -487,8 +487,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("repo install config overrides project config for same keys") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 gitea:
                   owner: original-org
@@ -496,8 +496,8 @@ class ConfigLoaderTest : FunSpec() {
                   token: from-project
                 """.trimIndent(),
             )
-            dir.resolve(".git/gittally").toFile().mkdirs()
-            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+            dir.resolve(".git/werkator").toFile().mkdirs()
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText(
                 """
                 gitea:
                   owner: override-org
@@ -511,8 +511,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("loadRaw only returns explicitly set values") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
@@ -528,8 +528,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("branch-specific config inherits from branches.default") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
@@ -545,8 +545,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("branch-specific buildCommand overrides branches.default") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
@@ -560,8 +560,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("empty publicBaseUrl defaults to https://<nginx.serverName>/ when set") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 server:
                   nginx:
@@ -572,8 +572,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("explicit publicBaseUrl wins over the nginx.serverName default") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 server:
                   publicBaseUrl: https://other.example.org/
@@ -585,29 +585,29 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("publicBaseUrl stays empty without an nginx.serverName") {
-            val dir = Files.createTempDirectory("gittally-test")
+            val dir = Files.createTempDirectory("werkator-test")
             loader.load(dir).server.publicBaseUrl shouldBe ""
         }
 
         test("loadForWorktree lets the worktree override build config (worktree > .git > project)") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
                     buildCommand: from-project
                 """.trimIndent(),
             )
-            dir.resolve(".git/gittally").toFile().mkdirs()
-            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+            dir.resolve(".git/werkator").toFile().mkdirs()
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
                     buildCommand: from-git
                 """.trimIndent(),
             )
-            val worktree = Files.createTempDirectory("gittally-worktree")
-            worktree.resolve(".gittally.yml").toFile().writeText(
+            val worktree = Files.createTempDirectory("werkator-worktree")
+            worktree.resolve(".werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
@@ -618,30 +618,30 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("loadForWorktree falls back to .git over project when the worktree sets nothing") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
                     buildCommand: from-project
                 """.trimIndent(),
             )
-            dir.resolve(".git/gittally").toFile().mkdirs()
-            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+            dir.resolve(".git/werkator").toFile().mkdirs()
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
                     buildCommand: from-git
                 """.trimIndent(),
             )
-            val worktree = Files.createTempDirectory("gittally-worktree")
+            val worktree = Files.createTempDirectory("werkator-worktree")
             loader.loadForWorktree(dir, worktree).branches["default"]!!.buildCommand shouldBe "from-git"
         }
 
         test("loadForWorktree pins secrets and the docker sandbox policy to .git, but allows docker.image") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".git/gittally").toFile().mkdirs()
-            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".git/werkator").toFile().mkdirs()
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText(
                 """
                 git:
                   token: real-secret
@@ -655,8 +655,8 @@ class ConfigLoaderTest : FunSpec() {
                       image: trusted-image
                 """.trimIndent(),
             )
-            val worktree = Files.createTempDirectory("gittally-worktree")
-            worktree.resolve(".gittally.yml").toFile().writeText(
+            val worktree = Files.createTempDirectory("werkator-worktree")
+            worktree.resolve(".werkator.yml").toFile().writeText(
                 """
                 git:
                   token: stolen
@@ -681,9 +681,9 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("loadWithBranchLayer applies a branch config read from git, pinning the same keys") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".git/gittally").toFile().mkdirs()
-            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".git/werkator").toFile().mkdirs()
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText(
                 """
                 git:
                   token: real-secret
@@ -717,8 +717,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("loadWithBranchLayer without a branch config equals load") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 branches:
                   default:
@@ -731,8 +731,8 @@ class ConfigLoaderTest : FunSpec() {
         }
 
         test("loadForWorktree without a worktree config equals load") {
-            val dir = Files.createTempDirectory("gittally-test")
-            dir.resolve(".gittally.yml").toFile().writeText(
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
                 """
                 gitea:
                   owner: my-org
@@ -741,12 +741,12 @@ class ConfigLoaderTest : FunSpec() {
                     buildCommand: ./mvnw test
                 """.trimIndent(),
             )
-            val worktree = Files.createTempDirectory("gittally-worktree")
+            val worktree = Files.createTempDirectory("werkator-worktree")
             loader.loadForWorktree(dir, worktree) shouldBe loader.load(dir)
         }
 
-        test("toYaml serializes GitTallyConfig with all sections") {
-            val yaml = loader.toYaml(GitTallyConfig())
+        test("toYaml serializes werkatorConfig with all sections") {
+            val yaml = loader.toYaml(WerkatorConfig())
             yaml shouldContain "server:"
             yaml shouldContain "git:"
             yaml shouldContain "gitea:"

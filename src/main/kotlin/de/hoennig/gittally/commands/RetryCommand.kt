@@ -1,9 +1,9 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.git.GitService
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
 import picocli.CommandLine.ExitCode

@@ -1,6 +1,6 @@
-# GitTally Rewrite Plan
+# werkator Rewrite Plan
 
-This directory contains the step-by-step plan for rewriting `legacy/gitTally` (bash) as the Kotlin/Spring application in this repository.
+This directory contains the step-by-step plan for rewriting `legacy/werkator` (bash) as the Kotlin/Spring application in this repository.
 Each step file is self-contained and sized for one focused Claude Code session.
 
 ## How to Execute a Step
@@ -9,7 +9,7 @@ Start a fresh Claude Code session and prompt, for example: "Execute docs/plan/01
 The executing session should:
 
 1. Read this file, `00-legacy-analysis.md`, and the step file.
-2. Read the referenced parts of `legacy/gitTally` only if the step file says so.
+2. Read the referenced parts of `legacy/werkator` only if the step file says so.
 3. Implement with tests, following `CLAUDE.md` conventions.
 4. Run `./gradlew ktlintFormat` and then `./gradlew build` until green.
 5. Update the step's checkbox below and note deviations inside the step file.
@@ -22,16 +22,16 @@ The executing session should:
   - The web UI must never get stuck loading (JSON status endpoints with explicit error states instead of regex-rewritten HTML).
 - Do not port orphaned or half-implemented legacy config options (see `00-legacy-analysis.md`).
 - Every step leaves the build green and the application runnable.
-- Config keys added by a step must be updated in three places: `GitTallyConfig`, the `InitCommand` templates, and `docs/configuration.md`.
+- Config keys added by a step must be updated in three places: `WerkatorConfig`, the `InitCommand` templates, and `docs/configuration.md`.
 
 ## Proposed Architecture Decisions
 
 These are proposals baked into the steps.
 Revisit them in an ADR if a step uncovers problems.
 
-- Build results are persisted as a JSON file under `.git/gittally/`, behind a `BuildResultRepository` interface (no database, but replaceable).
+- Build results are persisted as a JSON file under `.git/werkator/`, behind a `BuildResultRepository` interface (no database, but replaceable).
 - Builds run concurrently up to `builds.maxConcurrent` (default 1), but never more than one build per branch at a time.
-  Each branch builds in its own reusable git worktree under `.git/gittally/worktrees/`, checked out detached at the requested commit — never in the primary checkout.
+  Each branch builds in its own reusable git worktree under `.git/werkator/worktrees/`, checked out detached at the requested commit — never in the primary checkout.
   A later step must decide (possibly per config) whether a new commit on a branch cancels that branch's running build or waits for it; for now new builds queue behind the running one.
 - Artifacts stay on the filesystem, served by the Spring server.
 - The web UI is server-rendered HTML plus small JavaScript polling JSON endpoints (no SPA framework).
@@ -76,7 +76,7 @@ Added after the 2026-08-10 overhead measurements on vm2176:
 Added for the vm2176 → vm4006 migration (2026-08-10):
 
 - [x] `15-runtime-bundle-distribution.md` — self-contained runtime bundle (jlink JRE + jar) for hosts without a Java runtime
-- [x] `16-git-in-docker-builds.md` — read-only git metadata inside Docker build containers, with `.git/gittally/` masked
+- [x] `16-git-in-docker-builds.md` — read-only git metadata inside Docker build containers, with `.git/werkator/` masked
 
 Added after v0.9.19 replaced the per-branch settings with build definitions (2026-08-29):
 
@@ -86,9 +86,9 @@ Added after a silent 57-minute fetch outage on vm4006 (2026-08-30):
 
 - [x] `19-watcher-health-in-ui.md` — show an unreachable origin in the web UI instead of only in the journal
 
-Added for running GitTally on Hostsharing Managed Webspaces (2026-08-10):
+Added for running werkator on Hostsharing Managed Webspaces (2026-08-10):
 
-- [ ] `17-bwrap-build-runtime.md` — GitTally on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
+- [ ] `17-bwrap-build-runtime.md` — werkator on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
 
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.

@@ -1,4 +1,4 @@
-package de.hoennig.gittally.git
+package de.hoennig.werkator.git
 
 import org.springframework.stereotype.Component
 import java.nio.file.Path

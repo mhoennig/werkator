@@ -1,4 +1,4 @@
-package de.hoennig.gittally.config
+package de.hoennig.werkator.config
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec

@@ -1,7 +1,7 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.SecretFiles
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.SecretFiles
+import de.hoennig.werkator.git.GitService
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
 import org.springframework.stereotype.Component
@@ -13,19 +13,19 @@ import java.nio.file.Paths
 @Component
 @Command(
     name = "init",
-    description = ["Initialize GitTally for the current repository"],
+    description = ["Initialize werkator for the current repository"],
     mixinStandardHelpOptions = true,
 )
 class InitCommand(
     private val gitService: GitService,
-    /** The version written into the generated config as `gitTally.version.since`. */
+    /** The version written into the generated config as `werkator.version.since`. */
     private val buildProperties: ObjectProvider<BuildProperties>? = null,
 ) : Runnable {
     var workingDir: Path = Paths.get(".")
 
     @Option(
         names = ["--systemd"],
-        description = ["also generate a systemd user unit that runs `gittally server` for this repository"],
+        description = ["also generate a systemd user unit that runs `werkator server` for this repository"],
     )
     var systemd: Boolean = false
 
@@ -56,7 +56,7 @@ class InitCommand(
     }
 
     /**
-     * The running version for `gitTally.version.since`; outside a built jar (IDE, tests)
+     * The running version for `werkator.version.since`; outside a built jar (IDE, tests)
      * there is none, and `0.0.0` then declares no floor at all rather than a wrong one.
      */
     private fun runningVersion(): String = buildProperties?.getIfAvailable()?.version ?: "0.0.0"
@@ -99,7 +99,7 @@ class InitCommand(
         detected: DetectedValues,
         normalizedWorkingDir: Path,
     ) {
-        val file = root.resolve(".git/gittally/.gittally.yml")
+        val file = root.resolve(".git/werkator/.werkator.yml")
         if (file.toFile().exists()) {
             println("${file.toFile().relativeTo(normalizedWorkingDir.toFile())} already exists — not overwritten")
             return
@@ -107,7 +107,7 @@ class InitCommand(
         SecretFiles.createDirectoriesOwnerOnly(file.parent)
         val content =
             """
-            # Machine- or user-specific overrides and secrets. Keys here win over .gittally.yml.
+            # Machine- or user-specific overrides and secrets. Keys here win over .werkator.yml.
             git:
               account: "${detected.account}"              # technical username for git HTTPS authentication
               token: ""                                   # Gitea API token — never commit this
@@ -123,31 +123,31 @@ class InitCommand(
         detected: DetectedValues,
         normalizedWorkingDir: Path,
     ) {
-        val file = root.resolve(".gittally.yml")
+        val file = root.resolve(".werkator.yml")
         if (file.toFile().exists()) {
             println("${file.toFile().relativeTo(normalizedWorkingDir.toFile())} already exists — not overwritten")
             return
         }
         val content =
             """
-            # The GitTally this file is written for.
-            # since: enforced — an older GitTally refuses to read this file instead of
+            # The werkator this file is written for.
+            # since: enforced — an older werkator refuses to read this file instead of
             #        silently ignoring the keys it does not know yet.
-            # below: your release marker for a coming major; GitTally decides how strictly
+            # below: your release marker for a coming major; werkator decides how strictly
             #        to take it, and warns rather than blocks unless the format really broke.
-            gitTally:
+            werkator:
               version:
                 since: "${runningVersion()}"
               # below: "2.0"
 
             server:
-              # Public base URL of this GitTally installation — used for all links posted to Gitea.
+              # Public base URL of this werkator installation — used for all links posted to Gitea.
               publicBaseUrl: ""
               # HTTP port of the `server` subcommand
               port: 18080
               # bind address of the `server` subcommand; loopback only, because the UI and the
               # API are unauthenticated — use 0.0.0.0 only without a reverse proxy in front
-              # (and with the managed nginx below, which reaches GitTally from its container)
+              # (and with the managed nginx below, which reaches werkator from its container)
               bindAddress: 127.0.0.1
               # optional Impressum (legal disclosure) link in the web UI footer; empty hides the link
               impressumUrl: ""
@@ -159,8 +159,8 @@ class InitCommand(
                 httpPort: 8080          # host port published as nginx port 80
                 httpsPort: 8443         # host port published as nginx port 443
                 upstreamHost: ""        # host nginx proxies to; empty = serverName
-                containerName: ""       # empty = gittally-nginx-<repo-name>
-                stateDir: ""            # empty = XDG_STATE_HOME (or ~/.local/state) + /gittally/nginx/<repo-key>
+                containerName: ""       # empty = werkator-nginx-<repo-name>
+                stateDir: ""            # empty = XDG_STATE_HOME (or ~/.local/state) + /werkator/nginx/<repo-key>
                 letsencryptEmail: ""    # e-mail for the Let's Encrypt account; empty registers without one
 
             # Gitea integration for fetching commits and posting build statuses.
@@ -168,7 +168,7 @@ class InitCommand(
               baseUrl: ${detected.baseUrl}   # base URL of the Gitea instance
               owner: ${detected.owner}                      # repository owner (user or organisation) for Gitea API (e.g. status checks)
               repo: ${detected.repo}                      # repository name
-              statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
+              statusContext: werkator            # label shown on Gitea commit status checks (default: werkator)
 
             # Build execution settings, enforced for all builds regardless of their trigger.
             executor:
@@ -178,7 +178,7 @@ class InitCommand(
             # Named build definitions (jobs); every key names a build.
             # "default" is the base every other definition inherits its settings from — never
             # its trigger — and is itself the build of every branch as long as it has one.
-            # A branch may add or override definitions in its own committed .gittally.yml;
+            # A branch may add or override definitions in its own committed .werkator.yml;
             # they apply to that branch alone, so a new job can be tried out on one branch.
             builds:
               default:
@@ -218,11 +218,11 @@ class InitCommand(
               #     atTimes: ["01:00"]
               #     branches: ["master"]
               #   buildCommand: ./gradlew pitestFull
-              #   statusContext: GitTally/pitest
+              #   statusContext: werkator/pitest
 
             # Build artifact storage and retention.
             artifacts:
-              # root directory for stored artifacts; empty = XDG_STATE_HOME (or ~/.local/state) + /gittally/artifacts/<repo-key>
+              # root directory for stored artifacts; empty = XDG_STATE_HOME (or ~/.local/state) + /werkator/artifacts/<repo-key>
               rootDir: ""
               # number of builds to keep per branch
               retentionPerBranch: 3
@@ -256,14 +256,14 @@ class InitCommand(
     ) {
         val jarPath = jarPathResolver()
         if (jarPath == null) {
-            println("Error: cannot determine the GitTally jar path — run `init --systemd` via `java -jar <path-to>/gittally.jar`")
+            println("Error: cannot determine the werkator jar path — run `init --systemd` via `java -jar <path-to>/werkator.jar`")
             return
         }
-        val gittallyDir = root.resolve(".git/gittally")
-        SecretFiles.createDirectoriesOwnerOnly(gittallyDir)
+        val werkatorDir = root.resolve(".git/werkator")
+        SecretFiles.createDirectoriesOwnerOnly(werkatorDir)
         val unitName = SystemdServiceFiles.unitName(root)
-        val unitFile = gittallyDir.resolve(unitName)
-        val envFile = gittallyDir.resolve(SystemdServiceFiles.ENV_FILE_NAME)
+        val unitFile = werkatorDir.resolve(unitName)
+        val envFile = werkatorDir.resolve(SystemdServiceFiles.ENV_FILE_NAME)
 
         unitFile.toFile().writeText(
             SystemdServiceFiles.unitFileContent(
@@ -283,9 +283,9 @@ class InitCommand(
         }
 
         // the nightly Docker cleanup is host-global: every repository generates the same
-        // units, so with several GitTally instances the symlinks simply coincide
-        val pruneServiceFile = gittallyDir.resolve(SystemdServiceFiles.PRUNE_SERVICE_NAME)
-        val pruneTimerFile = gittallyDir.resolve(SystemdServiceFiles.PRUNE_TIMER_NAME)
+        // units, so with several werkator instances the symlinks simply coincide
+        val pruneServiceFile = werkatorDir.resolve(SystemdServiceFiles.PRUNE_SERVICE_NAME)
+        val pruneTimerFile = werkatorDir.resolve(SystemdServiceFiles.PRUNE_TIMER_NAME)
         pruneServiceFile.toFile().writeText(SystemdServiceFiles.pruneServiceContent())
         println("created ${pruneServiceFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
         pruneTimerFile.toFile().writeText(SystemdServiceFiles.pruneTimerContent())

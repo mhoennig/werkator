@@ -1,4 +1,4 @@
-package de.hoennig.gittally.git
+package de.hoennig.werkator.git
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -11,7 +11,7 @@ import kotlin.io.path.exists
 
 class GitAskPassTest : FunSpec() {
     private val runner = GitCommandRunner()
-    private val tempDir = Files.createTempDirectory("gittally-askpass-test")
+    private val tempDir = Files.createTempDirectory("werkator-askpass-test")
 
     private fun runScript(
         environment: Map<String, String>,

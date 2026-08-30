@@ -1,11 +1,11 @@
-package de.hoennig.gittally
+package de.hoennig.werkator
 
-import de.hoennig.gittally.commands.BuildCommand
-import de.hoennig.gittally.commands.ConfigPrintCommand
-import de.hoennig.gittally.commands.InitCommand
-import de.hoennig.gittally.commands.RetryCommand
-import de.hoennig.gittally.commands.ServerCommand
-import de.hoennig.gittally.commands.StatusCommand
+import de.hoennig.werkator.commands.BuildCommand
+import de.hoennig.werkator.commands.ConfigPrintCommand
+import de.hoennig.werkator.commands.InitCommand
+import de.hoennig.werkator.commands.RetryCommand
+import de.hoennig.werkator.commands.ServerCommand
+import de.hoennig.werkator.commands.StatusCommand
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
 import org.springframework.stereotype.Component
@@ -14,7 +14,7 @@ import picocli.CommandLine.Command
 
 @Component
 @Command(
-    name = "gittally",
+    name = "werkator",
     subcommands = [
         InitCommand::class,
         ServerCommand::class,
@@ -27,7 +27,7 @@ import picocli.CommandLine.Command
     versionProvider = BuildPropertiesVersionProvider::class,
     description = ["Lightweight, declarative CI/CD system"],
 )
-class GitTallyCommand : Runnable {
+class werkatorCommand : Runnable {
     override fun run(): Unit = throw CommandLine.ParameterException(CommandLine(this), "Specify a subcommand")
 }
 
@@ -41,5 +41,5 @@ class GitTallyCommand : Runnable {
 class BuildPropertiesVersionProvider(
     private val buildProperties: ObjectProvider<BuildProperties>,
 ) : CommandLine.IVersionProvider {
-    override fun getVersion(): Array<String> = arrayOf("GitTally v${buildProperties.getIfAvailable()?.version ?: "dev"}")
+    override fun getVersion(): Array<String> = arrayOf("werkator v${buildProperties.getIfAvailable()?.version ?: "dev"}")
 }

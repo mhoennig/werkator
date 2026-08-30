@@ -1,53 +1,53 @@
-# GitTally Configuration Reference
+# werkator Configuration Reference
 
-GitTally is configured via YAML files. Settings are merged from several sources in order — later layers override earlier ones.
+werkator is configured via YAML files. Settings are merged from several sources in order — later layers override earlier ones.
 
 ## Config File Locations
 
 | Layer                    | Path                       | Committed to Git | Purpose                                      |
 |--------------------------|----------------------------|------------------|----------------------------------------------|
-| Project config           | `.gittally.yml`            | Yes              | Shared team settings                         |
-| Repo installation config | `.git/gittally/.gittally.yml` | No               | Machine- or user-specific overrides, secrets |
-| Branch config            | `.gittally.yml` committed on a branch | Yes  | That branch's build settings and build definitions |
+| Project config           | `.werkator.yml`            | Yes              | Shared team settings                         |
+| Repo installation config | `.git/werkator/.werkator.yml` | No               | Machine- or user-specific overrides, secrets |
+| Branch config            | `.werkator.yml` committed on a branch | Yes  | That branch's build settings and build definitions |
 
-The repo install config (`.git/gittally/.gittally.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
+The repo install config (`.git/werkator/.werkator.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
 
-### Which GitTally a file is written for
+### Which werkator a file is written for
 
-Every configuration file may declare the GitTally it was written for. Without it, a
+Every configuration file may declare the werkator it was written for. Without it, a
 version that renames or drops a key does not fail — it silently ignores what it no longer
 understands, and the effect shows up as a build that does the wrong thing.
 
 ```yaml
-gitTally:
+werkator:
   version:
-    since: "0.9.16"   # enforced: an older GitTally refuses to read this file
-    below: "2.0"      # your release marker; GitTally decides how strictly to take it
+    since: "0.9.16"   # enforced: an older werkator refuses to read this file
+    below: "2.0"      # your release marker; werkator decides how strictly to take it
 ```
 
 There is deliberately **no version of the file format** (no `apiVersion`): no API is
-involved — GitTally reads its own configuration — and only one configuration generation is
+involved — werkator reads its own configuration — and only one configuration generation is
 ever supported. The declaration exists to make an incompatibility nameable, never to run
 two parsers.
 
 `since` is a hard floor and covers both directions:
 
-- a newer file on an older GitTally is refused instead of being half-understood;
+- a newer file on an older werkator is refused instead of being half-understood;
 - a file written *before* a breaking change and read *after* it is refused as well —
-  GitTally knows in which version its configuration format last broke, so the message can
-  name the change: *"is written for GitTally 1.4.0, but the configuration format changed
+  werkator knows in which version its configuration format last broke, so the message can
+  name the change: *"is written for werkator 1.4.0, but the configuration format changed
   incompatibly in 2.0.0: `builds:` is now `buildSpec:`"*.
 
 `below` is optional and names the first version this file was **not** released for. The
 bound is exclusive, so `below: "2.0"` means everything up to 2.0.0. On its own it only
 warns — a caution marker nobody maintained must never stop a CI. The refusal above comes
-from GitTally's own knowledge of its breaking changes, not from this value. The intended
+from werkator's own knowledge of its breaking changes, not from this value. The intended
 routine is the one known from IDE plugins: a new version appears, the warning shows up, you
 try it (on a test host, or in production with a rollback ready), and then raise `below` and
 commit that.
 
 A file that declares nothing is read as before, with a hint in the log — a missing line
-must never stop a server either. `gittally init` writes the running version into the
+must never stop a server either. `werkator init` writes the running version into the
 generated config.
 
 How far a violation reaches depends on the file, following the same rule as everything
@@ -58,7 +58,7 @@ branches that are fine.
 
 ### The branch layer: a branch describes its own CI
 
-The `.gittally.yml` committed on a branch is applied as a third layer on top of the two
+The `.werkator.yml` committed on a branch is applied as a third layer on top of the two
 above, giving the precedence **branch > repo install > project**. It takes precedence for
 everything that describes how this branch is built: the whole `builds` section — its own
 definitions and its overrides of the definitions from the project config, with
@@ -95,7 +95,7 @@ single branch may decide it:
   configuration does.
 
 The distinction is documentary.
-GitTally applies one rule: every pinned key is stripped from the branch layer, and the
+werkator applies one rule: every pinned key is stripped from the branch layer, and the
 value then resolves from whichever remaining layer sets it.
 The names say where a key is meant to live, not how it is enforced.
 
@@ -110,26 +110,26 @@ install/project config only, and only while nothing defines a build at all.
 ## Inspect the Effective Config
 
 ```bash
-java -jar build/libs/gittally.jar config:print         # only explicitly set values
-java -jar build/libs/gittally.jar config:print --full  # all values including defaults
+java -jar build/libs/werkator.jar config:print         # only explicitly set values
+java -jar build/libs/werkator.jar config:print --full  # all values including defaults
 ```
 
 `git.token` is masked as `***` by default, so the output can safely be shared or pasted.
 Add `--show-secrets` to print it in clear text.
 
-## `.gittally.yml`
+## `.werkator.yml`
 
 Values shown are the defaults.
 
 ```yaml
-# The GitTally this file is written for (see the section above).
-gitTally:
+# The werkator this file is written for (see the section above).
+werkator:
   version:
-    since: "0.9.18"   # enforced: older GitTally refuses this file
+    since: "0.9.18"   # enforced: older werkator refuses this file
     below: "2.0"      # optional release marker; warns, does not block
 
 server:
-  # Public base URL of this GitTally installation — used for all links posted to Gitea.
+  # Public base URL of this werkator installation — used for all links posted to Gitea.
   publicBaseUrl: https://ci.example.org/
   # HTTP port of the `server` subcommand (default 18080, like legacy)
   port: 18080
@@ -151,10 +151,10 @@ server:
     httpsPort: 8443
     # host nginx proxies to; empty = serverName (the container cannot reach localhost)
     upstreamHost: ""
-    # name of the managed container; empty = gittally-nginx-<repo-name>
+    # name of the managed container; empty = werkator-nginx-<repo-name>
     containerName: ""
     # directory for nginx config, certificates, and logs;
-    # empty = $XDG_STATE_HOME (or ~/.local/state) plus /gittally/nginx/<repo-key>
+    # empty = $XDG_STATE_HOME (or ~/.local/state) plus /werkator/nginx/<repo-key>
     stateDir: ""
     # e-mail for the Let's Encrypt account; empty registers without one
     letsencryptEmail: ""
@@ -164,14 +164,14 @@ gitea:
   baseUrl: https://git.example.org   # base URL of the Gitea instance
   owner: my-org                      # repository owner (user or organisation) for Gitea API (e.g. status checks)
   repo: my-repo                      # repository name
-  statusContext: GitTally            # label shown on Gitea commit status checks (default: GitTally)
+  statusContext: werkator            # label shown on Gitea commit status checks (default: werkator)
 
 # Build execution settings, enforced for all builds regardless of their trigger
 # (watcher, UI restart, CLI build/retry).
 executor:
   # How many builds may run at the same time.
   # At most one build per branch runs regardless; each branch builds in its own
-  # git worktree under .git/gittally/worktrees/, never in the primary checkout.
+  # git worktree under .git/werkator/worktrees/, never in the primary checkout.
   # Changing this value requires a restart.
   maxConcurrent: 1
 
@@ -233,12 +233,12 @@ builds:
       activeWithin: 24h
     buildCommand: ./gradlew -PfullPitTest --console=plain --no-daemon piTestFull
     artifactDirs: [build/reports, build/libs]
-    statusContext: GitTally/pitest
+    statusContext: werkator/pitest
 
 # Build artifact storage and retention.
 artifacts:
   # Root directory for stored build artifacts.
-  # Empty means the platform default: $XDG_STATE_HOME (or ~/.local/state) plus /gittally/artifacts/<repo-key>,
+  # Empty means the platform default: $XDG_STATE_HOME (or ~/.local/state) plus /werkator/artifacts/<repo-key>,
   # where <repo-key> is the sanitized absolute repository path.
   # A leading ~/ expands to the home directory; a relative path is resolved against the repository.
   rootDir: ""
@@ -275,24 +275,24 @@ watcher:
 ### Notes on `server.bindAddress`
 
 The default is `127.0.0.1`.
-Neither the web UI nor the JSON API authenticates read access — which is intended, so build states and artifacts can be linked from anywhere — so GitTally is meant to sit behind the host's reverse proxy rather than on a public interface.
-Set `0.0.0.0` only deliberately — for the managed nginx container (which reaches GitTally over the Docker bridge, not over loopback), or when the proxy runs on another host.
-Installations created before v0.9.9 have `bindAddress: 0.0.0.0` written into their `.gittally.yml` and keep it; the new default only applies where the key is absent or `init` writes a fresh file.
+Neither the web UI nor the JSON API authenticates read access — which is intended, so build states and artifacts can be linked from anywhere — so werkator is meant to sit behind the host's reverse proxy rather than on a public interface.
+Set `0.0.0.0` only deliberately — for the managed nginx container (which reaches werkator over the Docker bridge, not over loopback), or when the proxy runs on another host.
+Installations created before v0.9.9 have `bindAddress: 0.0.0.0` written into their `.werkator.yml` and keep it; the new default only applies where the key is absent or `init` writes a fresh file.
 
 ### Notes on `server.nginx`
 
-With `nginx.enabled`, the `server` subcommand also starts a managed nginx Docker container that serves GitTally over HTTPS (ADR 0005).
+With `nginx.enabled`, the `server` subcommand also starts a managed nginx Docker container that serves werkator over HTTPS (ADR 0005).
 This is meant for hosts that provide Docker but no usable reverse proxy (e.g. Hostsharing managed containers); otherwise prefer the reverse-proxy setup in [deployment.md](deployment.md).
 Certificates are obtained and renewed via Let's Encrypt (certbot Docker container, webroot mode), so `serverName` must be a public DNS name pointing at the host and `httpPort` must be reachable from the internet as port 80 (or via a port forward).
 When `server.publicBaseUrl` is empty and `serverName` is set, it defaults to `https://<serverName>/`.
 All nginx/certificate failures are non-fatal warnings; the plain HTTP server keeps running without the proxy.
-The container is labelled `org.hoennig.gittally`; stale nginx containers of the repository are removed before each start, and the container is removed on shutdown.
+The container is labelled `org.hoennig.werkator`; stale nginx containers of the repository are removed before each start, and the container is removed on shutdown.
 `server.port` must differ from `httpPort` and `httpsPort`.
 
 ### Notes on `builds.<name>.requirePullRequest`
 
 The gate applies to all watcher-triggered builds (push-triggered and scheduled auto builds).
-A manual `gittally build <branch>` always builds, regardless of this setting.
+A manual `werkator build <branch>` always builds, regardless of this setting.
 
 Detection works without a Gitea API token:
 the watcher lists `refs/pull/*/head` on origin via `git ls-remote` and builds a branch only when its head commit equals one of those pull-request head commits.
@@ -321,7 +321,7 @@ Without that second definition, direct pushes and merges to `main` would never b
 The `!main` exclusion keeps the default build off it, so a push is built once instead of by both definitions.
 
 A plain git origin (no Gitea/GitHub) serves no `refs/pull/*/head` at all, so gated branches would never build there.
-For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/gittally/.gittally.yml`, so the committed configuration keeps the gates for forge-backed environments.
+For such origins, disable all gates globally with `watcher.pullRequestGate: false` — typically in the machine-specific `.git/werkator/.werkator.yml`, so the committed configuration keeps the gates for forge-backed environments.
 
 ### Notes on `builds` (build definitions)
 
@@ -334,7 +334,7 @@ Triggers: `onPush: true` builds every new commit of the selected branches; `atTi
 A slot may also be written as `??:MM` — that minute of every hour, expanded to its 24 slots, so the build runs hourly.
 Only the latest due slot of a day triggers, so slots missed while the server was down are skipped instead of piling up, and a slot whose pool is still building is retried on the next poll cycle until it succeeds.
 A definition may have both; one with neither never triggers automatically — which is how `builds.default` is written when it is meant as a settings base only.
-GitTally logs a warning once when no definition has a trigger at all, because such an instance never builds anything on its own.
+werkator logs a warning once when no definition has a trigger at all, because such an instance never builds anything on its own.
 
 Selector: `trigger.branches` lists branch names or glob patterns (`*` matches any characters, also across `/`); empty selects all origin branches.
 A pattern prefixed with `!` excludes instead, and an exclusion always wins regardless of order — `["*", "!master"]` is every branch but master.
@@ -343,7 +343,7 @@ That is how a branch gets a build of its own without being built by the default 
 Both parts combine as an intersection.
 
 Settings: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `requirePullRequest`, `statusContext`, and `docker` with all its keys.
-A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to GitTally's own defaults.
+A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to werkator's own defaults.
 `requirePullRequest`, `statusContext`, `docker.enabled`, and `docker.network` are pinned (master-pinned, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci)): they are read from the repo install/project config even when a branch sets them in its own committed config.
 Inheritance from `builds.default` covers the settings only — the `trigger` block says when and where *this* build runs and is never inherited.
 Definitions are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
@@ -353,9 +353,9 @@ The implicit `default` build (`onPush: true`, all branches) preserves the behavi
 The `default` build records under the plain branch name; every other build records under `<branch>@<name>` with its own row in the branches view (sorted after its branch), its own `retentionPerBranch` count, latest status, and permanent latest-green artifact link.
 The URL key is the sanitized pool name — `master@pitest` is served as `/branches/master_pitest/…`.
 The pools live as long as the underlying branch exists on origin.
-Restart, `gittally retry`, and the startup recovery re-run a build under its recorded definition, resolving the settings from the current configuration — the job definition is the source of truth, not the historical run.
+Restart, `werkator retry`, and the startup recovery re-run a build under its recorded definition, resolving the settings from the current configuration — the job definition is the source of truth, not the historical run.
 The builds still run in their branch's worktree, one build per branch at a time.
-The Gitea commit status is reported per commit under `gitea.statusContext`, so two builds of the same commit overwrite each other's check — give the second one its own `statusContext` (`GitTally/quick`, say), or keep them apart with an exclusion pattern.
+The Gitea commit status is reported per commit under `gitea.statusContext`, so two builds of the same commit overwrite each other's check — give the second one its own `statusContext` (`werkator/quick`, say), or keep them apart with an exclusion pattern.
 
 The concurrency limit that used to live in this section moved to `executor.maxConcurrent` without an alias.
 A leftover `builds.maxConcurrent` key (or any other scalar where a definition belongs) is ignored with a warning, not a startup failure — a committed config cannot always be changed right away.
@@ -378,7 +378,7 @@ To migrate, move `branches.default` to `builds.default`, add `onPush: true`, and
 ### Notes on `watcher.fastForwardLocalRefs`
 
 Builds run in worktrees that share the primary checkout's `.git`, so a build tool can read `refs/heads/*` there.
-GitTally itself never needs those refs to be current — it builds the commit `refs/remotes/origin/<branch>` points at — but build tools do.
+werkator itself never needs those refs to be current — it builds the commit `refs/remotes/origin/<branch>` points at — but build tools do.
 A common case is a check that refuses to run when the local main branch differs from its origin counterpart; without this key it would fail on every build once origin moved on, because nothing would ever advance the local ref.
 
 The fast-forward runs at the end of the poll cycle, after the due branches were enqueued.
@@ -390,20 +390,20 @@ The branch checked out in the primary checkout is advanced with `git merge --ff-
 
 ### Notes on `builds.<name>.docker`
 
-With `docker.enabled`, GitTally shells out to the `docker` CLI; the `docker` command must be on the `PATH`.
+With `docker.enabled`, werkator shells out to the `docker` CLI; the `docker` command must be on the `PATH`.
 When `dockerfile` is set, the image is (re)built whenever the Dockerfile content, its path, or the context path changed.
-Staleness is tracked via the image label `org.gittally.build-inputs-sha256`.
-A Gradle cache volume `gittally-gradle-<repo-key>` is created per repository and mounted as `GRADLE_USER_HOME`.
+Staleness is tracked via the image label `org.werkator.build-inputs-sha256`.
+A Gradle cache volume `werkator-gradle-<repo-key>` is created per repository and mounted as `GRADLE_USER_HOME`.
 The build worktree is bind-mounted into the container; after each command the ownership of `build/` and `.gradle/` is repaired to the host user.
-Git works inside the container: the primary repository's `.git` is mounted read-only (so build steps can run read-only git commands like `git log` or `git describe`), with `.git/gittally/` masked by an empty tmpfs so the build can never read the machine config (`git.token`) or the control token.
-Note that the rest of `.git` — including `.git/config` — is visible to builds; GitTally never stores credentials there, and neither should you.
+Git works inside the container: the primary repository's `.git` is mounted read-only (so build steps can run read-only git commands like `git log` or `git describe`), with `.git/werkator/` masked by an empty tmpfs so the build can never read the machine config (`git.token`) or the control token.
+Note that the rest of `.git` — including `.git/config` — is visible to builds; werkator never stores credentials there, and neither should you.
 The Docker socket is mounted into the container and `DOCKER_HOST`/`TESTCONTAINERS_*` variables are set, so Testcontainers-based builds work inside the container.
-All GitTally containers carry `org.hoennig.gittally` labels; stale build containers of the repository are removed before the first Docker build after a restart.
+All werkator containers carry `org.hoennig.werkator` labels; stale build containers of the repository are removed before the first Docker build after a restart.
 
-## `.git/gittally/.gittally.yml` (not committed)
+## `.git/werkator/.werkator.yml` (not committed)
 
 ```yaml
-# Machine- or user-specific overrides and secrets. Keys here win over .gittally.yml.
+# Machine- or user-specific overrides and secrets. Keys here win over .werkator.yml.
 git:
   account: my-user              # technical username for git HTTPS authentication
   token: glpat-xxxxxxxxxxxxxxxxxxxx # Gitea API token — never commit this

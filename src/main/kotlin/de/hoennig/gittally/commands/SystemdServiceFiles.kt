@@ -1,21 +1,21 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
 import java.nio.file.Path
 
 /**
  * Generates the content of the systemd user unit and its `EnvironmentFile` for running
- * `gittally server` as a service — the shape of the legacy `generate_systemd_config`,
+ * `werkator server` as a service — the shape of the legacy `generate_systemd_config`,
  * without the self-copy/self-update machinery (the unit points at the jar in place).
  */
 object SystemdServiceFiles {
-    const val ENV_FILE_NAME = "gittally.env"
+    const val ENV_FILE_NAME = "werkator.env"
 
-    /** Host-global unit names of the nightly Docker cleanup — shared by all GitTally repositories on the host. */
-    const val PRUNE_SERVICE_NAME = "gittally-docker-prune.service"
-    const val PRUNE_TIMER_NAME = "gittally-docker-prune.timer"
+    /** Host-global unit names of the nightly Docker cleanup — shared by all werkator repositories on the host. */
+    const val PRUNE_SERVICE_NAME = "werkator-docker-prune.service"
+    const val PRUNE_TIMER_NAME = "werkator-docker-prune.timer"
 
-    /** Per-repository unit name, because one GitTally instance serves exactly one repository. */
-    fun unitName(repoRoot: Path): String = "gittally-${sanitize(repoRoot.fileName.toString())}.service"
+    /** Per-repository unit name, because one werkator instance serves exactly one repository. */
+    fun unitName(repoRoot: Path): String = "werkator-${sanitize(repoRoot.fileName.toString())}.service"
 
     fun unitFileContent(
         repoRoot: Path,
@@ -25,7 +25,7 @@ object SystemdServiceFiles {
     ): String =
         """
         [Unit]
-        Description=GitTally CI for ${repoRoot.fileName}
+        Description=werkator CI for ${repoRoot.fileName}
         Wants=network-online.target
         After=network-online.target docker.service
 
@@ -49,7 +49,7 @@ object SystemdServiceFiles {
     fun pruneServiceContent(): String =
         """
         [Unit]
-        Description=Clean up unused Docker containers and images (GitTally)
+        Description=Clean up unused Docker containers and images (werkator)
 
         [Service]
         Type=oneshot
@@ -62,7 +62,7 @@ object SystemdServiceFiles {
     fun pruneTimerContent(): String =
         """
         [Unit]
-        Description=Nightly Docker cleanup before the auto builds (GitTally)
+        Description=Nightly Docker cleanup before the auto builds (werkator)
 
         [Timer]
         OnCalendar=*-*-* 02:00:00
@@ -74,8 +74,8 @@ object SystemdServiceFiles {
 
     fun envFileContent(): String =
         """
-        # EnvironmentFile for the GitTally systemd service.
-        # GitTally itself is configured via .gittally.yml and .git/gittally/.gittally.yml,
+        # EnvironmentFile for the werkator systemd service.
+        # werkator itself is configured via .werkator.yml and .git/werkator/.werkator.yml,
         # not via environment variables; this file only tunes the JVM process.
         #JAVA_OPTS=-Xmx256m
         """.trimIndent() + "\n"

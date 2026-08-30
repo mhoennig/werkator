@@ -1,6 +1,6 @@
-package de.hoennig.gittally.git
+package de.hoennig.werkator.git
 
-import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.werkator.config.ConfigLoader
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.nio.file.Path
@@ -260,7 +260,7 @@ class GitService(
 
     /**
      * The content of [path] as committed in [commit], or null when that commit has no
-     * such file — used to read a branch's committed `.gittally.yml` without a worktree.
+     * such file — used to read a branch's committed `.werkator.yml` without a worktree.
      */
     fun showFileAtCommit(
         commit: String,

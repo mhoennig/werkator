@@ -1,9 +1,9 @@
-package de.hoennig.gittally.artifacts
+package de.hoennig.werkator.artifacts
 
-import de.hoennig.gittally.build.ArtifactKeys
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.config.ConfigLoader
+import de.hoennig.werkator.build.ArtifactKeys
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.config.ConfigLoader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -22,13 +22,13 @@ class FileArtifactStoreTest : FunSpec() {
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
     private class Harness {
-        val workingDir: Path = Files.createTempDirectory("gittally-store-test")
+        val workingDir: Path = Files.createTempDirectory("werkator-store-test")
         val root: Path = workingDir.resolve("artifact-root")
         val store = FileArtifactStore(ConfigLoader(), workingDir)
 
         init {
             Files.writeString(
-                workingDir.resolve(".gittally.yml"),
+                workingDir.resolve(".werkator.yml"),
                 """
                 artifacts:
                   rootDir: "$root"
@@ -57,7 +57,7 @@ class FileArtifactStoreTest : FunSpec() {
     )
 
     private fun stagingDir(): Path {
-        val dir = Files.createTempDirectory("gittally-staging-test")
+        val dir = Files.createTempDirectory("werkator-staging-test")
         Files.writeString(dir.resolve("build.stdout.log"), "out")
         Files.writeString(dir.resolve("build.stderr.log"), "err")
         Files.writeString(dir.resolve("build.log"), "live")
@@ -133,8 +133,8 @@ class FileArtifactStoreTest : FunSpec() {
         }
 
         test("the artifact root defaults to XDG_STATE_HOME plus the repo key") {
-            val workingDir = Files.createTempDirectory("gittally-store-test")
-            val stateHome = Files.createTempDirectory("gittally-state-home-test")
+            val workingDir = Files.createTempDirectory("werkator-store-test")
+            val stateHome = Files.createTempDirectory("werkator-state-home-test")
             val store =
                 FileArtifactStore(ConfigLoader(), workingDir) { name ->
                     if (name == "XDG_STATE_HOME") stateHome.toString() else null
@@ -145,7 +145,7 @@ class FileArtifactStoreTest : FunSpec() {
 
             val expectedDir =
                 stateHome
-                    .resolve("gittally/artifacts")
+                    .resolve("werkator/artifacts")
                     .resolve(ArtifactKeys.repoKey(workingDir))
                     .resolve("branches")
                     .resolve(build.artifactKey)
@@ -183,7 +183,7 @@ class FileArtifactStoreTest : FunSpec() {
 
         test("prune deletes a symlink without touching its target outside the root") {
             val h = Harness()
-            val outside = Files.createTempDirectory("gittally-outside-test")
+            val outside = Files.createTempDirectory("werkator-outside-test")
             Files.writeString(outside.resolve("keep-me.txt"), "precious")
             Files.createDirectories(h.branchesDir())
             val link = h.branchesDir().resolve("evil-link")

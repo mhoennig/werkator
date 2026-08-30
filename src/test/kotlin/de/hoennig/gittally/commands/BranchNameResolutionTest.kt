@@ -1,4 +1,4 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

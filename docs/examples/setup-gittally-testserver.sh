@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
-# Example: start a GitTally test server watching a scratch repository with a fake build.
+# Example: start a werkator test server watching a scratch repository with a fake build.
 # This is the setup used for the manual UI/API smoke tests during development:
 # a local bare origin (with a second branch for the Branches view), a slow fake
 # build with live log output and a demo report artifact, and a fast poll
 # interval — no Gitea, no credentials, no Docker.
 #
 # Usage:
-#   ./docs/examples/setup-gittally-testserver.sh
-#   BUILD_SECONDS=5 SERVER_PORT=18981 ./docs/examples/setup-gittally-testserver.sh
+#   ./docs/examples/setup-werkator-testserver.sh
+#   BUILD_SECONDS=5 SERVER_PORT=18981 ./docs/examples/setup-werkator-testserver.sh
 #
 # While the server runs, trigger builds by pushing from the "work" clone:
-#   git -C ~/gittally-testserver/work commit --allow-empty -m "trigger build" && git -C ~/gittally-testserver/work push
+#   git -C ~/werkator-testserver/work commit --allow-empty -m "trigger build" && git -C ~/werkator-testserver/work push
 # A commit message containing "[fail]" makes the fake build fail;
 # pushing a new branch exercises the new-origin-branch path.
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-$HOME/gittally-testserver}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/werkator-testserver}"
 SERVER_PORT="${SERVER_PORT:-18980}"
 export BUILD_SECONDS="${BUILD_SECONDS:-25}"   # inherited by the build process at runtime
 
 DEV_CHECKOUT=$(git rev-parse --show-toplevel)
 
-# 1. Build the GitTally jar.
+# 1. Build the werkator jar.
 (cd "$DEV_CHECKOUT" && ./gradlew --console=plain build)
 mkdir -p "$INSTALL_DIR"
-cp "$DEV_CHECKOUT/build/libs/gittally.jar" "$INSTALL_DIR/gittally.jar"
+cp "$DEV_CHECKOUT/build/libs/werkator.jar" "$INSTALL_DIR/werkator.jar"
 
 # 2. Scratch bare origin plus a "work" clone for triggering builds by pushing.
 if [ ! -d "$INSTALL_DIR/origin.git" ]; then
@@ -39,7 +39,7 @@ if ! git -C "$INSTALL_DIR/work" rev-parse --quiet --verify HEAD >/dev/null; then
     cat > "$INSTALL_DIR/work/fake-build.sh" <<'EOF'
 #!/usr/bin/env bash
 # Fake build: visible progress for the live log, then a demo report artifact.
-# GitTally exports `branch`; BUILD_SECONDS is inherited from the server process.
+# werkator exports `branch`; BUILD_SECONDS is inherited from the server process.
 set -euo pipefail
 echo "fake build of branch ${branch:-unknown} at commit $(git rev-parse --short HEAD)"
 if git log -1 --pretty=%s | grep -qF '[fail]'; then
@@ -56,7 +56,7 @@ printf '<!DOCTYPE html><html><body><h1>Demo Report</h1><p>branch %s, commit %s</
 echo "fake build done"
 EOF
     chmod +x "$INSTALL_DIR/work/fake-build.sh"
-    cat > "$INSTALL_DIR/work/.gittally.yml" <<'EOF'
+    cat > "$INSTALL_DIR/work/.werkator.yml" <<'EOF'
 watcher:
   pollInterval: 5s
 
@@ -67,7 +67,7 @@ branches:
     artifactDirs:
       - build/reports
 EOF
-    git -C "$INSTALL_DIR/work" add fake-build.sh .gittally.yml
+    git -C "$INSTALL_DIR/work" add fake-build.sh .werkator.yml
     git -C "$INSTALL_DIR/work" commit --quiet -m "fake build setup"
     git -C "$INSTALL_DIR/work" commit --quiet --allow-empty -m "kick-start build"
     git -C "$INSTALL_DIR/work" push --quiet origin main
@@ -88,8 +88,8 @@ if [ ! -d "$INSTALL_DIR/repo/.git" ]; then
     git clone --quiet "$INSTALL_DIR/origin.git" "$INSTALL_DIR/repo"
 fi
 cd "$INSTALL_DIR/repo"
-mkdir -p .git/gittally
-cat > .git/gittally/.gittally.yml <<EOF
+mkdir -p .git/werkator
+cat > .git/werkator/.werkator.yml <<EOF
 server:
   port: $SERVER_PORT
   bindAddress: 127.0.0.1
@@ -101,8 +101,8 @@ git reset --hard --quiet HEAD~1 || true
 
 # 5. Run it (Ctrl-C stops it cleanly).
 echo
-echo "GitTally test server: http://localhost:$SERVER_PORT/"
+echo "werkator test server: http://localhost:$SERVER_PORT/"
 echo "Trigger a build:      git -C $INSTALL_DIR/work commit --allow-empty -m 'trigger build' && git -C $INSTALL_DIR/work push"
 echo "Trigger a failure:    same with commit message 'trigger [fail]'"
 echo
-exec java -jar "$INSTALL_DIR/gittally.jar" server
+exec java -jar "$INSTALL_DIR/werkator.jar" server

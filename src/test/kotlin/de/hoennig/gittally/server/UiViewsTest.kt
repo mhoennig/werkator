@@ -1,8 +1,8 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.config.GiteaConfig
-import de.hoennig.gittally.metrics.MetricAggregate
-import de.hoennig.gittally.metrics.SystemMetrics
+import de.hoennig.werkator.config.GiteaConfig
+import de.hoennig.werkator.metrics.MetricAggregate
+import de.hoennig.werkator.metrics.SystemMetrics
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import java.time.Duration

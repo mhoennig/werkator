@@ -1,4 +1,4 @@
-// GitTally web UI — polls the JSON API and re-renders table bodies from data.
+// werkator web UI — polls the JSON API and re-renders table bodies from data.
 // Every fetch has a timeout and failures render an explicit error badge, so the
 // UI can never get stuck on a loading animation (the legacy defect).
 "use strict";
@@ -97,13 +97,13 @@ function metaContent(name) {
     return element ? element.content : "";
 }
 
-const giteaRepoUrl = metaContent("gittally-gitea-repo-url");
+const giteaRepoUrl = metaContent("werkator-gitea-repo-url");
 
 // The control token is deliberately NOT embedded in the pages: reading them is
 // unauthenticated, so anyone could have read it out of the HTML. The operator
-// pastes it once per browser from `.git/gittally/control-token` on the server;
+// pastes it once per browser from `.git/werkator/control-token` on the server;
 // it is kept in localStorage and only ever sent as a request header.
-const CONTROL_TOKEN_KEY = "gittally.controlToken";
+const CONTROL_TOKEN_KEY = "werkator.controlToken";
 
 function storedControlToken() {
     try {
@@ -131,7 +131,7 @@ function forgetControlToken() {
 
 function askForControlToken() {
     const answer = window.prompt(
-        "Control token — the content of .git/gittally/control-token on the GitTally host:",
+        "Control token — the content of .git/werkator/control-token on the werkator host:",
         "",
     );
     return answer ? answer.trim() : "";
@@ -169,7 +169,7 @@ async function sendAction(url, method) {
 function sendWithToken(url, method, token) {
     return fetch(url, {
         method,
-        headers: { "X-GitTally-Token": token },
+        headers: { "X-werkator-Token": token },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 }

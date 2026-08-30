@@ -1,6 +1,6 @@
-# Legacy gitTally Analysis
+# Legacy werkator Analysis
 
-Condensed analysis of `legacy/gitTally` (bash, ~6000 lines) as input for the rewrite.
+Condensed analysis of `legacy/werkator` (bash, ~6000 lines) as input for the rewrite.
 Line numbers refer to the legacy script at the time of analysis (version 0.7.8).
 
 ## What the Legacy System Does
@@ -90,7 +90,7 @@ No status changes observable during a build (control loop):
 
 Verify need before porting any of these:
 
-- `GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND`, `GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — highly hsadmin-ng-specific defaults.
-- `GITTALLY_ARTIFACT_NGINX_*`, `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management; revived as `server.nginx.*` by step 13 (ADR 0005).
-- `GITTALLY_IMPRESSUM_URL` — keep as optional simple footer link if wanted.
-- `GITTALLY_INSTALL_DIR` — dropped with self-install.
+- `werkator_BUILD_DOCKER_PREFLIGHT_COMMAND`, `werkator_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — highly hsadmin-ng-specific defaults.
+- `werkator_ARTIFACT_NGINX_*`, `werkator_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management; revived as `server.nginx.*` by step 13 (ADR 0005).
+- `werkator_IMPRESSUM_URL` — keep as optional simple footer link if wanted.
+- `werkator_INSTALL_DIR` — dropped with self-install.

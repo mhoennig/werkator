@@ -1,4 +1,4 @@
-package de.hoennig.gittally.config
+package de.hoennig.werkator.config
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -14,7 +14,7 @@ class ConfigVersionsTest : FunSpec() {
     ) = ConfigVersions.verdict(VersionRequirement(since = since, below = below), running)
 
     init {
-        test("a file needing a newer GitTally is refused, naming both versions") {
+        test("a file needing a newer werkator is refused, naming both versions") {
             val result = verdict(since = "0.9.16", running = "0.9.15")
 
             result
@@ -45,7 +45,7 @@ class ConfigVersionsTest : FunSpec() {
             val description = "`builds:` is now `buildSpec:`"
             val written14 = VersionRequirement(since = "1.4.0")
 
-            // no ceiling declared, and none needed: GitTally knows its own breaking change
+            // no ceiling declared, and none needed: werkator knows its own breaking change
             ConfigVersions
                 .verdict(written14, "2.0.1", brokeIn, description)
                 .shouldBeInstanceOf<VersionVerdict.Incompatible>()
@@ -54,7 +54,7 @@ class ConfigVersionsTest : FunSpec() {
                     it shouldContain "2.0.0"
                     it shouldContain "buildSpec"
                 }
-            // a GitTally from before the change still reads that file
+            // a werkator from before the change still reads that file
             ConfigVersions.verdict(written14, "1.9.0", brokeIn, description) shouldBe VersionVerdict.Compatible
             // and a file written after the change is fine on both sides of it
             ConfigVersions.verdict(

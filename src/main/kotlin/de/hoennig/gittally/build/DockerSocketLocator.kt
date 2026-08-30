@@ -1,4 +1,4 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 import org.springframework.stereotype.Component
 import java.nio.file.Files

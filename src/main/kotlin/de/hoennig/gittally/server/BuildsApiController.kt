@@ -1,12 +1,12 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.config.BuildDefinition
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.git.GitService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -192,7 +192,7 @@ class BuildsApiController(
     }
 
     companion object {
-        const val TOKEN_HEADER = "X-GitTally-Token"
+        const val TOKEN_HEADER = "X-werkator-Token"
         private const val MAX_LOG_CHUNK = 1024L * 1024L
     }
 }

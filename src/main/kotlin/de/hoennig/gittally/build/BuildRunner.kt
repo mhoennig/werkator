@@ -1,6 +1,6 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
-import de.hoennig.gittally.config.BranchConfig
+import de.hoennig.werkator.config.BranchConfig
 import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Component
 import java.nio.file.Path

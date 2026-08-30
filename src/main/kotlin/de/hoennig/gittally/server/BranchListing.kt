@@ -1,7 +1,7 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.git.GitService
 import org.springframework.stereotype.Component
 import java.nio.file.Path
 import java.nio.file.Paths

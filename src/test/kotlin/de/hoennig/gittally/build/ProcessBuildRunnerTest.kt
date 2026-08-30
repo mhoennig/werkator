@@ -1,4 +1,4 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -9,7 +9,7 @@ import java.nio.file.Path
 class ProcessBuildRunnerTest : FunSpec() {
     private val runner = ProcessBuildRunner()
 
-    private fun tempDir(): Path = Files.createTempDirectory("gittally-runner-test")
+    private fun tempDir(): Path = Files.createTempDirectory("werkator-runner-test")
 
     init {
         test("propagates the exit code") {

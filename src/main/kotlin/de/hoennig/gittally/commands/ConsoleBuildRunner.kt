@@ -1,13 +1,13 @@
-package de.hoennig.gittally.commands
+package de.hoennig.werkator.commands
 
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.build.RunningBuild
-import de.hoennig.gittally.config.BuildDefinition
-import de.hoennig.gittally.server.UiFormats
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.build.RunningBuild
+import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.server.UiFormats
 import org.springframework.stereotype.Component
 import java.io.IOException
 import java.nio.channels.Channels

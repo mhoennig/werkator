@@ -1,4 +1,4 @@
-package de.hoennig.gittally.build
+package de.hoennig.werkator.build
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -13,7 +13,7 @@ import java.nio.file.StandardCopyOption
 import java.time.Instant
 
 /**
- * Stores build results as a JSON file, e.g. `.git/gittally/build-results.json`.
+ * Stores build results as a JSON file, e.g. `.git/werkator/build-results.json`.
  * Writes are atomic (temp file + atomic move) so readers never see partial content.
  */
 class FileBuildResultRepository(

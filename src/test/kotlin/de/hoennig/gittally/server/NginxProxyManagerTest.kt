@@ -1,12 +1,12 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.ArtifactKeys
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.GitTallyConfig
-import de.hoennig.gittally.config.NginxConfig
-import de.hoennig.gittally.config.ServerConfig
-import de.hoennig.gittally.git.GitCommandResult
-import de.hoennig.gittally.git.GitCommandRunner
+import de.hoennig.werkator.build.ArtifactKeys
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.WerkatorConfig
+import de.hoennig.werkator.config.NginxConfig
+import de.hoennig.werkator.config.ServerConfig
+import de.hoennig.werkator.git.GitCommandResult
+import de.hoennig.werkator.git.GitCommandRunner
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -42,8 +42,8 @@ class NginxProxyManagerTest : FunSpec() {
         httpsPort: Int = 8443,
         explicitStateDir: Boolean = true,
         serverPort: Int = 18080,
-    ): GitTallyConfig =
-        GitTallyConfig(
+    ): WerkatorConfig =
+        WerkatorConfig(
             server =
                 ServerConfig(
                     port = serverPort,
@@ -82,11 +82,11 @@ class NginxProxyManagerTest : FunSpec() {
             "--volume",
             "$stateDir/nginx/nginx.conf:/etc/nginx/nginx.conf:ro",
             "--label",
-            "org.hoennig.gittally=true",
+            "org.hoennig.werkator=true",
             "--label",
-            "org.hoennig.gittally.repository=${ArtifactKeys.repoKey(repoDir)}",
+            "org.hoennig.werkator.repository=${ArtifactKeys.repoKey(repoDir)}",
             "--label",
-            "org.hoennig.gittally.role=nginx",
+            "org.hoennig.werkator.role=nginx",
             "nginx",
         )
 
@@ -116,8 +116,8 @@ class NginxProxyManagerTest : FunSpec() {
             captured.clear()
             configsAtContainerRun.clear()
             sleepCount = 0
-            repoDir = Files.createTempDirectory("gittally-nginx-repo")
-            stateDir = Files.createTempDirectory("gittally-nginx-state")
+            repoDir = Files.createTempDirectory("werkator-nginx-repo")
+            stateDir = Files.createTempDirectory("werkator-nginx-state")
             every { commandRunner.run(capture(captured), any(), any(), any()) } answers {
                 if (captured.last().take(3) == listOf("docker", "run", "-d")) {
                     configsAtContainerRun += Files.readString(stateDir.resolve("nginx/nginx.conf"))
@@ -145,8 +145,8 @@ class NginxProxyManagerTest : FunSpec() {
 
             settings.upstreamHost shouldBe "ci.example.org"
             settings.upstreamPort shouldBe 18080
-            settings.containerName shouldBe "gittally-nginx-${repoDir.fileName}"
-            settings.stateDir.toString() shouldEndWith "gittally/nginx/${ArtifactKeys.repoKey(repoDir)}"
+            settings.containerName shouldBe "werkator-nginx-${repoDir.fileName}"
+            settings.stateDir.toString() shouldEndWith "werkator/nginx/${ArtifactKeys.repoKey(repoDir)}"
         }
 
         test("rejects a server name that could inject nginx directives") {
@@ -234,11 +234,11 @@ class NginxProxyManagerTest : FunSpec() {
                     "ps",
                     "-aq",
                     "--filter",
-                    "label=org.hoennig.gittally=true",
+                    "label=org.hoennig.werkator=true",
                     "--filter",
-                    "label=org.hoennig.gittally.repository=${ArtifactKeys.repoKey(repoDir)}",
+                    "label=org.hoennig.werkator.repository=${ArtifactKeys.repoKey(repoDir)}",
                     "--filter",
-                    "label=org.hoennig.gittally.role=nginx",
+                    "label=org.hoennig.werkator.role=nginx",
                 )
             captured shouldContain listOf("docker", "rm", "-f", "test-nginx")
         }
@@ -255,13 +255,13 @@ class NginxProxyManagerTest : FunSpec() {
             sleepCount shouldBe 4
         }
 
-        test("removes a stale gittally-named container occupying an nginx port") {
+        test("removes a stale werkator-named container occupying an nginx port") {
             every { configLoader.load(repoDir) } returns nginxConfig()
             every {
                 commandRunner.run(match { it.take(2) == listOf("docker", "ps") && it.contains("--format") }, any(), any(), any())
             } returnsMany
                 listOf(
-                    GitCommandResult(0, "abc123\tgittally-nginx-old\t0.0.0.0:8080->80/tcp\t", ""),
+                    GitCommandResult(0, "abc123\twerkator-nginx-old\t0.0.0.0:8080->80/tcp\t", ""),
                     GitCommandResult(0, "", ""),
                 )
 

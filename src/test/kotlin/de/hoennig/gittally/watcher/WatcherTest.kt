@@ -1,26 +1,26 @@
-package de.hoennig.gittally.watcher
+package de.hoennig.werkator.watcher
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
-import de.hoennig.gittally.build.ArtifactKeys
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.build.FileBuildResultRepository
-import de.hoennig.gittally.build.GitWorktreeWorkspaces
-import de.hoennig.gittally.build.RunningBuild
-import de.hoennig.gittally.config.ArtifactsConfig
-import de.hoennig.gittally.config.AutoBuildConfig
-import de.hoennig.gittally.config.BranchConfig
-import de.hoennig.gittally.config.BuildDefinition
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.GitTallyConfig
-import de.hoennig.gittally.config.TriggerConfig
-import de.hoennig.gittally.config.WatcherConfig
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.build.ArtifactKeys
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.build.FileBuildResultRepository
+import de.hoennig.werkator.build.GitWorktreeWorkspaces
+import de.hoennig.werkator.build.RunningBuild
+import de.hoennig.werkator.config.ArtifactsConfig
+import de.hoennig.werkator.config.AutoBuildConfig
+import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.WerkatorConfig
+import de.hoennig.werkator.config.TriggerConfig
+import de.hoennig.werkator.config.WatcherConfig
+import de.hoennig.werkator.git.GitService
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -53,10 +53,10 @@ class WatcherTest : FunSpec() {
     private val noon = Instant.parse("2026-07-07T12:00:00Z")
 
     private inner class Harness(
-        config: GitTallyConfig = GitTallyConfig(),
+        config: WerkatorConfig = WerkatorConfig(),
     ) {
-        val workingDir: Path = Files.createTempDirectory("gittally-watcher-test")
-        val repository = FileBuildResultRepository(workingDir.resolve(".git/gittally/build-results.json"))
+        val workingDir: Path = Files.createTempDirectory("werkator-watcher-test")
+        val repository = FileBuildResultRepository(workingDir.resolve(".git/werkator/build-results.json"))
         val gitService = mockk<GitService>()
         val buildExecutor = mockk<BuildExecutor>()
         val artifactStore = mockk<ArtifactStore>()
@@ -134,7 +134,7 @@ class WatcherTest : FunSpec() {
         branch: String,
         commit: String,
     ): RunningBuild {
-        val stagingDir = Files.createTempDirectory("gittally-watcher-staging")
+        val stagingDir = Files.createTempDirectory("werkator-watcher-staging")
         return RunningBuild(
             branch = branch,
             commit = commit,
@@ -145,8 +145,8 @@ class WatcherTest : FunSpec() {
         )
     }
 
-    private fun autoBuildConfig(vararg times: String): GitTallyConfig =
-        GitTallyConfig(
+    private fun autoBuildConfig(vararg times: String): WerkatorConfig =
+        WerkatorConfig(
             branches =
                 mapOf(
                     "default" to BranchConfig(),
@@ -248,7 +248,7 @@ class WatcherTest : FunSpec() {
         }
 
         test("poll leaves local branch refs alone when fastForwardLocalRefs is disabled") {
-            val harness = Harness(GitTallyConfig(watcher = WatcherConfig(fastForwardLocalRefs = false)))
+            val harness = Harness(WerkatorConfig(watcher = WatcherConfig(fastForwardLocalRefs = false)))
             every { harness.gitService.originBranches(any()) } returns listOf("main")
 
             harness.watcher.poll(harness.workingDir)
@@ -304,7 +304,7 @@ class WatcherTest : FunSpec() {
         }
 
         test("poll filters new origin branches by the configured newBranchMaxAge") {
-            val harness = Harness(GitTallyConfig(watcher = WatcherConfig(newBranchMaxAge = "12h")))
+            val harness = Harness(WerkatorConfig(watcher = WatcherConfig(newBranchMaxAge = "12h")))
 
             harness.watcher.poll(harness.workingDir)
 
@@ -312,7 +312,7 @@ class WatcherTest : FunSpec() {
         }
 
         test("a branch requiring a pull request is only built when its head matches a pull-request head") {
-            val harness = Harness(GitTallyConfig(branches = mapOf("default" to BranchConfig(requirePullRequest = true))))
+            val harness = Harness(WerkatorConfig(branches = mapOf("default" to BranchConfig(requirePullRequest = true))))
             every { harness.gitService.originBranches(any()) } returns listOf("feature/pr", "feature/no-pr")
             every { harness.gitService.newOriginBranches(any(), any()) } returns listOf("feature/pr", "feature/no-pr")
             every { harness.gitService.originHeadCommit("feature/pr", any()) } returns "commit-pr"
@@ -339,7 +339,7 @@ class WatcherTest : FunSpec() {
         test("a disabled pull-request gate builds gated branches on plain-git origins without querying pull-request refs") {
             val harness =
                 Harness(
-                    GitTallyConfig(
+                    WerkatorConfig(
                         watcher = WatcherConfig(pullRequestGate = false),
                         branches = mapOf("default" to BranchConfig(requirePullRequest = true)),
                     ),
@@ -357,7 +357,7 @@ class WatcherTest : FunSpec() {
         test("a branch entry overrides requirePullRequest from the default entry") {
             val harness =
                 Harness(
-                    GitTallyConfig(
+                    WerkatorConfig(
                         branches =
                             mapOf(
                                 "default" to BranchConfig(requirePullRequest = true),
@@ -378,7 +378,7 @@ class WatcherTest : FunSpec() {
         test("an auto build requiring a pull request is skipped and its slot stays untriggered") {
             val harness =
                 Harness(
-                    GitTallyConfig(
+                    WerkatorConfig(
                         branches =
                             mapOf(
                                 "default" to BranchConfig(),
@@ -418,7 +418,7 @@ class WatcherTest : FunSpec() {
         test("a scheduled build definition fires for its selected branches under its own pool") {
             val harness =
                 Harness(
-                    GitTallyConfig(
+                    WerkatorConfig(
                         buildDefinitions =
                             mapOf(
                                 "pitest" to
@@ -447,7 +447,7 @@ class WatcherTest : FunSpec() {
         test("a scheduled build definition with activeWithin skips branches without recent commits") {
             val harness =
                 Harness(
-                    GitTallyConfig(
+                    WerkatorConfig(
                         buildDefinitions =
                             mapOf("pitest" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00"), activeWithin = "24h"))),
                     ),
@@ -469,7 +469,7 @@ class WatcherTest : FunSpec() {
         test("an onPush build definition builds the changed branches it selects") {
             val harness =
                 Harness(
-                    GitTallyConfig(
+                    WerkatorConfig(
                         buildDefinitions =
                             mapOf("lint" to BuildDefinition(trigger = TriggerConfig(onPush = true, branches = listOf("main")))),
                     ),
@@ -491,7 +491,7 @@ class WatcherTest : FunSpec() {
 
         test("builds.default with onPush false disables the implicit on-push build") {
             val harness =
-                Harness(GitTallyConfig(buildDefinitions = mapOf("default" to BuildDefinition(trigger = TriggerConfig(onPush = false)))))
+                Harness(WerkatorConfig(buildDefinitions = mapOf("default" to BuildDefinition(trigger = TriggerConfig(onPush = false)))))
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.localBranches(any()) } returns listOf("main")
             every { harness.gitService.hasNewCommits("main", any()) } returns true
@@ -517,7 +517,7 @@ class WatcherTest : FunSpec() {
         test("a build definition committed on a branch fires for that branch, without any entry in the primary config") {
             val harness = Harness()
             val branchLayer =
-                GitTallyConfig(
+                WerkatorConfig(
                     buildDefinitions = mapOf("pitest" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00")))),
                 )
             every { harness.gitService.originBranches(any()) } returns listOf("main", "experiment")
@@ -541,7 +541,7 @@ class WatcherTest : FunSpec() {
         test("a build definition committed on a branch never schedules another branch") {
             val harness = Harness()
             val branchLayer =
-                GitTallyConfig(
+                WerkatorConfig(
                     buildDefinitions =
                         mapOf("pitest" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00"), branches = listOf("main")))),
                 )
@@ -585,7 +585,7 @@ class WatcherTest : FunSpec() {
             // the machine config gains a scheduled build while the branch stays where it is:
             // caching the definitions by head commit alone would never notice
             val edited =
-                GitTallyConfig(
+                WerkatorConfig(
                     buildDefinitions = mapOf("nightly" to BuildDefinition(trigger = TriggerConfig(atTimes = listOf("11:00")))),
                 )
             every { harness.configLoader.load(any()) } returns edited
@@ -706,7 +706,7 @@ class WatcherTest : FunSpec() {
         }
 
         test("poll keeps the latest green build beyond retention unless keepLatestGreen is disabled") {
-            val keeping = Harness(GitTallyConfig(artifacts = ArtifactsConfig(retentionPerBranch = 1)))
+            val keeping = Harness(WerkatorConfig(artifacts = ArtifactsConfig(retentionPerBranch = 1)))
             keeping.seed("main", BuildStatus.SUCCESS, commit = "commit-1")
             keeping.seed("main", BuildStatus.FAILED, commit = "commit-2")
             every { keeping.gitService.originBranches(any()) } returns listOf("main")
@@ -717,7 +717,7 @@ class WatcherTest : FunSpec() {
                 listOf(BuildStatus.FAILED, BuildStatus.SUCCESS)
 
             val dropping =
-                Harness(GitTallyConfig(artifacts = ArtifactsConfig(retentionPerBranch = 1, keepLatestGreen = false)))
+                Harness(WerkatorConfig(artifacts = ArtifactsConfig(retentionPerBranch = 1, keepLatestGreen = false)))
             dropping.seed("main", BuildStatus.SUCCESS, commit = "commit-1")
             dropping.seed("main", BuildStatus.FAILED, commit = "commit-2")
             every { dropping.gitService.originBranches(any()) } returns listOf("main")
@@ -729,7 +729,7 @@ class WatcherTest : FunSpec() {
 
         test("poll drops builds older than retentionMaxAge but keeps the branch's newest build") {
             // seeds start one hour before the fixed clock, so a 30m age limit cuts them off
-            val harness = Harness(GitTallyConfig(artifacts = ArtifactsConfig(retentionMaxAge = "30m")))
+            val harness = Harness(WerkatorConfig(artifacts = ArtifactsConfig(retentionMaxAge = "30m")))
             harness.seed("main", BuildStatus.FAILED, commit = "commit-1")
             harness.seed("main", BuildStatus.FAILED, commit = "commit-2")
             every { harness.gitService.originBranches(any()) } returns listOf("main")

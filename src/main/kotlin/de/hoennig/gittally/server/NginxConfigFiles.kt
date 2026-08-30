@@ -1,4 +1,4 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 /**
  * Generates the nginx configuration for the managed proxy container, ported from
@@ -12,7 +12,7 @@ object NginxConfigFiles {
      * The `nginx.conf` content. Without [full] it is the init config for the
      * two-phase startup: HTTP only, serving the ACME webroot challenge and
      * redirecting everything else to HTTPS. With [full] an HTTPS server block
-     * with the Let's Encrypt certificate and the proxy to GitTally is added.
+     * with the Let's Encrypt certificate and the proxy to werkator is added.
      */
     fun nginxConf(
         serverName: String,

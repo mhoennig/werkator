@@ -1,4 +1,4 @@
-package de.hoennig.gittally.framework
+package de.hoennig.werkator.framework
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse

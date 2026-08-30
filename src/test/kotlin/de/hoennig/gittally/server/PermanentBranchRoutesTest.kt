@@ -1,15 +1,15 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
 import com.ninjasquad.springmockk.MockkBean
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResult
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.GitTallyConfig
-import de.hoennig.gittally.git.GitService
-import de.hoennig.gittally.metrics.SystemMetricsCollector
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.WerkatorConfig
+import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.metrics.SystemMetricsCollector
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -65,7 +65,7 @@ class PermanentBranchRoutesTest : FunSpec() {
     @MockkBean
     lateinit var branchPermalinks: BranchPermalinks
 
-    private val artifactDir: Path = Files.createTempDirectory("gittally-permanent-routes-test")
+    private val artifactDir: Path = Files.createTempDirectory("werkator-permanent-routes-test")
 
     private val greenBuild =
         BuildResult(
@@ -90,8 +90,8 @@ class PermanentBranchRoutesTest : FunSpec() {
                 branchListing,
                 branchPermalinks,
             )
-            every { configLoader.load(any()) } returns GitTallyConfig()
-            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns GitTallyConfig()
+            every { configLoader.load(any()) } returns WerkatorConfig()
+            every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns WerkatorConfig()
             every { gitService.showFileAtCommit(any(), any(), any()) } returns null
             every { controlTokens.token() } returns "test-token"
             every { branchListing.branches(any()) } returns emptyList()

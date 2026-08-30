@@ -1,16 +1,16 @@
-package de.hoennig.gittally.watcher
+package de.hoennig.werkator.watcher
 
-import de.hoennig.gittally.build.ArtifactKeys
-import de.hoennig.gittally.build.ArtifactStore
-import de.hoennig.gittally.build.BuildExecutor
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.build.BuildStatus
-import de.hoennig.gittally.build.GitWorktreeWorkspaces
-import de.hoennig.gittally.config.BuildDefinition
-import de.hoennig.gittally.config.ConfigLoader
-import de.hoennig.gittally.config.DurationParser
-import de.hoennig.gittally.config.GitTallyConfig
-import de.hoennig.gittally.git.GitService
+import de.hoennig.werkator.build.ArtifactKeys
+import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.build.BuildExecutor
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.build.GitWorktreeWorkspaces
+import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.config.DurationParser
+import de.hoennig.werkator.config.WerkatorConfig
+import de.hoennig.werkator.git.GitService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.nio.file.Files
@@ -80,7 +80,7 @@ class Watcher(
         scheduler =
             Executors
                 .newSingleThreadScheduledExecutor { runnable ->
-                    Thread(runnable, "gittally-watcher").apply { isDaemon = true }
+                    Thread(runnable, "werkator-watcher").apply { isDaemon = true }
                 }.also {
                     it.scheduleWithFixedDelay({ pollSafely(workingDir) }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
                 }
@@ -207,7 +207,7 @@ class Watcher(
     }
 
     private fun enqueueDueBranches(
-        config: GitTallyConfig,
+        config: WerkatorConfig,
         originBranches: Set<String>,
         workingDir: Path,
     ) {
@@ -238,7 +238,7 @@ class Watcher(
 
     /**
      * The build definitions that apply to [branch]: the primary configuration with the
-     * branch's own committed `.gittally.yml` merged on top (the pinned keys stripped),
+     * branch's own committed `.werkator.yml` merged on top (the pinned keys stripped),
      * so a new `builds` configuration can be tried out on a branch without touching any
      * other branch's builds. A branch's definitions only ever apply to that branch —
      * their selectors are evaluated for it alone, so a definition committed on one branch
@@ -254,7 +254,7 @@ class Watcher(
         branch: String,
         headCommit: String?,
         workingDir: Path,
-        primary: GitTallyConfig,
+        primary: WerkatorConfig,
     ): Map<String, BuildDefinition> {
         val commit = headCommit ?: return primary.effectiveBuildDefinitions()
         branchDefinitions[branch]?.takeIf { it.commit == commit && it.primary == primary }?.let { return it.definitions }
@@ -279,7 +279,7 @@ class Watcher(
 
     private class CachedDefinitions(
         val commit: String,
-        val primary: GitTallyConfig,
+        val primary: WerkatorConfig,
         val definitions: Map<String, BuildDefinition>,
     )
 
@@ -304,7 +304,7 @@ class Watcher(
     private fun startBuildIfDue(
         branch: String,
         allowSameCommit: Boolean,
-        config: GitTallyConfig,
+        config: WerkatorConfig,
         pullRequestHeads: Lazy<Set<String>>,
         workingDir: Path,
         build: String = BuildDefinition.DEFAULT,
@@ -335,7 +335,7 @@ class Watcher(
      * the point of a scheduled build.
      */
     private fun enqueueScheduledBuilds(
-        config: GitTallyConfig,
+        config: WerkatorConfig,
         originBranches: Set<String>,
         heads: Map<String, String>,
         pullRequestHeads: Lazy<Set<String>>,
@@ -373,7 +373,7 @@ class Watcher(
      * `builds` entry with `atTimes` and a single-branch selector would do.
      */
     private fun enqueueDeprecatedAutoBuilds(
-        config: GitTallyConfig,
+        config: WerkatorConfig,
         originBranches: Set<String>,
         pullRequestHeads: Lazy<Set<String>>,
         workingDir: Path,
@@ -413,7 +413,7 @@ class Watcher(
 
     /** Results first, then artifacts of dropped results, then worktrees of branches gone from origin. */
     private fun prune(
-        config: GitTallyConfig,
+        config: WerkatorConfig,
         originBranches: List<String>,
         workingDir: Path,
     ) {
@@ -463,9 +463,9 @@ class Watcher(
 
     companion object {
         /** Auto-build trigger state next to the build results (replaces legacy `auto-builds.tsv`). */
-        const val AUTO_BUILDS_FILE = ".git/gittally/auto-builds.json"
+        const val AUTO_BUILDS_FILE = ".git/werkator/auto-builds.json"
 
         /** The committed config read per branch for its build definitions. */
-        const val CONFIG_FILE = ".gittally.yml"
+        const val CONFIG_FILE = ".werkator.yml"
     }
 }

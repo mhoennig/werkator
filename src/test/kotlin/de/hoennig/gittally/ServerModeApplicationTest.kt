@@ -1,8 +1,8 @@
-package de.hoennig.gittally
+package de.hoennig.werkator
 
 import com.ninjasquad.springmockk.MockkBean
-import de.hoennig.gittally.metrics.SystemMetricsCollector
-import de.hoennig.gittally.watcher.Watcher
+import de.hoennig.werkator.metrics.SystemMetricsCollector
+import de.hoennig.werkator.watcher.Watcher
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.mockk.verify

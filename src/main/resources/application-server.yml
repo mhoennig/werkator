@@ -7,4 +7,4 @@ spring:
 
 logging:
   level:
-    de.hoennig.gittally: INFO
+    de.hoennig.werkator: INFO

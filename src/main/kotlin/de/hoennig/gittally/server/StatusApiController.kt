@@ -1,8 +1,8 @@
-package de.hoennig.gittally.server
+package de.hoennig.werkator.server
 
-import de.hoennig.gittally.build.BuildResultRepository
-import de.hoennig.gittally.gitea.GiteaClient
-import de.hoennig.gittally.gitea.GiteaStatusResult
+import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.gitea.GiteaClient
+import de.hoennig.werkator.gitea.GiteaStatusResult
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
