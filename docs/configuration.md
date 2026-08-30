@@ -76,12 +76,28 @@ only, so a definition committed on one branch can never trigger builds of anothe
 when its `branches` selector names one.
 
 A pinned set is always taken from the repo install/project config, because none of it
-describes this branch's build:
+describes this branch's build.
+Which of those two files is expected to carry a key gives the two names used throughout
+this documentation.
+
+**host-pinned** — only the machine can know it, and it never belongs in the repository:
 
 - secrets: the whole `git` section;
-- host- and repository-side settings: the whole `server`, `gitea`, `executor`, and `watcher` sections;
-- the container sandbox policy: `docker.enabled` and `docker.network`;
-- the trust gate: `requirePullRequest`.
+- the host's own addresses and ports: the whole `server` section.
+
+**master-pinned** — it belongs in the repository, where changing it needs a review, but no
+single branch may decide it:
+
+- the repository-side settings: the whole `gitea`, `executor`, and `watcher` sections;
+- the trust gate: `requirePullRequest`, and the Gitea status context: `statusContext`;
+- the container sandbox policy: `docker.enabled` and `docker.network` — host-pinned as
+  long as only the host's configuration sets them, master-pinned once the committed
+  configuration does.
+
+The distinction is documentary.
+GitTally applies one rule: every pinned key is stripped from the branch layer, and the
+value then resolves from whichever remaining layer sets it.
+The names say where a key is meant to live, not how it is enforced.
 
 This keeps a branch from reaching credentials, reporting statuses to another repository,
 raising the global concurrency, disabling its own build container, changing its network
@@ -328,7 +344,7 @@ Both parts combine as an intersection.
 
 Settings: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `requirePullRequest`, `statusContext`, and `docker` with all its keys.
 A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to GitTally's own defaults.
-`requirePullRequest`, `statusContext`, `docker.enabled`, and `docker.network` are pinned: they are read from the repo install/project config even when a branch sets them in its own committed config, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci).
+`requirePullRequest`, `statusContext`, `docker.enabled`, and `docker.network` are pinned (master-pinned, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci)): they are read from the repo install/project config even when a branch sets them in its own committed config.
 Inheritance from `builds.default` covers the settings only — the `trigger` block says when and where *this* build runs and is never inherited.
 Definitions are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
 Because the inheritance is applied after all layers are merged, a build a branch invents still inherits the host's `builds.default` — its sandbox policy included, which is what keeps the pinning effective for a build the host has never heard of.

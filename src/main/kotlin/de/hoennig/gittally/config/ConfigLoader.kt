@@ -125,6 +125,15 @@ class ConfigLoader(
      * sections, the trust gate, and the docker sandbox policy — the latter two wherever
      * they may appear, in a `builds` definition as well as in a legacy `branches` entry.
      * See [loadWithBranchLayer].
+     *
+     * There is one rule here, not two: a pinned key is dropped from the branch layer and
+     * then resolves from whichever remaining layer sets it. The documentation still names
+     * two groups — *host-pinned* for what only the machine can know (`git`, `server`) and
+     * *master-pinned* for what belongs in the repository but must not be decided per
+     * branch (`gitea`, `executor`, `watcher`, `requirePullRequest`, `statusContext`).
+     * That distinction says where a key is meant to live, not how it is stripped, and it
+     * is not visible here: `docker.enabled`/`network` moves from the first group to the
+     * second as soon as the committed configuration carries them.
      */
     @Suppress("UNCHECKED_CAST")
     private fun stripPinned(branchLayer: Map<String, Any?>): Map<String, Any?> {
