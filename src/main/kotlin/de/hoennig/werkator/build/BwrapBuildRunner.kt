@@ -190,10 +190,14 @@ class BwrapBuildRunner(
         // usual isolation on top: read-only .git, tmpfs mask over .git/werkator,
         // read-write worktree admin dir.
         args += listOf("--bind", "$repoDirAbs", "$repoDirAbs")
+        // Git metadata mounts BEFORE the workspace bind: the tmpfs mask over
+        // .git/werkator must not shadow the workspace, which lives under
+        // .git/werkator/worktrees — the later workspace bind shadows the mask
+        // at exactly its own path and nothing else.
+        args += gitMetadataMounts(workspaceAbs, repoDir)
         args += listOf("--bind", "$workspaceAbs", "$workspaceAbs")
         args += listOf("--bind", "$homeDirAbs", "/root")
         args += listOf("--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
-        args += gitMetadataMounts(workspaceAbs, repoDir)
         args += listOf("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp")
         args += listOf("--setenv", "HOME", "/root")
         for ((key, value) in environment) {
