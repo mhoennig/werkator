@@ -83,6 +83,9 @@ class BwrapBuildRunnerTest : FunSpec() {
                     rootfsUnpacked().toString(),
                     "/",
                     "--bind",
+                    repoDir.toString(),
+                    repoDir.toString(),
+                    "--bind",
                     workspace.toString(),
                     workspace.toString(),
                     "--bind",
@@ -132,8 +135,10 @@ class BwrapBuildRunnerTest : FunSpec() {
 
             val args = captured.single()
             val absolute = workspace.toAbsolutePath().normalize().toString()
-            args[args.indexOf("--bind") + 1] shouldBe absolute
-            args[args.indexOf("--bind") + 2] shouldBe absolute
+            val bindIdx = args.withIndex().filter { it.value == "--bind" }.map { it.index }
+            // first bind is the repo dir (mountpoint base), second is the workspace
+            args[bindIdx[1] + 1] shouldBe absolute
+            args[bindIdx[1] + 2] shouldBe absolute
             args[args.indexOf("--chdir") + 1] shouldBe absolute
         }
 

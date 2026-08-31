@@ -145,6 +145,13 @@ class BwrapBuildRunner(
                 rootfsDir.toString(),
                 "/",
             )
+        // Bind the repo read-write FIRST so bwrap can create the mountpoints of
+        // the later binds (workspace, worktree admin dir) inside it — creating
+        // them against the read-only rootfs fails with "Can't mkdir parents ...
+        // Read-only file system". The git metadata mounts below then layer the
+        // usual isolation on top: read-only .git, tmpfs mask over .git/werkator,
+        // read-write worktree admin dir.
+        args += listOf("--bind", "$repoDirAbs", "$repoDirAbs")
         args += listOf("--bind", "$workspaceAbs", "$workspaceAbs")
         args += listOf("--bind", "$homeDirAbs", "/root")
         args += listOf("--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
