@@ -132,8 +132,9 @@ The rollback section names the asymmetry: the new version reads both names, the 
 
 ## Open Questions
 
-- The default `gitea.statusContext` is now `werkator` (lowercase, as a value read by a machine).
-  It is also the label a human sees in Gitea; `Werkator` there would be a deliberate exception to the spelling rule.
+- **Decided: lowercase.** The default `gitea.statusContext` is `werkator`.
+  It was worth asking, because it is the one value a human reads as a label, in Gitea next to the commit.
+  It stays lowercase because it is also matched by Gitea and read back by the client, which makes it a value, not prose.
 
 ## Additional Changes
 
@@ -148,6 +149,9 @@ The rollback section names the asymmetry: the new version reads both names, the 
   The conversion has served its purpose with the vm2176 → vm4006 migration; what remains is the setup of a new instance: the preconditions, the credential prompt, and the machine configuration written mode 600.
   It also stops emitting a legacy `branches:` section, which [plan step 18](../plan/18-remove-branches-section.md) is about to reject outright.
 - Restored the real `GITTALLY_*` spelling in `docs/plan/00-legacy-analysis.md` and `docs/plan/13-nginx-tls.md`, which record what the old script read.
+- Left the pre-rename fallback out of the release notes and `docs/configuration.md`.
+  Exactly one repository carries the old names and it is migrated by hand in the same move as this release, so the fallback is a transition of days rather than something to plan around.
+  It stays described where it is worked on: in `ConfigFiles`, in `StateDirMigration`, and in the migration plan.
 - Migrated this repository's own `.werkator.yml` from the deprecated `branches` section to a `builds.default` definition with a `trigger` block.
   Nothing about its build changes; it stops being the blocker for the precondition of [plan step 18](../plan/18-remove-branches-section.md), which requires that no configuration still in play carries the section, and which rejects it by name afterwards.
 
