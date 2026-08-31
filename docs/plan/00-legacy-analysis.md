@@ -1,6 +1,7 @@
 # Legacy Werkator Analysis
 
-Condensed analysis of `legacy/werkator` (bash, ~6000 lines) as input for the rewrite.
+Condensed analysis of the legacy bash script (~6000 lines) as input for the rewrite.
+The script was removed from the tree with the rename to Werkator; its last state is `git show 7f55068^:legacy/gitTally`.
 Line numbers refer to the legacy script at the time of analysis (version 0.7.8).
 
 ## What the Legacy System Does

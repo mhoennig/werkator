@@ -8,11 +8,6 @@ Lightweight, declarative and highly opinionated software build system (CI/CD).
 - [docs/bootstrapping.md](docs/bootstrapping.md) — initializing a repository with `init`
 - [docs/deployment.md](docs/deployment.md) — running Werkator as a systemd service behind a reverse proxy
 
-## Legacy Script
-
-`legacy/werkator` (bash) is **deprecated** and kept only as a behavioral reference for the rewrite.
-Do not use it for new installations.
-
 ## Developer Setup
 
 Source `.envrc` to add `tools/` to your `PATH`, or install [direnv](#direnv) to have this done automatically on `cd`:

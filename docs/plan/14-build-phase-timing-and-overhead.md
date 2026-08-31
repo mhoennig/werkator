@@ -1,7 +1,7 @@
 # Step 14: Build-Phase Timing and Orchestration Overhead
 
 Prerequisites: steps 04 (build executor), 05 (artifact store), 07 (API), 08 (web UI), 11 (Docker runtime).
-Read `README.md` first; read the referenced `legacy/werkator` functions only where this step points at them.
+Read `README.md` first; read the referenced legacy functions only where this step points at them — the script lives in the history now, see `README.md`.
 
 ## Goal
 

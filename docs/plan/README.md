@@ -1,6 +1,6 @@
 # Werkator Rewrite Plan
 
-This directory contains the step-by-step plan for rewriting `legacy/werkator` (bash) as the Kotlin/Spring application in this repository.
+This directory contains the step-by-step plan for rewriting the legacy bash script as the Kotlin/Spring application in this repository.
 Each step file is self-contained and sized for one focused Claude Code session.
 
 ## How to Execute a Step
@@ -9,7 +9,8 @@ Start a fresh Claude Code session and prompt, for example: "Execute docs/plan/01
 The executing session should:
 
 1. Read this file, `00-legacy-analysis.md`, and the step file.
-2. Read the referenced parts of `legacy/werkator` only if the step file says so.
+2. Read the referenced parts of the legacy bash script only if the step file says so.
+   It was removed from the tree with the rename to Werkator; its last state is `git show 7f55068^:legacy/gitTally`, and `00-legacy-analysis.md` condenses it.
 3. Implement with tests, following `CLAUDE.md` conventions.
 4. Run `./gradlew ktlintFormat` and then `./gradlew build` until green.
 5. Update the step's checkbox below and note deviations inside the step file.
