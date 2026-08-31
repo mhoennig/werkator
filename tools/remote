@@ -1,21 +1,39 @@
 #!/usr/bin/env bash
 #
 # Central control script for remote Werkator operations (same pattern as the
-# `remote` scripts in the other repos): the first argument is the repo
-# selector, the second the command, then host and optional target directory.
+# `remote` scripts in the other repos): the first argument is the repo selector,
+# the second the command. All connection and deployment values come from the
+# `.env` file in the repository root — never as command line parameters.
 #
 # Usage:
-#   tools/remote werkator check-prerequisites <user>@<host> [TARGET_DIR]
-#   tools/remote werkator install            <user>@<host> [TARGET_DIR]
-#   tools/remote werkator build              <user>@<host> [TARGET_DIR] [BRANCH]
-#   WERKATOR_PORT=<port> WERKATOR_DOMAIN=<ci.example.de> \
-#     tools/remote werkator start            <user>@<host> [TARGET_DIR]
+#   tools/remote werkator check-prerequisites
+#   tools/remote werkator install
+#   tools/remote werkator build            # WERKATOR_BRANCH to override, default main
+#   tools/remote werkator start
+#   tools/remote port-forward start        # background tunnel to the Werkator UI
+#   tools/remote port-forward stop
+#   tools/remote werkator control-token
 #
-# TARGET_DIR defaults to the user's home directory on the host (the fast SSD),
-# BRANCH defaults to `main`.
+# Required in .env:
+#   WERKATOR_REMOTE   user@host to operate on, e.g. mih34-werkator@mih34.hostsharing.net
+#   WERKATOR_PATH     target directory on that host, e.g. /home/storage/mih34/users/werkator
+#
+# Required for `start`:
+#   WERKATOR_PORT     the localhost port assigned by Hostsharing (eigener Serverdienst)
+#   WERKATOR_DOMAIN   the domain served by the managed Apache, e.g. ci.example.de
+#
+# Required for `port-forward`:
+#   WERKATOR_LOCAL_PORT   the local port the browser uses
+# Optional in .env:
+#   WERKATOR_BRANCH      branch for `build` (default: main)
+#   WERKATOR_MEMORY_MAX  systemd MemoryMax for the unit, e.g. 1G (start)
+#   WERKATOR_TASKS_MAX   systemd TasksMax for the unit, e.g. 512 (start)
+#   WERKATOR_ROOTFS      rootfs archive path
+#                       (default: <repo>/build/werkator-buildenv-trixie.tar.zst)
+#
 # Install layout on the host:
-#   $TARGET_DIR/werkator/    the repository clone
-#   $TARGET_DIR/.werkator/   runtime bundle + rootfs archive
+#   $WERKATOR_PATH/werkator/    the repository clone
+#   $WERKATOR_PATH/.werkator/   runtime bundle + rootfs archive
 #
 # `install` performs, in order:
 #   1. check-prerequisites  (bwrap capability + disk/quota, aborts on FAIL)
@@ -25,33 +43,46 @@
 #      the script prints the key and waits)
 #   5. `werkator init` + machine-local bwrap configuration
 #
-# Environment overrides:
-#   WERKATOR_ROOTFS   path to the rootfs archive
-#                     (default: <repo>/werkator-buildenv-trixie.tar.zst)
-#
 
 set -euo pipefail
 
 REPO="${1:-}"
 COMMAND="${2:-}"
-HOST="${3:-}"
-TARGET_DIR="${4:-}"
-BRANCH="${5:-main}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREREQ_SCRIPT="$REPO_ROOT/tools/werkator-build-prerequisites.sh"
 RUNTIME_BUNDLE="$REPO_ROOT/build/distributions/werkator-runtime-linux-x64.tar.gz"
-ROOTFS="${WERKATOR_ROOTFS:-$REPO_ROOT/werkator-buildenv-trixie.tar.zst}"
+PID_FILE="/tmp/werkator-port-forward-$(id -u).pid"
+LOG_FILE="/tmp/werkator-port-forward-$(id -u).log"
 
 usage() {
-    sed -n '3,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '3,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 2
 }
 
-[ -n "$REPO" ] && [ -n "$COMMAND" ] && [ -n "$HOST" ] || usage
-[ "$REPO" = "werkator" ] || { echo "ERROR: unknown repo selector: $REPO" >&2; usage; }
+require_env() {
+    local missing=0
+    for name in "$@"; do
+        if [ -z "${!name:-}" ]; then
+            echo "ERROR: $name is not set — define it in $REPO_ROOT/.env" >&2
+            missing=1
+        fi
+    done
+    [ "$missing" -eq 0 ] || exit 1
+}
 
-TARGET_DIR="${TARGET_DIR:-}"
+[ -n "$REPO" ] && [ -n "$COMMAND" ] || usage
+
+# Load the connection and deployment values; explicit environment wins, the
+# .env in the repository root fills the rest.
+set -a
+[ -f "$REPO_ROOT/.env" ] && source "$REPO_ROOT/.env"
+set +a
+
+require_env WERKATOR_REMOTE WERKATOR_PATH
+HOST="$WERKATOR_REMOTE"
+TARGET_DIR="$WERKATOR_PATH"
+ROOTFS="${WERKATOR_ROOTFS:-$REPO_ROOT/build/werkator-buildenv-trixie.tar.zst}"
 
 ssh_present() {
     ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" true 2>/dev/null
@@ -64,10 +95,6 @@ ensure_ssh() {
         echo "==> No key-based SSH access yet; running ssh-copy-id (password prompt expected)"
         ssh-copy-id "$HOST"
         ssh_present || { echo "ERROR: SSH access still not working after ssh-copy-id" >&2; exit 1; }
-    fi
-    # Resolve the target directory default now that SSH works.
-    if [ -z "$TARGET_DIR" ]; then
-        TARGET_DIR="$(ssh "$HOST" 'echo $HOME')"
     fi
 }
 
@@ -163,30 +190,32 @@ CFG"
     echo "==> Install complete."
     echo "    Repo:     $TARGET_DIR/werkator"
     echo "    Runtime:  $TARGET_DIR/.werkator/werkator/bin/werkator"
-    echo "    Next:     tools/remote werkator build $HOST '$TARGET_DIR'"
+    echo "    Next:     tools/remote werkator build"
 }
 
 build() {
     ensure_ssh
-    echo "==> Running one initial build of branch '$BRANCH' on $HOST (in the bwrap sandbox)"
-    ssh -t "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' build '$BRANCH'"
+    local branch="${WERKATOR_BRANCH:-main}"
+    echo "==> Running one initial build of branch '$branch' on $HOST (in the bwrap sandbox)"
+    ssh -t "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' build '$branch'"
 }
 
-# Start the server as a systemd user unit behind the managed Apache:
-#   WERKATOR_PORT=<assigned port> WERKATOR_DOMAIN=<ci.example.de> \
-#     tools/remote werkator start <user>@<host> [TARGET_DIR]
-# Optional: WERKATOR_MEMORY_MAX (e.g. 1G), WERKATOR_TASKS_MAX (e.g. 512) —
-# written into the machine config so `init --systemd` bakes them into the unit.
+# Start the server as a systemd user unit behind the managed Apache.
+# WERKATOR_MEMORY_MAX / WERKATOR_TASKS_MAX (optional) are written into the
+# machine config so `init --systemd` bakes them into the unit.
 start() {
     ensure_ssh
-    : "${WERKATOR_PORT:?WERKATOR_PORT must be set (the port assigned by Hostsharing)}"
-    : "${WERKATOR_DOMAIN:?WERKATOR_DOMAIN must be set (e.g. ci.example.de)}"
+    require_env WERKATOR_PORT WERKATOR_DOMAIN
     local machine="$TARGET_DIR/werkator/.git/werkator/.werkator.yml"
     local unit="werkator-$(basename "$TARGET_DIR/werkator").service"
     local htaccess="$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www/.htaccess"
 
     echo "==> Writing server settings to the machine config"
-    ssh "$HOST" "grep -q '^server:' '$machine' 2>/dev/null" || ssh "$HOST" "cat >> '$machine' <<'CFG'
+    if ssh "$HOST" "grep -q '^server:' '$machine' 2>/dev/null"; then
+        # re-run: update port and publicBaseUrl in place (systemd limits stay as written)
+        ssh "$HOST" "sed -i 's/^  port: .*/  port: $WERKATOR_PORT/; s|^  publicBaseUrl: .*|  publicBaseUrl: \"https://$WERKATOR_DOMAIN/\"|' '$machine'"
+    else
+        ssh "$HOST" "cat >> '$machine' <<'CFG'
 
 # Web access: the managed Apache terminates TLS and proxies to the localhost
 # port assigned by Hostsharing (eigener Serverdienst); TLS is the domain's
@@ -201,6 +230,7 @@ server:
     memoryMax: \"${WERKATOR_MEMORY_MAX:-}\"
     tasksMax: \"${WERKATOR_TASKS_MAX:-}\"
 CFG"
+    fi
 
     echo "==> Writing the Apache reverse proxy to $htaccess"
     ssh "$HOST" "mkdir -p '$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www' && cat > '$htaccess' <<'HT'
@@ -213,30 +243,102 @@ HT"
     echo "==> Generating the systemd user unit (init --systemd)"
     ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' init --systemd"
 
-    echo "==> Enabling the service"
-    ssh "$HOST" "systemctl --user daemon-reload && systemctl --user enable --now '$unit' && systemctl --user status '$unit' --no-pager -l | head -12"
+    echo "==> Linking the units into ~/.config/systemd/user and enabling the service"
+    ssh "$HOST" "mkdir -p ~/.config/systemd/user && \
+      ln -sf '$TARGET_DIR/werkator/.git/werkator/$unit' ~/.config/systemd/user/ && \
+      ln -sf '$TARGET_DIR/werkator/.git/werkator/werkator-docker-prune.service' ~/.config/systemd/user/ && \
+      ln -sf '$TARGET_DIR/werkator/.git/werkator/werkator-docker-prune.timer' ~/.config/systemd/user/ && \
+      systemctl --user daemon-reload && systemctl --user restart '$unit' && systemctl --user status '$unit' --no-pager -l | head -12"
 
     echo
     echo "==> Server started. Verify: https://$WERKATOR_DOMAIN/"
     echo "    Logs: ssh $HOST -- systemctl --user status '$unit'"
 }
 
-case "$COMMAND" in
-    check-prerequisites)
-        ensure_ssh
-        check_prerequisites
+# Background SSH tunnel to the Werkator server, so the browser reaches the UI
+# at http://localhost:<WERKATOR_LOCAL_PORT> without keeping a terminal busy.
+# `start` runs ssh -N -L detached with a pid file; `stop` kills it.
+port_forward() {
+    require_env WERKATOR_LOCAL_PORT
+    local remote_port
+    remote_port="$(ssh "$HOST" "awk '/^server:/{f=1;next} f && /^  port:/{print \$2; exit}' '$TARGET_DIR/werkator/.git/werkator/.werkator.yml'")"
+    [ -n "$remote_port" ] || { echo "ERROR: no server.port in the machine config — run 'tools/remote werkator start' first" >&2; exit 1; }
+
+    case "$COMMAND" in
+        start)
+            if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+                echo "==> Port-forward already running (pid $(cat "$PID_FILE")) — http://localhost:$WERKATOR_LOCAL_PORT"
+                exit 0
+            fi
+            nohup ssh -N -L "$WERKATOR_LOCAL_PORT:127.0.0.1:$remote_port" "$HOST" \
+                >"$LOG_FILE" 2>&1 &
+            echo $! > "$PID_FILE"
+            sleep 1
+            if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+                echo "==> Forwarding http://localhost:$WERKATOR_LOCAL_PORT -> $HOST:127.0.0.1:$remote_port (pid $(cat "$PID_FILE"))"
+            else
+                echo "ERROR: port-forward failed to start — see $LOG_FILE" >&2
+                rm -f "$PID_FILE"
+                exit 1
+            fi
+            ;;
+        stop)
+            if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+                kill "$(cat "$PID_FILE")"
+                rm -f "$PID_FILE"
+                echo "==> Port-forward stopped"
+            else
+                rm -f "$PID_FILE"
+                echo "==> Port-forward is not running"
+            fi
+            ;;
+        *)
+            echo "ERROR: unknown port-forward command: $COMMAND (use start or stop)" >&2
+            exit 2
+            ;;
+    esac
+}
+
+# Print the control token guarding the mutating build endpoints. If the server
+# has not created it yet (it does so on first use), generate one in place — the
+# server reads the file lazily, so a pre-created token is equivalent.
+control_token() {
+    ensure_ssh
+    local token_file="$TARGET_DIR/werkator/.git/werkator/control-token"
+    ssh "$HOST" "if [ -f '$token_file' ]; then cat '$token_file'; else \
+        umask 077 && head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n' > '$token_file' && cat '$token_file'; fi"
+}
+
+case "$REPO" in
+    port-forward)
+        port_forward
         ;;
-    install)
-        install
-        ;;
-    build)
-        build
-        ;;
-    start)
-        start
+    werkator)
+        case "$COMMAND" in
+            check-prerequisites)
+                ensure_ssh
+                check_prerequisites
+                ;;
+            install)
+                install
+                ;;
+            build)
+                build
+                ;;
+            start)
+                start
+                ;;
+            control-token)
+                control_token
+                ;;
+            *)
+                echo "ERROR: unknown command: $COMMAND" >&2
+                usage
+                ;;
+        esac
         ;;
     *)
-        echo "ERROR: unknown command: $COMMAND" >&2
+        echo "ERROR: unknown repo selector: $REPO" >&2
         usage
         ;;
 esac
