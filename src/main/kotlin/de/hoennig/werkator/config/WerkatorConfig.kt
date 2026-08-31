@@ -64,7 +64,22 @@ data class ServerConfig(
     val bindAddress: String = "127.0.0.1",
     /** Optional Impressum (legal disclosure) link shown in the web UI footer; empty hides the link. */
     val impressumUrl: String = "",
+    /**
+     * Resource limits for the generated systemd user unit (`init --systemd`); empty
+     * means the directive is not written. Needed on platforms where the service runs
+     * inside a shared memory slice, e.g. Hostsharing Managed Webspaces, where a
+     * runaway Gradle build would starve everything else in the package.
+     */
+    val systemd: SystemdConfig = SystemdConfig(),
     val nginx: NginxConfig = NginxConfig(),
+)
+
+/** Resource-limit directives of the systemd user unit (`server.systemd`, see [ServerConfig.systemd]). */
+data class SystemdConfig(
+    /** `MemoryMax=` of the unit, e.g. `1G`; empty omits the directive. */
+    val memoryMax: String = "",
+    /** `TasksMax=` of the unit, e.g. `512`; empty omits the directive. */
+    val tasksMax: String = "",
 )
 
 /**

@@ -8,6 +8,8 @@
 #   tools/remote werkator check-prerequisites <user>@<host> [TARGET_DIR]
 #   tools/remote werkator install            <user>@<host> [TARGET_DIR]
 #   tools/remote werkator build              <user>@<host> [TARGET_DIR] [BRANCH]
+#   WERKATOR_PORT=<port> WERKATOR_DOMAIN=<ci.example.de> \
+#     tools/remote werkator start            <user>@<host> [TARGET_DIR]
 #
 # TARGET_DIR defaults to the user's home directory on the host (the fast SSD),
 # BRANCH defaults to `main`.
@@ -170,6 +172,55 @@ build() {
     ssh -t "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' build '$BRANCH'"
 }
 
+# Start the server as a systemd user unit behind the managed Apache:
+#   WERKATOR_PORT=<assigned port> WERKATOR_DOMAIN=<ci.example.de> \
+#     tools/remote werkator start <user>@<host> [TARGET_DIR]
+# Optional: WERKATOR_MEMORY_MAX (e.g. 1G), WERKATOR_TASKS_MAX (e.g. 512) —
+# written into the machine config so `init --systemd` bakes them into the unit.
+start() {
+    ensure_ssh
+    : "${WERKATOR_PORT:?WERKATOR_PORT must be set (the port assigned by Hostsharing)}"
+    : "${WERKATOR_DOMAIN:?WERKATOR_DOMAIN must be set (e.g. ci.example.de)}"
+    local machine="$TARGET_DIR/werkator/.git/werkator/.werkator.yml"
+    local unit="werkator-$(basename "$TARGET_DIR/werkator").service"
+    local htaccess="$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www/.htaccess"
+
+    echo "==> Writing server settings to the machine config"
+    ssh "$HOST" "grep -q '^server:' '$machine' 2>/dev/null" || ssh "$HOST" "cat >> '$machine' <<'CFG'
+
+# Web access: the managed Apache terminates TLS and proxies to the localhost
+# port assigned by Hostsharing (eigener Serverdienst); TLS is the domain's
+# Let's Encrypt certificate, so Werkator itself stays on 127.0.0.1.
+server:
+  port: $WERKATOR_PORT
+  bindAddress: 127.0.0.1
+  publicBaseUrl: \"https://$WERKATOR_DOMAIN/\"
+  nginx:
+    enabled: false
+  systemd:
+    memoryMax: \"${WERKATOR_MEMORY_MAX:-}\"
+    tasksMax: \"${WERKATOR_TASKS_MAX:-}\"
+CFG"
+
+    echo "==> Writing the Apache reverse proxy to $htaccess"
+    ssh "$HOST" "mkdir -p '$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www' && cat > '$htaccess' <<'HT'
+DirectoryIndex disabled
+RewriteEngine On
+RewriteBase /
+RewriteRule .* http://127.0.0.1:$WERKATOR_PORT%{REQUEST_URI} [proxy]
+HT"
+
+    echo "==> Generating the systemd user unit (init --systemd)"
+    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' init --systemd"
+
+    echo "==> Enabling the service"
+    ssh "$HOST" "systemctl --user daemon-reload && systemctl --user enable --now '$unit' && systemctl --user status '$unit' --no-pager -l | head -12"
+
+    echo
+    echo "==> Server started. Verify: https://$WERKATOR_DOMAIN/"
+    echo "    Logs: ssh $HOST -- systemctl --user status '$unit'"
+}
+
 case "$COMMAND" in
     check-prerequisites)
         ensure_ssh
@@ -180,6 +231,9 @@ case "$COMMAND" in
         ;;
     build)
         build
+        ;;
+    start)
+        start
         ;;
     *)
         echo "ERROR: unknown command: $COMMAND" >&2

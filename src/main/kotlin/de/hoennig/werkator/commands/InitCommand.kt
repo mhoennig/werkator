@@ -19,6 +19,7 @@ import java.nio.file.Paths
 )
 class InitCommand(
     private val gitService: GitService,
+    private val configLoader: de.hoennig.werkator.config.ConfigLoader,
     /** The version written into the generated config as `werkator.version.since`. */
     private val buildProperties: ObjectProvider<BuildProperties>? = null,
 ) : Runnable {
@@ -157,6 +158,11 @@ class InitCommand(
               bindAddress: 127.0.0.1
               # optional Impressum (legal disclosure) link in the web UI footer; empty hides the link
               impressumUrl: ""
+              # Resource limits of the systemd user unit (init --systemd); empty = directive omitted.
+              # Needed where the service shares a memory slice, e.g. Hostsharing Managed Webspaces.
+              systemd:
+                memoryMax: ""           # e.g. 1G — a runaway Gradle build must not starve the package
+                tasksMax: ""            # e.g. 512
               # Opt-in managed nginx+certbot Docker container for HTTPS, for hosts without
               # a usable reverse proxy (see docs/deployment.md). Off by default.
               nginx:
@@ -262,6 +268,19 @@ class InitCommand(
         println("created ${file.toFile().relativeTo(normalizedWorkingDir.toFile())}")
     }
 
+    /**
+     * Resource limits for the unit come from the effective configuration when one is
+     * already loadable (re-running `init --systemd` on an installed instance); during
+     * the very first bootstrap they stay unset and the defaults (no directives) apply.
+     */
+    private fun loadedSystemdConfig(): de.hoennig.werkator.config.SystemdConfig =
+        try {
+            configLoader.load(Paths.get(".")).server.systemd
+        } catch (_: Exception) {
+            de.hoennig.werkator.config
+                .SystemdConfig()
+        }
+
     private fun createSystemdFiles(
         root: Path,
         normalizedWorkingDir: Path,
@@ -283,6 +302,8 @@ class InitCommand(
                 javaExecutable = javaExecutableResolver(),
                 jarPath = jarPath,
                 envFile = envFile,
+                memoryMax = loadedSystemdConfig().memoryMax,
+                tasksMax = loadedSystemdConfig().tasksMax,
             ),
         )
         println("created ${unitFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
