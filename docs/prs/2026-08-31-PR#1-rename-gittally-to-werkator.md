@@ -148,6 +148,8 @@ The rollback section names the asymmetry: the new version reads both names, the 
   The conversion has served its purpose with the vm2176 → vm4006 migration; what remains is the setup of a new instance: the preconditions, the credential prompt, and the machine configuration written mode 600.
   It also stops emitting a legacy `branches:` section, which [plan step 18](../plan/18-remove-branches-section.md) is about to reject outright.
 - Restored the real `GITTALLY_*` spelling in `docs/plan/00-legacy-analysis.md` and `docs/plan/13-nginx-tls.md`, which record what the old script read.
+- Migrated this repository's own `.werkator.yml` from the deprecated `branches` section to a `builds.default` definition with a `trigger` block.
+  Nothing about its build changes; it stops being the blocker for the precondition of [plan step 18](../plan/18-remove-branches-section.md), which requires that no configuration still in play carries the section, and which rejects it by name afterwards.
 
 ## Follow-up PRs
 

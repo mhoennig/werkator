@@ -19,19 +19,20 @@ watcher:
   # max commit age for new origin branches to be pulled automatically
   newBranchMaxAge: 5d
 
-# Per-branch build configuration.
-# Use "default" as the fallback for all branches not listed explicitly.
-branches:
+# Named build definitions. "default" is the base every other one inherits its
+# settings from — never its trigger.
+builds:
   default:
+    # When this build runs and for which branches. The only part a build does
+    # NOT inherit from the default — everything below it does.
+    trigger:
+      onPush: true          # build every new commit of the selected branches
     # run before each build
     cleanCommand: rm -rf build
-    # shell command for each build 
+    # shell command for each build
     buildCommand: ./gradlew --console=plain --no-daemon test
     # directories copied as build artifacts
-    artifactDirs:                                         
+    artifactDirs:
       - build/reports
     stdoutLog: build.stdout.log   # filename for captured stdout
     stderrLog: build.stderr.log   # filename for captured stderr
-    autoBuild:
-      enabled: false        # whether to rebuild on schedule
-      times: ["01:00"]      # UTC times HH:MM for scheduled builds
