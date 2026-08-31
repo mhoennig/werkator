@@ -186,6 +186,58 @@ class BuildsApiControllerTest : FunSpec() {
             verify { buildExecutor.startBuild("main", successResult.commit, build = "pitest") }
         }
 
+        test("restart with atOriginHead builds the branch as it is now, not the recorded commit") {
+            val liveLogFile = tempDir.resolve("head-restart.log")
+            every { repository.latestFor("main") } returns successResult
+            every { gitService.originHeadCommit("main", any()) } returns "newhead1"
+            every { buildExecutor.startBuild("main", "newhead1") } returns runningBuild(liveLogFile)
+
+            mockMvc
+                .perform(
+                    post("/api/builds/restart")
+                        .param("branch", "main")
+                        .param("atOriginHead", "true")
+                        .header(BuildsApiController.TOKEN_HEADER, "secret"),
+                ).andExpect(status().isAccepted)
+
+            // the recorded commit is deliberately not used: a branches row stands for a branch
+            verify { buildExecutor.startBuild("main", "newhead1") }
+            verify(exactly = 0) { buildExecutor.startBuild("main", successResult.commit) }
+        }
+
+        test("restart with atOriginHead keeps the recorded build definition and its real branch") {
+            val liveLogFile = tempDir.resolve("head-named.log")
+            every { repository.latestFor("main@pitest") } returns successResult.copy(build = "pitest", name = "main@pitest")
+            every { gitService.originHeadCommit("main", any()) } returns "newhead2"
+            every { buildExecutor.startBuild("main", "newhead2", build = "pitest") } returns
+                runningBuild(liveLogFile).copy(build = "pitest", name = "main@pitest")
+
+            mockMvc
+                .perform(
+                    post("/api/builds/restart")
+                        .param("branch", "main@pitest")
+                        .param("atOriginHead", "true")
+                        .header(BuildsApiController.TOKEN_HEADER, "secret"),
+                ).andExpect(status().isAccepted)
+
+            verify { buildExecutor.startBuild("main", "newhead2", build = "pitest") }
+        }
+
+        test("restart with atOriginHead of a branch gone from origin is refused by name") {
+            every { repository.latestFor("gone") } returns successResult.copy(branch = "gone", name = "gone")
+            every { gitService.originHeadCommit("gone", any()) } returns null
+
+            mockMvc
+                .perform(
+                    post("/api/builds/restart")
+                        .param("branch", "gone")
+                        .param("atOriginHead", "true")
+                        .header(BuildsApiController.TOKEN_HEADER, "secret"),
+                ).andExpect(status().isNotFound)
+
+            verify(exactly = 0) { buildExecutor.startBuild(any(), any(), any(), any()) }
+        }
+
         test("restart of a never-built branch enqueues its origin head commit") {
             val liveLogFile = tempDir.resolve("first-build.log")
             every { repository.latestFor("fresh") } returns null

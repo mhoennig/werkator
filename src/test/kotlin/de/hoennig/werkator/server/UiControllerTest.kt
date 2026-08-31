@@ -177,6 +177,24 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("Permanent link")))
         }
 
+        test("the branches view restarts at the branch's origin head, the latest view repeats the run") {
+            every { branchListing.branches(any()) } returns
+                listOf(BranchDto.from("main", "ignored-head", successResult, isLatestGreen = true))
+            every { repository.latestPerName() } returns listOf(successResult)
+
+            // a row on /branches stands for a branch, so its button builds the branch as it is now
+            mockMvc
+                .perform(get("/branches"))
+                .andExpect(content().string(containsString("""data-restart-at-origin-head="true"""")))
+                .andExpect(content().string(containsString("Build current head")))
+
+            // a row on / stands for a recorded run, and repeating it means that commit
+            mockMvc
+                .perform(get("/"))
+                .andExpect(content().string(containsString("""data-restart-at-origin-head="false"""")))
+                .andExpect(content().string(containsString("Restart build")))
+        }
+
         test("the permanent link shows on the branch's latest green build only, the live link while it runs") {
             val running = successResult.copy(status = BuildStatus.RUNNING, duration = null, artifactKey = "running-key")
             every { repository.history() } returns listOf(running, successResult)
