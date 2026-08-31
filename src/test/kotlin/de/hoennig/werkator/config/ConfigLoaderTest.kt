@@ -350,6 +350,39 @@ class ConfigLoaderTest : FunSpec() {
             settings.docker.image shouldBe "attacker-image"
         }
 
+        test("a branch cannot disable its bwrap sandbox or substitute a foreign rootfs through a build definition") {
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
+                """
+                builds:
+                  default:
+                    bwrap:
+                      enabled: true
+                      rootfs: /host/rootfs.tar.zst
+                """.trimIndent(),
+            )
+            val worktree = Files.createTempDirectory("werkator-test-worktree")
+            worktree.resolve(".werkator.yml").toFile().writeText(
+                """
+                builds:
+                  default:
+                    bwrap:
+                      enabled: false
+                      rootfs: /attacker/rootfs.tar.zst
+                      env:
+                        FOO: from-branch
+                """.trimIndent(),
+            )
+
+            val settings = loader.loadForWorktree(dir, worktree).buildSettings("any-branch", "default")
+
+            // pinned: the sandbox can neither be switched off nor pointed at a foreign rootfs
+            settings.bwrap.enabled shouldBe true
+            settings.bwrap.rootfs shouldBe "/host/rootfs.tar.zst"
+            // everything that describes the build itself stays the branch's own business
+            settings.bwrap.env shouldBe mapOf("FOO" to "from-branch")
+        }
+
         test("a build the branch invents inherits the host's sandbox policy") {
             val dir = Files.createTempDirectory("werkator-test")
             dir.resolve(".werkator.yml").toFile().writeText(
@@ -384,6 +417,31 @@ class ConfigLoaderTest : FunSpec() {
             settings.docker.enabled shouldBe true
             settings.docker.network shouldBe "none"
             settings.requirePullRequest shouldBe true
+        }
+
+        test("enabling both docker and bwrap on a build is rejected, not picked silently") {
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
+                """
+                builds:
+                  default:
+                    docker:
+                      enabled: true
+                      image: build-env
+                    bwrap:
+                      enabled: true
+                      rootfs: /srv/rootfs.tar.zst
+                """.trimIndent(),
+            )
+
+            val config = loader.load(dir)
+            val exception =
+                shouldThrow<IllegalArgumentException> {
+                    config.buildSettings("any-branch", "default")
+                }
+
+            exception.message shouldContain "both docker and bwrap"
+            exception.message shouldContain "builds.default"
         }
 
         test("an exclusion pattern takes a branch out of a build that would otherwise select it") {

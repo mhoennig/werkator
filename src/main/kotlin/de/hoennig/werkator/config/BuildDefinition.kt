@@ -42,6 +42,8 @@ data class BuildDefinition(
     val statusContext: String? = null,
     /** Overrides of the docker settings; null inherits them. */
     val docker: DockerOverrides? = null,
+    /** Overrides of the bwrap settings; null inherits them. */
+    val bwrap: BwrapOverrides? = null,
 ) {
     /** The settings this build runs with: [branchConfig] with this definition applied; unset values fall through. */
     fun applyTo(branchConfig: BranchConfig): BranchConfig =
@@ -61,6 +63,12 @@ data class BuildDefinition(
                     context = docker?.context ?: branchConfig.docker.context,
                     network = docker?.network ?: branchConfig.docker.network,
                     env = docker?.env ?: branchConfig.docker.env,
+                ),
+            bwrap =
+                branchConfig.bwrap.copy(
+                    enabled = bwrap?.enabled ?: branchConfig.bwrap.enabled,
+                    rootfs = bwrap?.rootfs ?: branchConfig.bwrap.rootfs,
+                    env = bwrap?.env ?: branchConfig.bwrap.env,
                 ),
         )
 
@@ -157,5 +165,14 @@ data class DockerOverrides(
     val image: String? = null,
     val dockerfile: String? = null,
     val context: String? = null,
+    val env: Map<String, String>? = null,
+)
+
+/** Nullable bubblewrap overrides of a [BuildDefinition]; null values inherit the branch's setting. */
+data class BwrapOverrides(
+    /** Run the build in the bwrap sandbox instead of natively. Pinned — a branch must not escape its sandbox. */
+    val enabled: Boolean? = null,
+    /** Rootfs archive source. Pinned — a branch must not substitute a foreign rootfs. */
+    val rootfs: String? = null,
     val env: Map<String, String>? = null,
 )

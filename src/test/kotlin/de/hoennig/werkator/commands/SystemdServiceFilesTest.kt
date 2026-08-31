@@ -33,6 +33,26 @@ class SystemdServiceFilesTest : FunSpec() {
             content shouldContain "WantedBy=default.target"
         }
 
+        test("resource limits are written when configured and omitted when unset") {
+            fun unit(
+                memoryMax: String,
+                tasksMax: String,
+            ) = SystemdServiceFiles.unitFileContent(
+                repoRoot = Paths.get("/srv/repos/my-repo"),
+                javaExecutable = Paths.get("/usr/bin/java"),
+                jarPath = Paths.get("/srv/repos/my-repo/werkator.jar"),
+                envFile = Paths.get("/srv/repos/my-repo/werkator.env"),
+                memoryMax = memoryMax,
+                tasksMax = tasksMax,
+            )
+            val with = unit(memoryMax = "1G", tasksMax = "512")
+            with shouldContain "MemoryMax=1G"
+            with shouldContain "TasksMax=512"
+            val without = unit(memoryMax = "", tasksMax = "")
+            without shouldNotContain "MemoryMax"
+            without shouldNotContain "TasksMax"
+        }
+
         test("percent signs in paths are escaped for systemd") {
             val content =
                 SystemdServiceFiles.unitFileContent(

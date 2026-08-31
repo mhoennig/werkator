@@ -44,13 +44,16 @@ class ProcessBuildRunner : BuildRunner {
 
 /**
  * Selects the runtime per branch: Docker when `branches.<name>.docker.enabled`,
- * native shell execution otherwise (the unchanged default).
+ * bubblewrap when `branches.<name>.bwrap.enabled`, native shell execution otherwise
+ * (the unchanged default). Docker and bwrap are mutually exclusive per branch and are
+ * rejected together at config load, so the branch order here never has to "pick".
  */
 @Primary
 @Component
 class DispatchingBuildRunner(
     private val processBuildRunner: ProcessBuildRunner,
     private val dockerBuildRunner: DockerBuildRunner,
+    private val bwrapBuildRunner: BwrapBuildRunner,
 ) : BuildRunner {
     override fun start(
         command: String,
@@ -60,7 +63,12 @@ class DispatchingBuildRunner(
         branchConfig: BranchConfig,
         onAuxProcess: (Process) -> Unit,
     ): Process {
-        val runner = if (branchConfig.docker.enabled) dockerBuildRunner else processBuildRunner
+        val runner =
+            when {
+                branchConfig.docker.enabled -> dockerBuildRunner
+                branchConfig.bwrap.enabled -> bwrapBuildRunner
+                else -> processBuildRunner
+            }
         return runner.start(command, workingDir, environment, repoDir, branchConfig, onAuxProcess)
     }
 }

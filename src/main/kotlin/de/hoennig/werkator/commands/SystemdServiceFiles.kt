@@ -22,24 +22,33 @@ object SystemdServiceFiles {
         javaExecutable: Path,
         jarPath: Path,
         envFile: Path,
-    ): String =
-        """
-        [Unit]
-        Description=Werkator CI for ${repoRoot.fileName}
-        Wants=network-online.target
-        After=network-online.target docker.service
+        memoryMax: String = "",
+        tasksMax: String = "",
+    ): String {
+        val limits =
+            listOfNotNull(
+                "MemoryMax=$memoryMax".takeIf { memoryMax.isNotBlank() },
+                "TasksMax=$tasksMax".takeIf { tasksMax.isNotBlank() },
+            ).joinToString("\n")
+        val limitsLine = if (limits.isEmpty()) "" else "\n$limits"
+        return """
+            [Unit]
+            Description=Werkator CI for ${repoRoot.fileName}
+            Wants=network-online.target
+            After=network-online.target docker.service
 
-        [Service]
-        Type=simple
-        WorkingDirectory=${systemdPath("$repoRoot")}
-        EnvironmentFile=-${systemdPath("$envFile")}
-        ExecStart=${systemdQuote("$javaExecutable")} ${'$'}JAVA_OPTS -jar ${systemdQuote("$jarPath")} server
-        Restart=always
-        RestartSec=30
+            [Service]
+            Type=simple
+            WorkingDirectory=${systemdPath("$repoRoot")}
+            EnvironmentFile=-${systemdPath("$envFile")}
+            ExecStart=${systemdQuote("$javaExecutable")} ${'$'}JAVA_OPTS -jar ${systemdQuote("$jarPath")} server
+            Restart=always
+            RestartSec=30
 
-        [Install]
-        WantedBy=default.target
-        """.trimIndent() + "\n"
+            [Install]
+            WantedBy=default.target
+            """.trimIndent().replace("\n\n[Install]", "$limitsLine\n\n[Install]") + "\n"
+    }
 
     /**
      * Nightly Docker cleanup like the legacy `docker-prune.service`, but without `--volumes`:

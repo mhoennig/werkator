@@ -14,7 +14,12 @@ import java.nio.file.attribute.PosixFilePermissions
 
 class InitCommandTest : FunSpec() {
     private val gitService = mockk<GitService>()
-    private val initCommand = InitCommand(gitService)
+    private val initCommand =
+        InitCommand(
+            gitService,
+            de.hoennig.werkator.config
+                .ConfigLoader(mockk(relaxed = true)),
+        )
 
     init {
         test("creates config files with auto-detected values") {
