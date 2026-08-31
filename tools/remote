@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+#
+# Central control script for remote Werkator operations (same pattern as the
+# `remote` scripts in the other repos): the first argument is the repo
+# selector, the second the command, then host and optional target directory.
+#
+# Usage:
+#   tools/remote werkator check-prerequisites <user>@<host> [TARGET_DIR]
+#   tools/remote werkator install            <user>@<host> [TARGET_DIR]
+#   tools/remote werkator build              <user>@<host> [TARGET_DIR] [BRANCH]
+#
+# TARGET_DIR defaults to the user's home directory on the host (the fast SSD),
+# BRANCH defaults to `main`.
+# Install layout on the host:
+#   $TARGET_DIR/werkator/    the repository clone
+#   $TARGET_DIR/.werkator/   runtime bundle + rootfs archive
+#
+# `install` performs, in order:
+#   1. check-prerequisites  (bwrap capability + disk/quota, aborts on FAIL)
+#   2. ensure SSH access    (ssh-copy-id on first use; asks for the password)
+#   3. upload artifacts     (runtime bundle, built locally if missing, + rootfs)
+#   4. clone the repository (needs the host SSH key registered at GitHub once —
+#      the script prints the key and waits)
+#   5. `werkator init` + machine-local bwrap configuration
+#
+# Environment overrides:
+#   WERKATOR_ROOTFS   path to the rootfs archive
+#                     (default: <repo>/werkator-buildenv-trixie.tar.zst)
+#
+
+set -euo pipefail
+
+REPO="${1:-}"
+COMMAND="${2:-}"
+HOST="${3:-}"
+TARGET_DIR="${4:-}"
+BRANCH="${5:-main}"
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PREREQ_SCRIPT="$REPO_ROOT/tools/werkator-build-prerequisites.sh"
+RUNTIME_BUNDLE="$REPO_ROOT/build/distributions/werkator-runtime-linux-x64.tar.gz"
+ROOTFS="${WERKATOR_ROOTFS:-$REPO_ROOT/werkator-buildenv-trixie.tar.zst}"
+
+usage() {
+    sed -n '3,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    exit 2
+}
+
+[ -n "$REPO" ] && [ -n "$COMMAND" ] && [ -n "$HOST" ] || usage
+[ "$REPO" = "werkator" ] || { echo "ERROR: unknown repo selector: $REPO" >&2; usage; }
+
+TARGET_DIR="${TARGET_DIR:-}"
+
+ssh_present() {
+    ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" true 2>/dev/null
+}
+
+ensure_ssh() {
+    if ssh_present; then
+        echo "==> SSH access to $HOST: ok"
+    else
+        echo "==> No key-based SSH access yet; running ssh-copy-id (password prompt expected)"
+        ssh-copy-id "$HOST"
+        ssh_present || { echo "ERROR: SSH access still not working after ssh-copy-id" >&2; exit 1; }
+    fi
+    # Resolve the target directory default now that SSH works.
+    if [ -z "$TARGET_DIR" ]; then
+        TARGET_DIR="$(ssh "$HOST" 'echo $HOME')"
+    fi
+}
+
+# Run the prerequisites script remotely by piping it over stdin; TARGET_DIR and
+# ROOTFS_ARCHIVE are passed as arguments to `bash -s --`.
+check_prerequisites() {
+    echo "==> Checking prerequisites on $HOST (target dir: $TARGET_DIR)"
+    local rootfs_remote="$TARGET_DIR/.werkator/$(basename "$ROOTFS")"
+    if ! ssh "$HOST" "WERKATOR_SSH_TARGET='$HOST' bash -s -- '$TARGET_DIR' '$rootfs_remote'" < "$PREREQ_SCRIPT"; then
+        echo "ERROR: prerequisites failed on $HOST — install aborted" >&2
+        exit 1
+    fi
+}
+
+ensure_local_artifacts() {
+    if [ ! -f "$RUNTIME_BUNDLE" ]; then
+        echo "==> Runtime bundle not found; building it locally (./gradlew runtimeBundle)"
+        (cd "$REPO_ROOT" && ./gradlew runtimeBundle --console=plain -q)
+    fi
+    [ -f "$RUNTIME_BUNDLE" ] || { echo "ERROR: runtime bundle missing: $RUNTIME_BUNDLE" >&2; exit 1; }
+    [ -f "$ROOTFS" ] || {
+        echo "ERROR: rootfs archive missing: $ROOTFS" >&2
+        echo "       build it with tools/build-bwrap-rootfs.sh or set WERKATOR_ROOTFS" >&2
+        exit 1
+    }
+}
+
+ensure_github_access() {
+    # `ssh -T git@github.com` exits 1 even on success ("does not provide shell
+    # access") — neutralize remotely, then match on the greeting text.
+    if ssh "$HOST" 'ssh -o BatchMode=yes -o ConnectTimeout=10 -T git@github.com 2>&1 || true' | grep -q "successfully authenticated"; then
+        echo "==> GitHub SSH access from $HOST: ok"
+        return 0
+    fi
+    echo
+    echo "==> The host cannot reach GitHub via SSH yet."
+    echo "    Add THIS public key to GitHub (Settings > SSH and GPG keys > New SSH key):"
+    ssh "$HOST" 'cat ~/.ssh/id_*.pub 2>/dev/null' || {
+        echo "ERROR: no public key on the host; create one with ssh-keygen -t ed25519" >&2
+        exit 1
+    }
+    read -r -p "    Press Enter once the key is registered at GitHub... "
+    ssh "$HOST" 'ssh -o BatchMode=yes -T git@github.com 2>&1 || true' | grep -q "successfully authenticated" || {
+        echo "ERROR: GitHub authentication from $HOST still failing" >&2
+        exit 1
+    }
+    echo "==> GitHub SSH access from $HOST: ok"
+}
+
+install() {
+    ensure_ssh
+    check_prerequisites
+    ensure_local_artifacts
+
+    echo "==> Uploading runtime bundle and rootfs archive"
+    ssh "$HOST" "mkdir -p '$TARGET_DIR/.werkator'"
+    scp -q "$RUNTIME_BUNDLE" "$HOST:$TARGET_DIR/.werkator/"
+    scp -q "$ROOTFS" "$HOST:$TARGET_DIR/.werkator/"
+
+    echo "==> Unpacking runtime bundle"
+    ssh "$HOST" "tar xzf '$TARGET_DIR/.werkator/$(basename "$RUNTIME_BUNDLE")' -C '$TARGET_DIR/.werkator'"
+    ssh "$HOST" "'$TARGET_DIR/.werkator/werkator/bin/werkator' --version"
+
+    ensure_github_access
+
+    echo "==> Cloning the repository"
+    if ssh "$HOST" "test -d '$TARGET_DIR/werkator/.git'"; then
+        echo "    (already cloned, skipping)"
+    else
+        ssh "$HOST" "git clone git@github.com:mhoennig/werkator.git '$TARGET_DIR/werkator'"
+    fi
+
+    echo "==> Running werkator init"
+    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' init"
+
+    echo "==> Writing machine-local bwrap configuration"
+    ssh "$HOST" "grep -q '^  bwrap:' '$TARGET_DIR/werkator/.git/werkator/.werkator.yml' 2>/dev/null" || ssh "$HOST" "cat >> '$TARGET_DIR/werkator/.git/werkator/.werkator.yml' <<'CFG'
+
+# Build in the bubblewrap sandbox instead of natively (Step 17 / ADR 0007).
+# Both keys are pinned: read from this machine config even if a branch sets
+# its own values in a committed .werkator.yml.
+builds:
+  default:
+    bwrap:
+      enabled: true
+      rootfs: $TARGET_DIR/.werkator/$(basename "$ROOTFS")
+CFG"
+
+    echo "==> Verifying the effective configuration"
+    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' config:print 2>/dev/null | grep -A3 'bwrap:' | head -4"
+
+    echo
+    echo "==> Install complete."
+    echo "    Repo:     $TARGET_DIR/werkator"
+    echo "    Runtime:  $TARGET_DIR/.werkator/werkator/bin/werkator"
+    echo "    Next:     tools/remote werkator build $HOST '$TARGET_DIR'"
+}
+
+build() {
+    ensure_ssh
+    echo "==> Running one initial build of branch '$BRANCH' on $HOST (in the bwrap sandbox)"
+    ssh -t "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' build '$BRANCH'"
+}
+
+case "$COMMAND" in
+    check-prerequisites)
+        ensure_ssh
+        check_prerequisites
+        ;;
+    install)
+        install
+        ;;
+    build)
+        build
+        ;;
+    *)
+        echo "ERROR: unknown command: $COMMAND" >&2
+        usage
+        ;;
+esac

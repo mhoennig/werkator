@@ -409,6 +409,7 @@ This is the third runtime, for hosts without root and without a Docker daemon (e
 
 `bwrap.rootfs` names the prepared root filesystem archive — a Debian-base rootfs with the build tools (JDK, git, locales, project-specific tooling) built elsewhere, since `debootstrap` is unavailable on the target.
 It is a local path or an `http(s)` URL; a URL is downloaded once.
+Build the archive with `tools/build-bwrap-rootfs.sh` on any machine with Docker; verify the host's user-namespace capability first with `tools/werkator-build-prerequisites.sh`.
 The archive is unpacked on demand (`tar --no-same-owner`) into `.git/werkator/buildenv/<envKey>/rootfs`, shared across all branch worktrees like the Docker Gradle cache volume; `<envKey>` derives from a hash of the source, so a changed `rootfs` unpacks a fresh environment and stale ones can be pruned.
 Per-branch Gradle caches persist in `.git/werkator/buildenv/home`, bound as `/root`.
 `bwrap.env` adds environment variables inside the sandbox.

@@ -95,6 +95,17 @@ bwrap --unshare-user --unshare-pid --die-with-parent --uid 0 --gid 0 \
 - No Docker inside the sandbox, so no Testcontainers-based tests; build commands must select a Docker-free test subset.
   For Werkator's own build this means `TestcontainersSmokeTest` must become conditional (`enabledIf` docker present) — that change is part of this step.
 
+**Done (branch `bwrap-build-runtime`):** `TestcontainersSmokeTest` is now gated with `enabledIf docker available` — it is reported as skipped (never failed) when no Docker daemon is reachable, and runs as before when one is.
+The two manual steps of the workflow have scripts in `tools/`:
+`tools/build-bwrap-rootfs.sh` builds the rootfs archive (debootstrap-minbase Debian + JDK 21 + git + locales) on any Docker machine — the rootfs is *not* built on the target; `tools/werkator-build-prerequisites.sh` re-runs the precondition command line above on the target webspace and checks all three signals.
+It also checks the disk/quota situation: free space via `df` plus group-quota headroom (`quota -g` limit minus usage) against the ~4 GiB build footprint (unpacked rootfs + Gradle cache + artifacts) — an undersized quota fails the check, since a build would otherwise be blocked mid-flight (experienced on h68: 1 GiB group quota).
+
+**Planned: a central `tools/remote` control script** (same pattern as the user's other repos; first argument is the repo, here `werkator`, then a command):
+
+- `tools/remote werkator check-prerequisites <user>@<host>` — runs `werkator-build-prerequisites.sh` on the target host (uploaded if missing).
+- `tools/remote werkator install <user>@<host>` — full setup, idempotent: ensure SSH access (`ssh-copy-id`, first login asks for the password), run the prerequisites check, upload runtime bundle + rootfs archive to `~/.werkator/`, unpack, clone the repo, run `werkator init`, write the machine-local bwrap config.
+  The one manual dependency remains: the host's public SSH key must be added to GitHub once; the script prints the key and waits.
+
 ## Web Access under a Domain (no Docker, no managed nginx)
 
 The managed nginx/TLS container from ADR 0005 is for container hosts without a reverse proxy.

@@ -120,6 +120,17 @@ class BwrapBuildRunner(
         rootfsDir: Path,
         homeDir: Path,
     ): List<String> {
+        // bwrap creates mountpoints for bind destinations inside the sandbox; a
+        // relative workspace path would resolve there into the read-only rootfs
+        // ("Can't mkdir parents ...: Read-only file system"). Bind at absolute
+        // host paths instead — same contract as the Docker runner. Relative
+        // paths come from the CLI relative to the repo, so resolve them against
+        // repoDir, not against the process working directory.
+        val repoDirAbs = repoDir.toAbsolutePath().normalize()
+        val workspaceAbs =
+            if (workspace.isAbsolute) workspace.normalize() else repoDirAbs.resolve(workspace).normalize()
+        val homeDirAbs =
+            if (homeDir.isAbsolute) homeDir.normalize() else repoDirAbs.resolve(homeDir).normalize()
         val args =
             mutableListOf(
                 "bwrap",
@@ -134,10 +145,10 @@ class BwrapBuildRunner(
                 rootfsDir.toString(),
                 "/",
             )
-        args += listOf("--bind", "$workspace", "$workspace")
-        args += listOf("--bind", "$homeDir", "/root")
+        args += listOf("--bind", "$workspaceAbs", "$workspaceAbs")
+        args += listOf("--bind", "$homeDirAbs", "/root")
         args += listOf("--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
-        args += gitMetadataMounts(workspace, repoDir)
+        args += gitMetadataMounts(workspaceAbs, repoDir)
         args += listOf("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp")
         args += listOf("--setenv", "HOME", "/root")
         for ((key, value) in environment) {
@@ -146,7 +157,7 @@ class BwrapBuildRunner(
         for ((key, value) in bwrap.env) {
             args += listOf("--setenv", key, value)
         }
-        args += listOf("--chdir", "$workspace", "/bin/sh", "-c", command)
+        args += listOf("--chdir", "$workspaceAbs", "/bin/sh", "-c", command)
         return args
     }
 

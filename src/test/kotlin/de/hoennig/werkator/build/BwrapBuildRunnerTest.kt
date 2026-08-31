@@ -112,6 +112,31 @@ class BwrapBuildRunnerTest : FunSpec() {
             Files.isDirectory(rootfsUnpacked()) shouldBe true
         }
 
+        test("binds a relative workspace path at its absolute location") {
+            // bwrap creates mountpoints for bind destinations inside the sandbox;
+            // a relative path would land in the read-only rootfs and fail with
+            // "Can't mkdir parents ...: Read-only file system" (seen on the webspace).
+            every {
+                commandRunner.runOrThrow(
+                    listOf("tar", "--no-same-owner", "-xf", "/srv/buildenv.tar.zst", "-C", rootfsUnpacked().toString()),
+                    repoDir,
+                    any(),
+                    any(),
+                )
+            } returns
+                GitCommandResult(0, "", "")
+
+            val relativeWorkspace = repoDir.relativize(workspace)
+
+            runner.start("./gradlew test", relativeWorkspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
+
+            val args = captured.single()
+            val absolute = workspace.toAbsolutePath().normalize().toString()
+            args[args.indexOf("--bind") + 1] shouldBe absolute
+            args[args.indexOf("--bind") + 2] shouldBe absolute
+            args[args.indexOf("--chdir") + 1] shouldBe absolute
+        }
+
         test("does not re-unpack an already prepared rootfs") {
             Files.createDirectories(rootfsUnpacked())
 
