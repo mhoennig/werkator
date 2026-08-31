@@ -12,11 +12,6 @@ Werkator is configured via YAML files. Settings are merged from several sources 
 
 The repo install config (`.git/werkator/.werkator.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
 
-Each of the three is also looked up under the name it had before the rename to Werkator, spelled exactly as it was: `.gittally.yml` at the repository root and in a build worktree, `.git/gittally/.gittally.yml` for the machine layer.
-The current name always wins; where both exist the old file is ignored, never merged.
-The fallback exists because a missing configuration is not an error — it leaves every setting at its default, so an installation that updated without moving its files would come up looking healthy while having forgotten its credentials and its builds.
-Rename the files at your convenience; the fallback goes away with a future release.
-
 ### Which Werkator a file is written for
 
 Every configuration file may declare the Werkator it was written for. Without it, a
