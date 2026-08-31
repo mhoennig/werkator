@@ -2,6 +2,7 @@ package de.hoennig.werkator.commands
 
 import de.hoennig.werkator.git.GitService
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.file.shouldExist
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -36,6 +37,25 @@ class InitCommandTest : FunSpec() {
             repoConfig.toFile().shouldExist()
             val repoContent = repoConfig.toFile().readText()
             repoContent shouldContain "account: \"\"" // no user in https URL
+        }
+
+        test("does not write a second config beside one under the previous name") {
+            val tempDir = Files.createTempDirectory("werkator-init-test")
+            initCommand.workingDir = tempDir
+            Files.createDirectories(tempDir.resolve(".git/gittally"))
+            tempDir.resolve(".gittally.yml").toFile().writeText("gitea:\n  owner: kept\n")
+            tempDir.resolve(".git/gittally/.gittally.yml").toFile().writeText("git:\n  account: kept\n")
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            // a second file would shadow the first one, and the repository would
+            // silently build something else than what its configuration says
+            Files.exists(tempDir.resolve(".werkator.yml")).shouldBeFalse()
+            Files.exists(tempDir.resolve(".git/werkator/.werkator.yml")).shouldBeFalse()
+            tempDir.resolve(".gittally.yml").toFile().readText() shouldContain "owner: kept"
         }
 
         test("creates the secrets config and its directory readable only by the owner") {

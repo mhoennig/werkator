@@ -141,6 +141,9 @@ The deployment to vm4006 found the gap the hard way: the move renames the *direc
 The instance came up with empty credentials and no host build definitions, without an error, which is the failure this PR exists to prevent.
 `StateDirMigration` now renames the configuration along with the directory, unless one under the current name is already there, and `ConfigFiles` carries the intermediate path as a third candidate for a directory somebody moved by hand.
 
+The same deployment found the second half of it: `init --systemd` runs `init`, whose "does it already exist" check knew only the current name, so it wrote a fresh template `.werkator.yml` beside the repository's committed `.gittally.yml` — and the current name wins, so the repository would have started building the template's `./gradlew test` instead of what it says it builds.
+Both checks now ask `ConfigFiles`, which is the same question the loader asks.
+
 **A one-time move for the state.**
 [`StateDirMigration`](../../src/main/kotlin/de/hoennig/werkator/StateDirMigration.kt) renames `.git/gittally` to `.git/werkator` from `CliRunner`, before any command resolves a path under it and therefore before the second Spring context of `server` exists.
 A fallback was rejected here: unlike a configuration, the state is written, so a fallback would have to decide on every write which of two directories wins, where a one-time move decides once and leaves a single path behind.

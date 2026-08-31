@@ -1,6 +1,7 @@
 package de.hoennig.werkator.commands
 
 import de.hoennig.werkator.SecretFiles
+import de.hoennig.werkator.config.ConfigFiles
 import de.hoennig.werkator.git.GitService
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
@@ -99,7 +100,8 @@ class InitCommand(
         detected: DetectedValues,
         normalizedWorkingDir: Path,
     ) {
-        val file = root.resolve(".git/werkator/.werkator.yml")
+        val existing = ConfigFiles.firstExisting(root, ConfigFiles.repoInstall)
+        val file = root.resolve(existing)
         if (file.toFile().exists()) {
             println("${file.toFile().relativeTo(normalizedWorkingDir.toFile())} already exists — not overwritten")
             return
@@ -123,7 +125,11 @@ class InitCommand(
         detected: DetectedValues,
         normalizedWorkingDir: Path,
     ) {
-        val file = root.resolve(".werkator.yml")
+        // under either name: writing a second one beside a config under the previous
+        // name would shadow it, and a repository would silently start building
+        // something else than what it says it builds
+        val existing = ConfigFiles.firstExisting(root)
+        val file = root.resolve(existing)
         if (file.toFile().exists()) {
             println("${file.toFile().relativeTo(normalizedWorkingDir.toFile())} already exists — not overwritten")
             return
