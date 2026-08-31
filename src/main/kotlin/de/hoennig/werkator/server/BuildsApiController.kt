@@ -86,28 +86,43 @@ class BuildsApiController(
     }
 
     /**
-     * Re-enqueues the last recorded commit of the build name [branch] — or the origin
-     * head for a branch never built, so the branches view can trigger first builds like
-     * legacy. A restarted build re-runs its recorded build definition, with the
-     * settings from the current configuration.
+     * Re-enqueues the build name [branch] — or the origin head for a branch never
+     * built, so the branches view can trigger first builds like legacy. A restarted
+     * build re-runs its recorded build definition, with the settings from the current
+     * configuration.
+     *
+     * With [atOriginHead] the branch's current origin head is built instead of the
+     * recorded commit. That is what the branches view asks for: a row there stands for
+     * a branch, not for a past run, and repeating an overtaken commit answers a
+     * question nobody asked — a build gate comparing against origin cannot even pass
+     * on it. Latest and history mean the recorded run, and keep repeating it.
+     *
      * The name is a parameter, not a path variable, because branch names may contain
      * slashes (Tomcat rejects encoded slashes in the path by default).
      */
     @PostMapping("/api/builds/restart")
     fun restart(
         @RequestParam branch: String,
+        @RequestParam(defaultValue = "false") atOriginHead: Boolean,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
     ): ResponseEntity<Any> {
         rejectBadToken(headerToken)?.let { return it }
         val latest = repository.latestFor(branch)
+        // the name may be a pool like `main@pitest`; the branch to build is the recorded one
+        val branchName = latest?.branch ?: branch
         val commit =
-            latest?.commit
-                ?: gitService.originHeadCommit(branch, workingDir)
-                ?: return notFound("branch '$branch' has no recorded build and no origin counterpart")
+            if (atOriginHead) {
+                gitService.originHeadCommit(branchName, workingDir)
+                    ?: return notFound("branch '$branchName' is not on origin")
+            } else {
+                latest?.commit
+                    ?: gitService.originHeadCommit(branchName, workingDir)
+                    ?: return notFound("branch '$branch' has no recorded build and no origin counterpart")
+            }
         // a restarted build re-runs its recorded build definition (settings from the current config)
         val running =
             buildExecutor.startBuild(
-                branch = latest?.branch ?: branch,
+                branch = branchName,
                 commit = commit,
                 build = latest?.build ?: BuildDefinition.DEFAULT,
             )

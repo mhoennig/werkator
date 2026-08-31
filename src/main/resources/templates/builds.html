@@ -7,7 +7,7 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="table-wrap">
         <table id="builds-table"
-               th:attr="data-api=${apiPath},data-allow-restart=${allowRestart},data-empty-message=${emptyMessage}">
+               th:attr="data-api=${apiPath},data-allow-restart=${allowRestart},data-restart-at-origin-head=${restartAtOriginHead},data-empty-message=${emptyMessage}">
             <thead>
             <tr>
                 <th>Status</th>
@@ -65,8 +65,9 @@
                 <td class="actions-cell">
                     <div class="actions">
                         <button th:if="${allowRestart}" class="action-button" type="button" data-action="restart"
-                                th:attr="data-branch=${row.name}" title="Restart build"
-                                aria-label="Restart build">↻</button>
+                                th:attr="data-branch=${row.name},data-at-origin-head=${restartAtOriginHead}"
+                                th:title="${restartAtOriginHead} ? 'Build current head' : 'Restart build'"
+                                th:aria-label="${restartAtOriginHead} ? 'Build current head' : 'Restart build'">↻</button>
                         <button th:if="${row.artifactKey != ''}" class="action-button delete-button" type="button"
                                 data-action="delete" th:attr="data-artifact-key=${row.artifactKey}"
                                 title="Delete stored build" aria-label="Delete stored build">×</button>
