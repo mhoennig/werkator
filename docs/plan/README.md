@@ -91,6 +91,10 @@ Added for running Werkator on Hostsharing Managed Webspaces (2026-08-10):
 
 - [ ] `17-bwrap-build-runtime.md` — Werkator on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
 
+Added for surfacing build time as a trend (2026-08-31):
+
+- [ ] `20-build-duration-tracking.md` — a per-name duration trend over the existing history, derived on read in the History view: series, window average/min/max, and a visible marker when the latest build is slower than its window average (grouped by the history's own `name`, so branch builds and named jobs stay separate — complements Step 14, which owns phase timing)
+
 Steps 01–03 are independent of each other.
 Steps 04–06 depend on 01–03.
 Steps 07–09 depend on 04–06.
@@ -100,3 +104,4 @@ Step 15 depends on 12 and 13 and revises the containerized-runtime sketch in `do
 Step 17 depends on 11, 15, and 16, and starts with a hard precondition check on the target webspace (ADR 0007 is written as part of the step).
 Step 18 depends on nothing in code but on the watched repository having migrated — its precondition check is a hard gate, not a formality.
 Step 19 depends on nothing; `WatcherState` and `/api/watcher` already carry everything it needs to render.
+Step 20 depends on nothing; the duration is already recorded, and the trend is derived read-only from `repository.history()`.
