@@ -336,7 +336,7 @@ function actionButton(symbol, title, className, dataset) {
 
 // ---- latest/history table --------------------------------------------------
 
-function renderBuildRow(build, allowRestart) {
+function renderBuildRow(build, allowRestart, restartAtOriginHead) {
     const row = document.createElement("tr");
     const displayName = build.name || build.branch;
     row.dataset.artifactKey = build.artifactKey || "";
@@ -413,7 +413,15 @@ function renderBuildRow(build, allowRestart) {
     const actionsCell = elem("td", "actions-cell");
     const actions = elem("div", "actions");
     if (allowRestart) {
-        actions.appendChild(actionButton("↻", "Restart build", null, { action: "restart", branch: displayName }));
+        // the branches view builds the branch as it is now, the other views repeat a run
+        const restartTitle = restartAtOriginHead ? "Build current head" : "Restart build";
+        actions.appendChild(
+            actionButton("↻", restartTitle, null, {
+                action: "restart",
+                branch: displayName,
+                atOriginHead: restartAtOriginHead ? "true" : "false",
+            }),
+        );
     }
     if (build.artifactKey) {
         actions.appendChild(
@@ -439,6 +447,7 @@ function initBuildsTable() {
     }
     const tbody = document.getElementById("build-rows");
     const allowRestart = table.dataset.allowRestart === "true";
+    const restartAtOriginHead = table.dataset.restartAtOriginHead === "true";
 
     async function refresh() {
         const builds = await fetchJson(table.dataset.api);
@@ -449,7 +458,7 @@ function initBuildsTable() {
             tbody.appendChild(elem("tr")).appendChild(cell);
             return;
         }
-        builds.forEach((build) => tbody.appendChild(renderBuildRow(build, allowRestart)));
+        builds.forEach((build) => tbody.appendChild(renderBuildRow(build, allowRestart, restartAtOriginHead)));
     }
 
     startPolling(refresh, TABLE_POLL_MS);
@@ -680,7 +689,8 @@ document.addEventListener("click", async (event) => {
     button.disabled = true;
     try {
         if (action === "restart") {
-            await sendAction("/api/builds/restart?branch=" + encodeURIComponent(button.dataset.branch), "POST");
+            const atOriginHead = button.dataset.atOriginHead === "true" ? "&atOriginHead=true" : "";
+            await sendAction("/api/builds/restart?branch=" + encodeURIComponent(button.dataset.branch) + atOriginHead, "POST");
         } else if (action === "cancel") {
             await sendAction(`/api/builds/${encodeURIComponent(button.dataset.artifactKey)}/cancel`, "POST");
         } else if (action === "delete") {

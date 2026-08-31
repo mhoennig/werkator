@@ -62,6 +62,7 @@ class UiController(
         model.addAttribute("rows", repository.latestPerName().map { BuildRowView.from(it, links, permanentUrlOf(it)) })
         model.addAttribute("apiPath", "/api/builds/latest")
         model.addAttribute("allowRestart", true)
+        model.addAttribute("restartAtOriginHead", false)
         model.addAttribute("emptyMessage", "No builds recorded yet.")
         return "builds"
     }
@@ -73,6 +74,8 @@ class UiController(
         model.addAttribute("rows", branchListing.branches(workingDir).map { BuildRowView.from(it, links) })
         model.addAttribute("apiPath", "/api/branches")
         model.addAttribute("allowRestart", true)
+        // a row here stands for a branch, not for a past run
+        model.addAttribute("restartAtOriginHead", true)
         model.addAttribute("emptyMessage", "No branches found on origin.")
         return "builds"
     }
@@ -83,6 +86,7 @@ class UiController(
         model.addAttribute("rows", repository.history().map { BuildRowView.from(it, links, permanentUrlOf(it)) })
         model.addAttribute("apiPath", "/api/builds/history")
         model.addAttribute("allowRestart", false)
+        model.addAttribute("restartAtOriginHead", false)
         model.addAttribute("emptyMessage", "No builds archived yet.")
         return "builds"
     }
