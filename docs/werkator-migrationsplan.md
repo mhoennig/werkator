@@ -145,6 +145,65 @@ The state directory has to be moved back by hand; nothing moves it in that direc
 
 ### vm4006, `hs.hsadmin.ng`
 
+#### The v1.0.0 deployment, in place and revertible
+
+Measured on 2026-08-31: the state directory is 878 MB, of which 878 MB are the nine build worktrees.
+Everything that cannot be recreated — build history, control token, machine configuration, auto-build state, the generated systemd files — is **84 KB**.
+That is what makes an in-place switch safe: the snapshot is instant, and the worktrees are dropped by the migration and recreated per branch by the next build.
+
+Precondition: `curl -s http://127.0.0.1:18080/api/builds/current` answers `[]`.
+
+```bash
+# 1. from the branch, locally
+./gradlew runtimeBundle
+scp build/distributions/werkator-runtime-linux-x64.tar.gz tallyman@vm4006.hostsharing.net:~/
+
+# 2. stop, then snapshot the 84 KB that matter
+systemctl --user stop gittally-hs.hsadmin.ng.service
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+tar czf ~/gittally-state-$STAMP.tar.gz -C ~/hs.hsadmin.ng/.git --exclude=gittally/worktrees gittally
+
+# 3. bundle beside the old one, following the existing convention
+mv ~/opt/gittally ~/opt/gittally.0.9.21.bak
+tar xzf ~/werkator-runtime-linux-x64.tar.gz -C ~/opt
+
+# 4. artifact root: a move on the same filesystem, instant in both directions
+mv ~/.local/state/gittally ~/.local/state/werkator
+
+# 5. let the state directory move itself, and read what it says
+cd ~/hs.hsadmin.ng
+~/opt/werkator/jre/bin/java -jar ~/opt/werkator/lib/werkator.jar config:print --full
+
+# 6. units
+systemctl --user disable --now gittally-hs.hsadmin.ng.service gittally-docker-prune.timer
+rm -f ~/.config/systemd/user/gittally-*
+~/opt/werkator/jre/bin/java -jar ~/opt/werkator/lib/werkator.jar init --systemd
+# follow the ln -s / daemon-reload / enable commands it prints
+```
+
+Verification, in this order: the service is `active`, the web UI footer reads `Werkator v1.0.0`, the build history is the one from before, `/api/builds/current` answers, the watcher polls without errors in the journal, and a real branch build runs in `hsadmin-ng-build-env:latest` and reports to Gitea.
+
+Rollback, one sequence, about a minute:
+
+```bash
+systemctl --user disable --now werkator-hs.hsadmin.ng.service werkator-docker-prune.timer
+rm -f ~/.config/systemd/user/werkator-*
+rm -rf ~/hs.hsadmin.ng/.git/werkator
+tar xzf ~/gittally-state-$STAMP.tar.gz -C ~/hs.hsadmin.ng/.git
+mv ~/.local/state/werkator ~/.local/state/gittally
+rm -rf ~/opt/werkator && mv ~/opt/gittally.0.9.21.bak ~/opt/gittally
+systemctl --user daemon-reload
+systemctl --user enable --now gittally-hs.hsadmin.ng.service gittally-docker-prune.timer
+```
+
+Three things are expected and are not failures:
+
+- The first build after the switch is slower: the Gradle cache volume is keyed by name, so `werkator-gradle-<repoKey>` starts empty while `gittally-gradle-<repoKey>` keeps its content for a rollback.
+- The build image is rebuilt once, because the label carrying its input hash changed.
+- Containers left from before carry the old label, so the cleanup on restart does not see them; remove them by hand once the deployment stands.
+
+`gitea.statusContext` needs no attention here: it comes from master's committed configuration in the watched repository, which still says `GitTally`, so the Gitea checks and any branch protection rule keep working untouched.
+
 - The machine configuration is `~/hs.hsadmin.ng/.git/gittally/.gittally.yml`, mode 600, and it holds the Gitea token — check the mode after every edit, a shell redirect creates 644.
 - The committed configuration on master still sets `statusContext: GitTally`; it changes with the merge that also renames the file, and that merge needs a colleague's approval.
 - Deploy only while `/api/builds/current` is `[]`.
