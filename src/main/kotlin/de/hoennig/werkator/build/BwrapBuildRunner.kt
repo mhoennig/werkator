@@ -75,8 +75,11 @@ class BwrapBuildRunner(
             val arg = args[i]
             if (arg == "--bind" || arg == "--ro-bind") {
                 val dest = args[i + 2]
-                if (dest.startsWith("/")) {
-                    Files.createDirectories(rootfsDir.resolve(dest.substring(1)))
+                val mountpoint = rootfsDir.resolve(dest.substring(1))
+                // Skip anything that already exists in the rootfs (e.g. /etc/resolv.conf
+                // is a file, and the rootfs ships it); only missing dirs are created.
+                if (dest.startsWith("/") && !Files.exists(mountpoint)) {
+                    Files.createDirectories(mountpoint)
                 }
                 i += 3
             } else {
