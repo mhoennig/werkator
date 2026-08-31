@@ -34,8 +34,8 @@ So that links in READMEs, wikis, and bookmarks stay valid across new builds.
 
 ##### Verified by
 
-- [ArtifactFileControllerTest](../../src/test/kotlin/de/hoennig/gittally/server/ArtifactFileControllerTest.kt)
-- [BranchPermalinksTest](../../src/test/kotlin/de/hoennig/gittally/server/BranchPermalinksTest.kt)
+- [ArtifactFileControllerTest](../../src/test/kotlin/de/hoennig/werkator/server/ArtifactFileControllerTest.kt)
+- [BranchPermalinksTest](../../src/test/kotlin/de/hoennig/werkator/server/BranchPermalinksTest.kt)
 
 #### Scenario#000.02: Directory URLs serve their index page like a static web server
 
@@ -49,7 +49,7 @@ So that legacy-style report links such as `/branches/main/reports/build/doc/` wo
 
 ##### Verified by
 
-- [ArtifactFileControllerTest](../../src/test/kotlin/de/hoennig/gittally/server/ArtifactFileControllerTest.kt)
+- [ArtifactFileControllerTest](../../src/test/kotlin/de/hoennig/werkator/server/ArtifactFileControllerTest.kt)
 
 #### Scenario#000.03: The bare permanent URL renders a permanent artifact index
 
@@ -63,8 +63,8 @@ So that users can browse the latest green artifacts from one stable bookmark.
 
 ##### Verified by
 
-- [UiControllerTest](../../src/test/kotlin/de/hoennig/gittally/server/UiControllerTest.kt)
-- [PermanentBranchRoutesTest](../../src/test/kotlin/de/hoennig/gittally/server/PermanentBranchRoutesTest.kt) (the `/branches`, `/branches/<key>`, and `/branches/<key>/<path>` routes coexist)
+- [UiControllerTest](../../src/test/kotlin/de/hoennig/werkator/server/UiControllerTest.kt)
+- [PermanentBranchRoutesTest](../../src/test/kotlin/de/hoennig/werkator/server/PermanentBranchRoutesTest.kt) (the `/branches`, `/branches/<key>`, and `/branches/<key>/<path>` routes coexist)
 
 #### Scenario#000.04: Green-only and unambiguous resolution
 
@@ -80,7 +80,7 @@ So that a permanent link never points at broken artifacts or the wrong branch.
 
 ##### Verified by
 
-- [BranchPermalinksTest](../../src/test/kotlin/de/hoennig/gittally/server/BranchPermalinksTest.kt)
+- [BranchPermalinksTest](../../src/test/kotlin/de/hoennig/werkator/server/BranchPermalinksTest.kt)
 
 #### Scenario#000.05: The latest green build survives pruning
 
@@ -94,8 +94,8 @@ So that a permanent link stays valid while newer builds fail, as long as the bra
 
 ##### Verified by
 
-- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/gittally/build/FileBuildResultRepositoryTest.kt)
-- [WatcherTest](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/werkator/build/FileBuildResultRepositoryTest.kt)
+- [WatcherTest](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 #### Scenario#000.06: The branches view links the permanent URL
 
@@ -108,8 +108,8 @@ So that users can discover the permanent link without constructing it by hand.
 
 ##### Verified by
 
-- [BranchListingTest](../../src/test/kotlin/de/hoennig/gittally/server/BranchListingTest.kt)
-- [UiControllerTest](../../src/test/kotlin/de/hoennig/gittally/server/UiControllerTest.kt)
+- [BranchListingTest](../../src/test/kotlin/de/hoennig/werkator/server/BranchListingTest.kt)
+- [UiControllerTest](../../src/test/kotlin/de/hoennig/werkator/server/UiControllerTest.kt)
 
 ## The Solution
 

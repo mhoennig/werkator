@@ -35,8 +35,8 @@ So that critical load is visible at a glance.
 
 ##### Verified by
 
-- [UiViewsTest — "utilization highlights warn from 80% and crit from 90% of the total"](../../src/test/kotlin/de/hoennig/gittally/server/UiViewsTest.kt)
-- [UiViewsTest — "only the used rows with a total get the critical highlighting"](../../src/test/kotlin/de/hoennig/gittally/server/UiViewsTest.kt)
+- [UiViewsTest — "utilization highlights warn from 80% and crit from 90% of the total"](../../src/test/kotlin/de/hoennig/werkator/server/UiViewsTest.kt)
+- [UiViewsTest — "only the used rows with a total get the critical highlighting"](../../src/test/kotlin/de/hoennig/werkator/server/UiViewsTest.kt)
 
 #### Scenario#000.02: Unavailable metrics are never highlighted
 
@@ -48,7 +48,7 @@ So that hosts without `/proc` (no metrics, `n/a` cells) render unchanged.
 
 ##### Verified by
 
-- [UiViewsTest — "utilization highlighting is off when a value or the total is unavailable"](../../src/test/kotlin/de/hoennig/gittally/server/UiViewsTest.kt)
+- [UiViewsTest — "utilization highlighting is off when a value or the total is unavailable"](../../src/test/kotlin/de/hoennig/werkator/server/UiViewsTest.kt)
 
 ## The Solution
 

@@ -34,7 +34,7 @@ So that the cleanup is part of every GitTally installation instead of a manual s
 
 ##### Verified by
 
-- [InitCommandTest — "--systemd also generates the nightly Docker cleanup timer"](../../src/test/kotlin/de/hoennig/gittally/commands/InitCommandTest.kt)
+- [InitCommandTest — "--systemd also generates the nightly Docker cleanup timer"](../../src/test/kotlin/de/hoennig/werkator/commands/InitCommandTest.kt)
 
 #### Scenario#000.02: The cleanup prunes containers and images but never volumes
 
@@ -48,8 +48,8 @@ So that nightly builds start from fresh images while the Gradle caches survive.
 
 ##### Verified by
 
-- [SystemdServiceFilesTest — "prune service cleans containers and images but never volumes"](../../src/test/kotlin/de/hoennig/gittally/commands/SystemdServiceFilesTest.kt)
-- [SystemdServiceFilesTest — "prune timer fires nightly at 02:00 and catches up after downtime"](../../src/test/kotlin/de/hoennig/gittally/commands/SystemdServiceFilesTest.kt)
+- [SystemdServiceFilesTest — "prune service cleans containers and images but never volumes"](../../src/test/kotlin/de/hoennig/werkator/commands/SystemdServiceFilesTest.kt)
+- [SystemdServiceFilesTest — "prune timer fires nightly at 02:00 and catches up after downtime"](../../src/test/kotlin/de/hoennig/werkator/commands/SystemdServiceFilesTest.kt)
 
 ## The Solution
 
