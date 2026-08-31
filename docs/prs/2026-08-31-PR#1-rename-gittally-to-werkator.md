@@ -134,8 +134,6 @@ The rollback section names the asymmetry: the new version reads both names, the 
 
 - The default `gitea.statusContext` is now `werkator` (lowercase, as a value read by a machine).
   It is also the label a human sees in Gitea; `Werkator` there would be a deliberate exception to the spelling rule.
-- The legacy environment-variable names documented for the old bash script are now spelled `WERKATOR_*`, which is a name that never existed — the real ones were `GITTALLY_*`.
-  Kept, because every host they addressed has long since moved to the YAML configuration, and the converter in `tools/setup-werkator-instance` is a one-shot tool for exactly those hosts.
 
 ## Additional Changes
 
@@ -145,6 +143,11 @@ The rollback section names the asymmetry: the new version reads both names, the 
 - Fixed a broken web UI: five templates already referenced `/werkator.js` and `/werkator.css` while the static files were still named `gittally.*`, so every page but the release notes served neither stylesheet nor live updates.
 - Renamed the Kotlin types `werkatorCommand` and `werkatorMeta`, which a case-insensitive replace had left lowercase, and the constant `werkator_LABEL` to `WERKATOR_LABEL`.
 - Added the release-notes entry for the rename, as `unreleased`.
+- Removed the legacy environment-variable conversion from `tools/setup-werkator-instance`.
+  The blanket rename had rewritten the old script's `GITTALLY_*` variables to a spelling that never existed on any host, so the conversion would have read nothing from a real legacy file and written an almost empty configuration — silently.
+  The conversion has served its purpose with the vm2176 → vm4006 migration; what remains is the setup of a new instance: the preconditions, the credential prompt, and the machine configuration written mode 600.
+  It also stops emitting a legacy `branches:` section, which [plan step 18](../plan/18-remove-branches-section.md) is about to reject outright.
+- Restored the real `GITTALLY_*` spelling in `docs/plan/00-legacy-analysis.md` and `docs/plan/13-nginx-tls.md`, which record what the old script read.
 
 ## Follow-up PRs
 

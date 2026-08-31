@@ -90,7 +90,7 @@ No status changes observable during a build (control loop):
 
 Verify need before porting any of these:
 
-- `WERKATOR_BUILD_DOCKER_PREFLIGHT_COMMAND`, `WERKATOR_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — highly hsadmin-ng-specific defaults.
-- `WERKATOR_ARTIFACT_NGINX_*`, `WERKATOR_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management; revived as `server.nginx.*` by step 13 (ADR 0005).
-- `WERKATOR_IMPRESSUM_URL` — keep as optional simple footer link if wanted.
-- `WERKATOR_INSTALL_DIR` — dropped with self-install.
+- `GITTALLY_BUILD_DOCKER_PREFLIGHT_COMMAND`, `GITTALLY_BUILD_DOCKER_JAVA_TOOL_OPTIONS` — highly hsadmin-ng-specific defaults.
+- `GITTALLY_ARTIFACT_NGINX_*`, `GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL` — dropped with nginx management; revived as `server.nginx.*` by step 13 (ADR 0005).
+- `GITTALLY_IMPRESSUM_URL` — keep as optional simple footer link if wanted.
+- `GITTALLY_INSTALL_DIR` — dropped with self-install.

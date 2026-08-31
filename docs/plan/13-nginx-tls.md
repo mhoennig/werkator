@@ -38,7 +38,7 @@ Port the legacy nginx subsystem (functions `configure_artifact_nginx_defaults` ~
 - With `server.nginx.enabled: false` (default) nothing changes; no container is touched.
 - Manual walkthrough on a Docker host: nginx container starts with the init config and proxies HTTP to werkator.
   Full ACME issuance needs a public DNS name; if none is available, verify the certbot argv and the full-config path against the legacy script and document that in this file.
-- `docs/deployment.md` gains a section for hosts without a reverse proxy; `docs/migration-from-legacy.md` maps the `WERKATOR_ARTIFACT_NGINX_*`/`WERKATOR_ARTIFACT_LETSENCRYPT_EMAIL` variables.
+- `docs/deployment.md` gains a section for hosts without a reverse proxy; `docs/migration-from-legacy.md` maps the `GITTALLY_ARTIFACT_NGINX_*`/`GITTALLY_ARTIFACT_LETSENCRYPT_EMAIL` variables.
 
 ## Result (2026-07-08)
 
