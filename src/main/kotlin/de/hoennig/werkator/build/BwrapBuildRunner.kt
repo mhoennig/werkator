@@ -52,10 +52,37 @@ class BwrapBuildRunner(
         ensureRootfs(bwrap, rootfsDir, repoDir, onAuxProcess)
         val homeDir = buildEnvRoot.resolve(HOME_DIR)
         Files.createDirectories(homeDir)
-        return processStarter(
-            invocation(command, workingDir, environment, repoDir, bwrap, rootfsDir, homeDir),
-            repoDir,
-        )
+        val args =
+            invocation(command, workingDir, environment, repoDir, bwrap, rootfsDir, homeDir)
+        ensureMountpoints(rootfsDir, args)
+        return processStarter(args, repoDir)
+    }
+
+    /**
+     * bwrap creates mountpoint directories for bind destinations inside the sandbox —
+     * against the read-only rootfs bind that fails with "Can't mkdir parents ...
+     * Read-only file system" for every destination that does not exist in the rootfs
+     * (the workspace under the repo, for example). The rootfs directory itself is a
+     * plain host directory, so we pre-create the mountpoints there; bwrap then finds
+     * them and has nothing left to mkdir.
+     */
+    private fun ensureMountpoints(
+        rootfsDir: Path,
+        args: List<String>,
+    ) {
+        var i = 0
+        while (i < args.size) {
+            val arg = args[i]
+            if (arg == "--bind" || arg == "--ro-bind") {
+                val dest = args[i + 2]
+                if (dest.startsWith("/")) {
+                    Files.createDirectories(rootfsDir.resolve(dest.substring(1)))
+                }
+                i += 3
+            } else {
+                i += 1
+            }
+        }
     }
 
     /**
