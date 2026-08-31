@@ -159,6 +159,11 @@ class ConfigLoader(
             val strippedDocker = docker.toMutableMap().apply { PINNED_DOCKER_KEYS.forEach { remove(it) } }
             if (strippedDocker.isEmpty()) result.remove("docker") else result["docker"] = strippedDocker
         }
+        val bwrap = entry["bwrap"] as? Map<String, Any?>
+        if (bwrap != null) {
+            val strippedBwrap = bwrap.toMutableMap().apply { PINNED_BWRAP_KEYS.forEach { remove(it) } }
+            if (strippedBwrap.isEmpty()) result.remove("bwrap") else result["bwrap"] = strippedBwrap
+        }
         return result
     }
 
@@ -397,6 +402,9 @@ class ConfigLoader(
 
         /** `docker` keys a branch must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")
+
+        /** `bwrap` keys a branch must never override: the sandbox policy (Step 17). */
+        private val PINNED_BWRAP_KEYS = setOf("enabled", "rootfs")
 
         /**
          * The one key of a build definition that says *when* and *for which branches* it

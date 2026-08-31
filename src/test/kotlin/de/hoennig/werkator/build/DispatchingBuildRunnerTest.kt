@@ -1,6 +1,7 @@
 package de.hoennig.werkator.build
 
 import de.hoennig.werkator.config.BranchConfig
+import de.hoennig.werkator.config.BwrapConfig
 import de.hoennig.werkator.config.DockerConfig
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -14,12 +15,13 @@ import java.nio.file.Paths
 class DispatchingBuildRunnerTest : FunSpec() {
     private val processBuildRunner = mockk<ProcessBuildRunner>()
     private val dockerBuildRunner = mockk<DockerBuildRunner>()
-    private val dispatcher = DispatchingBuildRunner(processBuildRunner, dockerBuildRunner)
+    private val bwrapBuildRunner = mockk<BwrapBuildRunner>()
+    private val dispatcher = DispatchingBuildRunner(processBuildRunner, dockerBuildRunner, bwrapBuildRunner)
     private val process = mockk<Process>()
     private val dir = Paths.get(".")
 
     init {
-        beforeEach { clearMocks(processBuildRunner, dockerBuildRunner) }
+        beforeEach { clearMocks(processBuildRunner, dockerBuildRunner, bwrapBuildRunner) }
 
         test("runs natively by default") {
             val branchConfig = BranchConfig()
@@ -28,6 +30,7 @@ class DispatchingBuildRunnerTest : FunSpec() {
             dispatcher.start("cmd", dir, emptyMap(), dir, branchConfig) shouldBe process
 
             verify { dockerBuildRunner wasNot Called }
+            verify { bwrapBuildRunner wasNot Called }
         }
 
         test("runs in Docker when the branch enables it") {
@@ -37,6 +40,17 @@ class DispatchingBuildRunnerTest : FunSpec() {
             dispatcher.start("cmd", dir, emptyMap(), dir, branchConfig) shouldBe process
 
             verify { processBuildRunner wasNot Called }
+            verify { bwrapBuildRunner wasNot Called }
+        }
+
+        test("runs in bwrap when the branch enables it (and not Docker)") {
+            val branchConfig = BranchConfig(bwrap = BwrapConfig(enabled = true, rootfs = "/srv/buildenv.tar.zst"))
+            every { bwrapBuildRunner.start("cmd", dir, emptyMap(), dir, branchConfig) } returns process
+
+            dispatcher.start("cmd", dir, emptyMap(), dir, branchConfig) shouldBe process
+
+            verify { processBuildRunner wasNot Called }
+            verify { dockerBuildRunner wasNot Called }
         }
     }
 }
