@@ -25,7 +25,6 @@ The rename must therefore carry existing installations across, not just rename f
 - No rename in the old PR-docs under `docs/prs/` and no rewriting of the historic entries in the release notes: both record what was published at the time.
 - No automatic migration of anything outside the repository — the artifact root, the systemd units, the runtime bundle, the Docker names and labels and the Gitea check context stay manual, listed in [the migration plan](../werkator-migrationsplan.md).
 - No permanent dual-name support: the configuration fallback is temporary and goes away once the watched repositories have been renamed.
-- No version bump; the release notes carry the entry as `unreleased` until a deployment sets the number.
 
 ## The Scenarios
 
@@ -125,6 +124,10 @@ Error messages name the file that was actually read, so they never point at a fi
 [`StateDirMigration`](../../src/main/kotlin/de/hoennig/werkator/StateDirMigration.kt) renames `.git/gittally` to `.git/werkator` from `CliRunner`, before any command resolves a path under it and therefore before the second Spring context of `server` exists.
 A fallback was rejected here: unlike a configuration, the state is written, so a fallback would have to decide on every write which of two directories wins, where a one-time move decides once and leaves a single path behind.
 The move is deliberately narrow — only when the old directory exists and the new one does not — and a failure is an error in the log, never an abort, because a CI must not hang on it.
+
+**A round number for the new name.**
+The release after `0.9.21` is `1.0.0`, and the release note says why: a product that changes its name is better off counting from one under it.
+It is deliberately not a claim about maturity — plan steps 14, 17 and 18 are open.
 
 **A plan for what cannot be automated.**
 [`docs/werkator-migrationsplan.md`](../werkator-migrationsplan.md) lists the artifact root, the systemd units, the Docker names and labels, the runtime bundle, the managed nginx container and the Gitea check context, with the order of work, the verification and the rollback.
