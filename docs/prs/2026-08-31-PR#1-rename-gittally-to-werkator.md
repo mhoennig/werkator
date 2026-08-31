@@ -108,6 +108,22 @@ So that an operator who moved the directory by hand does not lose the live state
 - [StateDirMigrationTest: "leaves both alone when the current directory already exists"](../../src/test/kotlin/de/hoennig/werkator/StateDirMigrationTest.kt)
 - [StateDirMigrationTest: "does nothing where there is no pre-rename directory"](../../src/test/kotlin/de/hoennig/werkator/StateDirMigrationTest.kt)
 
+#### Scenario#1.06: The machine configuration survives a directory that moved without it
+
+So that the move cannot produce a pair of names its own lookup does not expect.
+
+- **Given** a state directory that has moved to `.git/werkator/`
+  - **and** the machine configuration inside it still named `.gittally.yml`
+- **When** the configuration is loaded
+- **Then** its settings take effect
+  - **and** where the move did it, the file carries the current name afterwards
+
+##### Verified by
+
+- [StateDirMigrationTest: "renames the machine configuration inside the moved directory"](../../src/test/kotlin/de/hoennig/werkator/StateDirMigrationTest.kt)
+- [StateDirMigrationTest: "never overwrites a machine configuration that already carries the current name"](../../src/test/kotlin/de/hoennig/werkator/StateDirMigrationTest.kt)
+- [ConfigLoaderTest: "finds the machine config left under its old name in an already-moved directory"](../../src/test/kotlin/de/hoennig/werkator/config/ConfigLoaderTest.kt)
+
 ## The Solution
 
 **One spelling rule.**
@@ -119,6 +135,11 @@ This is what turns a rename into a decidable question instead of a matter of tas
 [`ConfigFiles`](../../src/main/kotlin/de/hoennig/werkator/config/ConfigFiles.kt) holds the pair of names and is used by all four lookups: the machine and project layers in `ConfigLoader.loadRaw`, the build worktree in `ConfigLoader.loadForWorktree`, the branch layer the watcher reads out of git, and the same read in the web UI.
 The current name wins and the old file is then ignored rather than merged — two files side by side are a half-done rename, not a layering.
 Error messages name the file that was actually read, so they never point at a file that does not exist.
+
+**A move that finishes the job.**
+The deployment to vm4006 found the gap the hard way: the move renames the *directory* and leaves the file inside it alone, so the machine configuration ended up at `.git/werkator/.gittally.yml` — a pair of names the lookup did not expect.
+The instance came up with empty credentials and no host build definitions, without an error, which is the failure this PR exists to prevent.
+`StateDirMigration` now renames the configuration along with the directory, unless one under the current name is already there, and `ConfigFiles` carries the intermediate path as a third candidate for a directory somebody moved by hand.
 
 **A one-time move for the state.**
 [`StateDirMigration`](../../src/main/kotlin/de/hoennig/werkator/StateDirMigration.kt) renames `.git/gittally` to `.git/werkator` from `CliRunner`, before any command resolves a path under it and therefore before the second Spring context of `server` exists.

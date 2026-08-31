@@ -74,6 +74,18 @@ class ConfigLoaderTest : FunSpec() {
             loader.load(dir).git.account shouldBe "ci-user"
         }
 
+        test("finds the machine config left under its old name in an already-moved directory") {
+            val dir = Files.createTempDirectory("werkator-test")
+            Files.createDirectories(dir.resolve(".git/werkator"))
+            dir.resolve(".git/werkator/.gittally.yml").toFile().writeText(
+                """
+                git:
+                  account: ci-user
+                """.trimIndent(),
+            )
+            loader.load(dir).git.account shouldBe "ci-user"
+        }
+
         test("the current name wins where both exist, so a half-done rename is not merged") {
             val dir = Files.createTempDirectory("werkator-test")
             dir.resolve(".werkator.yml").toFile().writeText("gitea:\n  owner: current\n")

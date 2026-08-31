@@ -25,6 +25,27 @@ class StateDirMigrationTest : FunSpec() {
             dir.resolve(".git/werkator/build-results.json").toFile().readText() shouldBe "[]"
         }
 
+        test("renames the machine configuration inside the moved directory") {
+            val dir = repoWithLegacyState()
+            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText("git:\n  account: ci-user\n")
+
+            StateDirMigration.migrateIfNeeded(dir)
+
+            Files.exists(dir.resolve(".git/werkator/.gittally.yml")).shouldBeFalse()
+            dir.resolve(".git/werkator/.werkator.yml").toFile().readText() shouldBe "git:\n  account: ci-user\n"
+        }
+
+        test("never overwrites a machine configuration that already carries the current name") {
+            val dir = repoWithLegacyState()
+            dir.resolve(".git/gittally/.gittally.yml").toFile().writeText("git:\n  account: old\n")
+            dir.resolve(".git/gittally/.werkator.yml").toFile().writeText("git:\n  account: current\n")
+
+            StateDirMigration.migrateIfNeeded(dir)
+
+            dir.resolve(".git/werkator/.werkator.yml").toFile().readText() shouldBe "git:\n  account: current\n"
+            Files.exists(dir.resolve(".git/werkator/.gittally.yml")).shouldBeTrue()
+        }
+
         test("drops the moved worktrees, because they point at their old path") {
             val dir = repoWithLegacyState()
             Files.createDirectories(dir.resolve(".git/gittally/worktrees/main"))

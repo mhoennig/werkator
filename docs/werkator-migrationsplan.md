@@ -170,7 +170,10 @@ tar xzf ~/werkator-runtime-linux-x64.tar.gz -C ~/opt
 # 4. artifact root: a move on the same filesystem, instant in both directions
 mv ~/.local/state/gittally ~/.local/state/werkator
 
-# 5. let the state directory move itself, and read what it says
+# 5. let the state directory move itself, and read what it says.
+#    Check the output: publicBaseUrl, git.account and the host's build
+#    definitions must be there. Empty ones mean the machine configuration
+#    was not found — nothing fails on its own in that case.
 cd ~/hs.hsadmin.ng
 ~/opt/werkator/jre/bin/java -jar ~/opt/werkator/lib/werkator.jar config:print --full
 

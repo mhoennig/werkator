@@ -1,5 +1,6 @@
 package de.hoennig.werkator
 
+import de.hoennig.werkator.config.ConfigFiles
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.Files
@@ -44,8 +45,27 @@ object StateDirMigration {
             return
         }
         log.info("moved {} to {}: build history, control token and configuration kept", LEGACY_DIR, DIR)
+        renameMachineConfig(current)
         dropWorktrees(current)
         warnAboutUnits(current)
+    }
+
+    /**
+     * Moving the directory leaves the file inside it under its old name, and the pair
+     * of names is then one the lookup does not expect. Renaming it here is what makes
+     * the move complete instead of half-done.
+     */
+    private fun renameMachineConfig(stateDir: Path) {
+        val legacy = stateDir.resolve(ConfigFiles.LEGACY_COMMITTED)
+        val current = stateDir.resolve(ConfigFiles.COMMITTED)
+        if (!Files.isRegularFile(legacy) || Files.exists(current)) return
+        try {
+            Files.move(legacy, current)
+        } catch (e: IOException) {
+            log.warn("could not rename {} to {} in {}: {}", ConfigFiles.LEGACY_COMMITTED, ConfigFiles.COMMITTED, stateDir, e.message)
+            return
+        }
+        log.info("renamed the machine configuration to {}", ConfigFiles.COMMITTED)
     }
 
     /**

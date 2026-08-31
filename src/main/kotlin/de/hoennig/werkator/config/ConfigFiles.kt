@@ -19,14 +19,24 @@ object ConfigFiles {
     /** The machine-specific configuration inside `.git`; secrets live here. */
     const val REPO_INSTALL = ".git/werkator/$COMMITTED"
 
-    private const val LEGACY_COMMITTED = ".gittally.yml"
+    /** The name the committed configuration had before the rename. */
+    const val LEGACY_COMMITTED = ".gittally.yml"
+
     private const val LEGACY_REPO_INSTALL = ".git/gittally/$LEGACY_COMMITTED"
+
+    /**
+     * The state directory moves without touching the file inside it, so between the
+     * move and the rename the machine configuration sits under the old name in the
+     * new directory. `StateDirMigration` closes that gap where it moves the directory
+     * itself; this candidate covers a directory somebody moved by hand.
+     */
+    private const val MOVED_REPO_INSTALL = ".git/werkator/$LEGACY_COMMITTED"
 
     /** Both names of the committed configuration, current first. */
     val committed = listOf(COMMITTED, LEGACY_COMMITTED)
 
-    /** Both paths of the machine-specific configuration, current first. */
-    val repoInstall = listOf(REPO_INSTALL, LEGACY_REPO_INSTALL)
+    /** Every path the machine-specific configuration can sit at, current first. */
+    val repoInstall = listOf(REPO_INSTALL, MOVED_REPO_INSTALL, LEGACY_REPO_INSTALL)
 
     /**
      * The first of [candidates] that exists under [dir], or the current name when none
