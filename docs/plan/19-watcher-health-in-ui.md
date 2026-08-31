@@ -6,7 +6,7 @@ Read `README.md` first.
 ## Why
 
 On 2026-08-30 the Gitea token in the machine config on vm4006 was replaced by a placeholder string.
-For 57 minutes GitTally failed `git fetch --prune origin` every ten seconds and wrote 297 warnings to the journal.
+For 57 minutes Werkator failed `git fetch --prune origin` every ten seconds and wrote 297 warnings to the journal.
 The branches view showed a calm, ordinary list the whole time: every branch with its last build, nothing amiss.
 The failure was noticed only because an expected build did not start, and it took reading the journal to see why.
 
@@ -27,11 +27,11 @@ The endpoint needs no change.
 
 ## Code
 
-- `static/gittally.js`: fetch `/api/watcher` from the same polling cycle that refreshes the view, and show a banner while any of the three conditions holds.
+- `static/werkator.js`: fetch `/api/watcher` from the same polling cycle that refreshes the view, and show a banner while any of the three conditions holds.
   Keep the existing discipline — a timeout on the fetch, and a failure of *this* request must never break the view's own refresh.
 - `templates/fragments.html`: add a `watcher-banner` fragment to the `nav(view)` row so every view inherits it; hidden unless the script fills it.
 - Wording says what is stale and since when, not just that something failed: the branch list is not updating, since `lastPollAt`, because `<error>`.
-  Timestamps go through the shared formatting — `UiFormats` and `gittally.js` must produce identical formats (invariant in `AGENTS.md`).
+  Timestamps go through the shared formatting — `UiFormats` and `werkator.js` must produce identical formats (invariant in `AGENTS.md`).
 - Do not overload `live-indicator`: it reports whether the *browser* reaches the server.
   This banner reports whether the *server* reaches origin. Two independent failures, two independent signals.
 

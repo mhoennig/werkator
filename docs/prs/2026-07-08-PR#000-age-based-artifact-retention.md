@@ -36,8 +36,8 @@ So that stale logs and reports do not stay on disk indefinitely.
 
 ##### Verified by
 
-- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/gittally/build/FileBuildResultRepositoryTest.kt)
-- [WatcherTest](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/werkator/build/FileBuildResultRepositoryTest.kt)
+- [WatcherTest](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 #### Scenario#000.02: Count and age combine as independent caps
 
@@ -50,7 +50,7 @@ So that one config can bound disk usage by count and staleness by age at the sam
 
 ##### Verified by
 
-- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/gittally/build/FileBuildResultRepositoryTest.kt)
+- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/werkator/build/FileBuildResultRepositoryTest.kt)
 
 #### Scenario#000.03: A branch's newest build is never age-pruned
 
@@ -62,7 +62,7 @@ So that a dormant branch keeps its last build status visible, matching the legac
 
 ##### Verified by
 
-- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/gittally/build/FileBuildResultRepositoryTest.kt)
+- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/werkator/build/FileBuildResultRepositoryTest.kt)
 
 #### Scenario#000.04: keepLatestGreen shields the latest green build from the age limit
 
@@ -75,7 +75,7 @@ So that the permanent `/branches/<branch-key>/…` artifact links stay valid whi
 
 ##### Verified by
 
-- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/gittally/build/FileBuildResultRepositoryTest.kt)
+- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/werkator/build/FileBuildResultRepositoryTest.kt)
 
 #### Scenario#000.05: The default keeps existing behavior unchanged
 
@@ -87,7 +87,7 @@ So that existing installations are unaffected by the new key.
 
 ##### Verified by
 
-- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/gittally/build/FileBuildResultRepositoryTest.kt) (pre-existing count-only prune tests)
+- [FileBuildResultRepositoryTest](../../src/test/kotlin/de/hoennig/werkator/build/FileBuildResultRepositoryTest.kt) (pre-existing count-only prune tests)
 
 ## The Solution
 

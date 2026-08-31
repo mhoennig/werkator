@@ -1,1 +1,1 @@
-rootProject.name = "gittally"
+rootProject.name = "werkator"

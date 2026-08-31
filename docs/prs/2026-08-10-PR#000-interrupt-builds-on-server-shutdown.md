@@ -37,7 +37,7 @@ So that a service restart never loses a build or marks its commit as failed.
 
 ##### Verified by
 
-- [BuildExecutorTest — "shutdown kills an executing build and records INTERRUPTED, not FAILED"](../../src/test/kotlin/de/hoennig/gittally/build/BuildExecutorTest.kt)
+- [BuildExecutorTest — "shutdown kills an executing build and records INTERRUPTED, not FAILED"](../../src/test/kotlin/de/hoennig/werkator/build/BuildExecutorTest.kt)
 
 #### Scenario#000.02: A queued build stays PENDING over a shutdown
 
@@ -50,7 +50,7 @@ So that queued builds survive a restart the same way executing builds do.
 
 ##### Verified by
 
-- [BuildExecutorTest — "a build still queued at shutdown stays PENDING for the startup recovery"](../../src/test/kotlin/de/hoennig/gittally/build/BuildExecutorTest.kt)
+- [BuildExecutorTest — "a build still queued at shutdown stays PENDING for the startup recovery"](../../src/test/kotlin/de/hoennig/werkator/build/BuildExecutorTest.kt)
 
 #### Scenario#000.03: No failure status is posted to Gitea for an interrupted build
 
@@ -63,8 +63,8 @@ So that a commit does not turn red because of a service restart.
 
 ##### Verified by
 
-- [GiteaStateMappingTest](../../src/test/kotlin/de/hoennig/gittally/gitea/GiteaStateMappingTest.kt)
-- [GiteaClientTest — "maps every build status to the documented Gitea state"](../../src/test/kotlin/de/hoennig/gittally/gitea/GiteaClientTest.kt)
+- [GiteaStateMappingTest](../../src/test/kotlin/de/hoennig/werkator/gitea/GiteaStateMappingTest.kt)
+- [GiteaClientTest — "maps every build status to the documented Gitea state"](../../src/test/kotlin/de/hoennig/werkator/gitea/GiteaClientTest.kt)
 
 ## The Solution
 

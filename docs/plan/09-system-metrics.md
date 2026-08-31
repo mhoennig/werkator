@@ -9,7 +9,7 @@ Port the legacy system page: CPU, RAM, disk, and repository size with min/max/av
 
 ## Design
 
-Create package `de.hoennig.gittally.metrics`:
+Create package `de.hoennig.werkator.metrics`:
 
 - `SystemMetricsCollector` sampling every 60s (server profile only):
   CPU used/idle from `/proc/stat` deltas, RAM from `/proc/meminfo`, disk from `java.nio.file.FileStore`, repo size via periodic `du -sk` (or a file walk) — throttle repo-size sampling (legacy ran `du` every cycle, which was expensive).
@@ -36,10 +36,10 @@ Create package `de.hoennig.gittally.metrics`:
 
 ## Implementation Notes (2026-07-07)
 
-Implemented as designed: `SystemMetricsCollector` in `de.hoennig.gittally.metrics` samples every 60s once `ServerMetricsLifecycle` (server profile only) calls `start()`, following the watcher's start/stop pattern.
+Implemented as designed: `SystemMetricsCollector` in `de.hoennig.werkator.metrics` samples every 60s once `ServerMetricsLifecycle` (server profile only) calls `start()`, following the watcher's start/stop pattern.
 CPU comes from `/proc/stat` deltas, RAM from `/proc/meminfo`, disk from `java.nio.file.FileStore` (`df` semantics: used = total − unallocated, free = usable), and the repository size from a file walk.
 `GET /api/system` returns the snapshot plus aggregates, and `/system` renders the legacy system page in the step 08 layout, polling every 60s with the same timeout/error-badge rules.
-Since the metric rows are fixed, `gittally.js` only updates the cell texts in place — nothing is rebuilt.
+Since the metric rows are fixed, `werkator.js` only updates the cell texts in place — nothing is rebuilt.
 
 Deviations and decisions:
 
@@ -51,7 +51,7 @@ Deviations and decisions:
 - The repository size is re-probed only every 10th sample (10 minutes) and reused in between — the throttle this step requires; legacy ran `du -sk` every cycle.
   The file walk sums file sizes, not disk blocks like `du`, which is close enough for a trend metric.
 - An unavailable source (no `/proc` outside Linux, unreadable file store) yields explicit `null` metrics over HTTP 200 and `n/a` cells; the failure is logged once, not every 60s.
-- No new config keys: the 60s interval is fixed like legacy, so `GitTallyConfig`, the `init` templates, and `docs/configuration.md` are unchanged.
+- No new config keys: the 60s interval is fixed like legacy, so `WerkatorConfig`, the `init` templates, and `docs/configuration.md` are unchanged.
 - The legacy `generation` field was not ported; it only guarded the legacy JS against monitor restarts.
 - The CPU count comes from `Runtime.availableProcessors()` instead of `nproc`.
 

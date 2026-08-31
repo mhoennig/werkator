@@ -7,6 +7,26 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v1.0.0 <span class="muted">— 2026-08-31</span></h2>
+        <ul>
+            <li>GitTally is now <strong>Werkator</strong>. The old name already belongs to another
+                product in the git space, so the rename is a precaution and nothing more: what the
+                build system does, how it is configured, and how it reports to Gitea are unchanged.
+                In prose it is Werkator, everywhere a machine reads the name it is
+                <code>werkator</code>. The version marks the new name rather than a claim about
+                maturity: the release after <code>0.9.21</code> is <code>1.0.0</code>, because a
+                product that changes its name is better off counting from one under it.</li>
+            <li>The rename reaches the file names an installation depends on. The committed
+                configuration is <code>.werkator.yml</code>, the machine-specific one
+                <code>.git/werkator/.werkator.yml</code>, and all state — build results, artifacts,
+                worktrees, the control token — lives under <code>.git/werkator/</code>.</li>
+            <li>The default Gitea check context is <code>werkator</code>. Where the old name is
+                pinned in a branch protection rule, the rule has to be updated with it, or a pull
+                request waits forever for a check nobody posts any more. Statuses already written
+                keep their old context, so a commit built before and after the change shows
+                both.</li>
+        </ul>
+
         <h2>v0.9.21 <span class="muted">— 2026-08-30</span></h2>
         <ul>
             <li>An origin the watcher cannot reach is now visible in the web UI: a banner above the
@@ -294,6 +314,6 @@
     </div>
 </main>
 <footer th:replace="~{fragments :: footer}"></footer>
-<script src="/gittally.js"></script>
+<script src="/werkator.js"></script>
 </body>
 </html>

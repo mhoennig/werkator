@@ -12,7 +12,7 @@
 
 # Package Files #
 *.jar
-# ... but builds in fresh checkouts (e.g. GitTally worktrees) need the wrapper
+# ... but builds in fresh checkouts (e.g. Werkator worktrees) need the wrapper
 !gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
@@ -31,3 +31,6 @@ replay_pid*
 # Gradle
 .gradle/
 /build/
+
+# Other
+/.local/

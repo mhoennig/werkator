@@ -39,7 +39,7 @@ Exit codes: 0 on success, 1 on build failure, 2 on usage/config errors (align wi
 
 ## Implementation Notes (2026-07-07)
 
-Implemented as designed: `status`, `build`, and `retry` are picocli `@Component` subcommands in `commands/`, wired into `GitTallyCommand` like the existing ones.
+Implemented as designed: `status`, `build`, and `retry` are picocli `@Component` subcommands in `commands/`, wired into `WerkatorCommand` like the existing ones.
 They implement `Callable<Int>`, so the exit codes align with `CliRunner`'s `ExitCodeGenerator` contract: 0 on success, 1 on build failure, 2 on usage/config errors (picocli's own `USAGE` code for invalid options matches).
 
 - `status [--history]` reads `BuildResultRepository` directly and prints an aligned table (branch, status, commit, time, duration); it reuses `UiFormats`, so the console shows the same timestamp/duration formats as the web UI.
@@ -56,7 +56,7 @@ Deviations and decisions:
 - A failed fetch only warns and the commands continue from the last-known origin state, so they work offline.
 - `retry` only retries FAILED builds (legacy `branch_has_failed_build` checked exactly `failed`); interrupted/pending builds are the watcher's startup-recovery job.
 - Exit code 130 for cancelled builds was not ported; a cancelled/interrupted build exits 1 like any non-success.
-- Found while smoke testing: `.gitignore`'s `*.jar` rule excluded `gradle/wrapper/gradle-wrapper.jar`, so builds in fresh checkouts — including every GitTally worktree — failed with `ClassNotFoundException: GradleWrapperMain`.
+- Found while smoke testing: `.gitignore`'s `*.jar` rule excluded `gradle/wrapper/gradle-wrapper.jar`, so builds in fresh checkouts — including every Werkator worktree — failed with `ClassNotFoundException: GradleWrapperMain`.
   Fixed with a `!gradle/wrapper/gradle-wrapper.jar` exception and by adding the jar (same class of defect as the `build/` rule fixed in step 04).
 
 Manual smoke test (2026-07-07, in this repository):

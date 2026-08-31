@@ -9,10 +9,10 @@ Persist build artifacts (logs plus configured report directories) with stable na
 
 ## Design
 
-Create package `de.hoennig.gittally.artifacts`:
+Create package `de.hoennig.werkator.artifacts`:
 
 - `ArtifactStore` service implementing the interface stubbed in step 04.
-- Artifact root: a configurable directory (new key `artifacts.rootDir`), defaulting to `${XDG_STATE_HOME:-~/.local/state}/gittally/artifacts/<repo-key>`.
+- Artifact root: a configurable directory (new key `artifacts.rootDir`), defaulting to `${XDG_STATE_HOME:-~/.local/state}/werkator/artifacts/<repo-key>`.
   Do NOT default to `/tmp` like legacy — artifacts vanished on reboot.
 - Repo key: sanitized absolute repo path (legacy `repository_key`): non `[A-Za-z0-9._-]` → `_`.
 - Artifact key per build: sanitized branch name + 12-char SHA-256 prefix, plus sanitized start timestamp + hash (legacy `build_artifact_key`); keep this scheme so URLs stay predictable.
@@ -28,7 +28,7 @@ Create package `de.hoennig.gittally.artifacts`:
 ## Config
 
 New key `artifacts.rootDir` (empty = platform default above).
-Update `GitTallyConfig`, `InitCommand` templates, and `docs/configuration.md` together.
+Update `WerkatorConfig`, `InitCommand` templates, and `docs/configuration.md` together.
 
 ## Tests
 
@@ -43,11 +43,11 @@ Update `GitTallyConfig`, `InitCommand` templates, and `docs/configuration.md` to
 
 ## Execution Notes (done 2026-07-07)
 
-Implemented as `FileArtifactStore` in `de.hoennig.gittally.artifacts`; build green, 12 new tests
+Implemented as `FileArtifactStore` in `de.hoennig.werkator.artifacts`; build green, 12 new tests
 (`FileArtifactStoreTest`, `BuildExecutorArtifactIntegrationTest`, plus a `repoKey` case in `ArtifactKeysTest`).
 Deviations and decisions:
 
-- The `ArtifactStore` interface stays in `de.hoennig.gittally.build` (moving it would make `build` depend on `artifacts`).
+- The `ArtifactStore` interface stays in `de.hoennig.werkator.build` (moving it would make `build` depend on `artifacts`).
   It gained `prune(keptResults)` and `artifactDir(artifactKey)`; the `NoOpArtifactStore` placeholder was removed.
 - Interface gap from step 04 resolved by an additional parameter: `persist(build, stagingDir, workspace)`.
   The store copies the configured `artifactDirs` out of the branch worktree itself, so the archived layout stays store knowledge.
@@ -67,5 +67,5 @@ Deviations and decisions:
   and returns the removed keys.
 - `artifactDir` rejects keys outside `[A-Za-z0-9._-]+` and anything resolving outside `<root>/branches/` (path traversal).
 - `artifacts.rootDir` supports a leading `~/` and resolves relative paths against the repository;
-  when empty, the default is `$XDG_STATE_HOME` (or `~/.local/state`) + `/gittally/artifacts/<repo-key>` as designed.
+  when empty, the default is `$XDG_STATE_HOME` (or `~/.local/state`) + `/werkator/artifacts/<repo-key>` as designed.
 - The bean is wired in `ArtifactsConfiguration` with the working directory defaulting to `.`, mirroring `BuildConfiguration`.

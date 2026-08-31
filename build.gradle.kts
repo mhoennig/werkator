@@ -12,7 +12,7 @@ group = "de.hoennig"
 // bump at least the patch version for every deployment — and only then, not per commit —
 // so the UI footer (BuildProperties), --version and the release notes identify what is
 // actually running; a deployment bundles whatever was committed since the last one
-version = "0.9.21"
+version = "1.0.0"
 
 java {
     toolchain {
@@ -69,7 +69,7 @@ springBoot {
 tasks.bootJar {
     // version-free jar name, so docs and scripts never contain the version;
     // the version itself stays available via BuildProperties (UI footer, --version)
-    archiveFileName = "gittally.jar"
+    archiveFileName = "werkator.jar"
 }
 
 kotlin {
@@ -80,7 +80,7 @@ kotlin {
 }
 
 // Self-contained runtime bundle for hosts without a Java runtime (plan step 15, ADR 0006):
-// a jlink-trimmed JRE plus gittally.jar plus the packaging/gittally launcher, packed as a tarball.
+// a jlink-trimmed JRE plus werkator.jar plus the packaging/werkator launcher, packed as a tarball.
 // The JDK module list below was computed from the exploded boot jar via
 //   jdeps -q --ignore-missing-deps --multi-release 21 --print-module-deps \
 //     --class-path 'BOOT-INF/lib/*' BOOT-INF/classes BOOT-INF/lib/*.jar
@@ -115,7 +115,7 @@ val runtimeBundle by tasks.registering {
 
     val jdkHome = javaToolchains.launcherFor(java.toolchain).map { it.metadata.installationPath.asFile }
     val jarFile = tasks.bootJar.flatMap { it.archiveFile }
-    val launcherFile = layout.projectDirectory.file("packaging/gittally").asFile
+    val launcherFile = layout.projectDirectory.file("packaging/werkator").asFile
     val stagingDir =
         layout.buildDirectory
             .dir("runtime-bundle")
@@ -123,7 +123,7 @@ val runtimeBundle by tasks.registering {
             .asFile
     val tarballFile =
         layout.buildDirectory
-            .file("distributions/gittally-runtime-linux-x64.tar.gz")
+            .file("distributions/werkator-runtime-linux-x64.tar.gz")
             .get()
             .asFile
 
@@ -133,7 +133,7 @@ val runtimeBundle by tasks.registering {
     outputs.file(tarballFile)
 
     doLast {
-        val bundleRoot = stagingDir.resolve("gittally")
+        val bundleRoot = stagingDir.resolve("werkator")
         bundleRoot.deleteRecursively()
         bundleRoot.parentFile.mkdirs()
 
@@ -154,14 +154,14 @@ val runtimeBundle by tasks.registering {
         val jlinkOutput = jlinkProcess.inputStream.bufferedReader().readText()
         check(jlinkProcess.waitFor() == 0) { "jlink failed:\n$jlinkOutput" }
 
-        jarFile.get().asFile.copyTo(bundleRoot.resolve("lib/gittally.jar").also { it.parentFile.mkdirs() })
-        val launcher = launcherFile.copyTo(bundleRoot.resolve("bin/gittally").also { it.parentFile.mkdirs() })
+        jarFile.get().asFile.copyTo(bundleRoot.resolve("lib/werkator.jar").also { it.parentFile.mkdirs() })
+        val launcher = launcherFile.copyTo(bundleRoot.resolve("bin/werkator").also { it.parentFile.mkdirs() })
         check(launcher.setExecutable(true, false)) { "cannot make $launcher executable" }
 
         tarballFile.parentFile.mkdirs()
         // system tar preserves the execute bits of jre/bin/* and jre/lib/jspawnhelper
         val tarProcess =
-            ProcessBuilder("tar", "-czf", tarballFile.absolutePath, "-C", stagingDir.absolutePath, "gittally")
+            ProcessBuilder("tar", "-czf", tarballFile.absolutePath, "-C", stagingDir.absolutePath, "werkator")
                 .redirectErrorStream(true)
                 .start()
         val tarOutput = tarProcess.inputStream.bufferedReader().readText()

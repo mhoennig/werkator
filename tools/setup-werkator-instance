@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+#
+# Set up a fresh Werkator instance on a Docker host.
+#
+# Checks the preconditions, prompts for the Gitea credentials and writes them —
+# together with the host's public URL — into the machine configuration, which is
+# the layer that is never committed. Then runs `init`, which writes the commented
+# templates for everything else.
+#
+# The secrets are written with umask 077, so the file is mode 600 at creation and
+# the token is never world-readable, not even between the redirect and a chmod.
+#
+# Run this ON the host. The repository must already be cloned at the given
+# repo-dir. Builds run in Docker; Werkator itself runs from the jar via java, so
+# a JRE and the jar are required (see checks below).
+#
+# Usage: setup-werkator-instance [--force] <public-hostname> <repo-dir>
+#   <public-hostname>  FQDN this instance is reachable at, e.g. vm4006.hostsharing.net
+#                      (used for server.publicBaseUrl)
+#   <repo-dir>         path to the cloned git repository to configure,
+#                      e.g. ~/hs.hsadmin.ng
+#   --force            overwrite a machine configuration that already exists
+
+set -euo pipefail
+
+# ---------------------------------------------------------------- settings --
+
+JAR_PATH="$HOME/bin/werkator.jar"              # where the Werkator jar is expected
+
+die()  { echo "ERROR: $*" >&2; exit 1; }
+warn() { echo "WARNING: $*" >&2; }
+
+usage() {
+    echo "usage: setup-werkator-instance [--force] <public-hostname> <repo-dir>" >&2
+    echo "example: setup-werkator-instance vm4006.hostsharing.net ~/hs.hsadmin.ng" >&2
+    exit 1
+}
+
+# --------------------------------------------------------------- arguments --
+
+force=false
+positional=()
+for arg in "$@"; do
+    case "$arg" in
+        --force) force=true ;;
+        -*) die "unknown option: $arg" ;;
+        *) positional+=("$arg") ;;
+    esac
+done
+[ ${#positional[@]} -eq 2 ] || usage
+
+hostname="${positional[0]}"
+REPO_DIR="${positional[1]}"
+
+# ------------------------------------------------------------- yaml helper --
+
+yaml_quote() {
+    local s=${1//\\/\\\\}
+    s=${s//\"/\\\"}
+    printf '"%s"' "$s"
+}
+
+# ------------------------------------------------------------ preconditions --
+
+[ -d "$REPO_DIR/.git" ] || die "$REPO_DIR is not a git clone — clone the repository there first"
+command -v docker >/dev/null 2>&1 || die "docker not found — this setup targets a Docker host"
+
+have_jar=true
+[ -f "$JAR_PATH" ] || { have_jar=false; warn "jar not found at $JAR_PATH — config will be written, but copy the jar there before running init"; }
+
+have_java=true
+if ! command -v java >/dev/null 2>&1; then
+    have_java=false
+    warn "no java in PATH — install a JRE (e.g. Temurin 21 into ~/opt) before running init/server"
+fi
+
+machine_yml="$REPO_DIR/.git/werkator/.werkator.yml"
+if ! $force; then
+    [ -e "$machine_yml" ] && die "$machine_yml already exists — re-run with --force to overwrite"
+fi
+
+# ----------------------------------------------------------- prompt secrets --
+
+echo "== Gitea credentials for this instance (used for git HTTPS auth + status API)"
+read -r -p "  Gitea git account [jenkins-ci]: " git_account
+git_account=${git_account:-jenkins-ci}
+read -r -s -p "  Gitea API token: " git_token; echo
+[ -n "$git_token" ] || die "the Gitea token must not be empty"
+
+# -------------------------------------------------------- machine + secrets --
+
+echo "== writing $machine_yml (secrets, mode 600)"
+mkdir -p "$(dirname "$machine_yml")"
+# an existing file is removed first, because the redirect would keep its mode
+rm -f "$machine_yml"
+(
+    umask 077
+    {
+        echo "# Machine-specific overrides and secrets. Keys here win over .werkator.yml."
+        echo "server:"
+        echo "  publicBaseUrl: $(yaml_quote "https://$hostname/")"
+        echo "git:"
+        echo "  account: $(yaml_quote "$git_account")"
+        echo "  token: $(yaml_quote "$git_token")"
+    } >"$machine_yml"
+)
+
+# ------------------------------------------------------------------- finish --
+
+if $have_jar && $have_java; then
+    echo "== running init (keeps the machine config just written)"
+    ( cd "$REPO_DIR" && java -jar "$JAR_PATH" init )
+fi
+
+cat <<EOF
+
+Done. Werkator config for $hostname is in place.
+
+What this wrote is the host's part: the public URL and the credentials. What the
+repository builds belongs in its committed .werkator.yml — see docs/configuration.md.
+
+Verify and start on this host:
+
+    cd $REPO_DIR
+    java -jar $JAR_PATH config:print --full     # check the effective config (git.token masked)
+    java -jar $JAR_PATH config:print --full --show-secrets   # ... including git.token in clear text
+    java -jar $JAR_PATH server                  # or: java -jar $JAR_PATH init --systemd
+
+Note: Werkator binds to localhost by default and publicBaseUrl is https://$hostname/ —
+terminate TLS in front of it with the host's reverse proxy, or enable the managed
+nginx container (server.nginx.enabled, see docs/deployment.md).
+EOF

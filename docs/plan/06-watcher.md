@@ -9,7 +9,7 @@ Replace the legacy blocking main loop with a non-blocking, observable scheduler.
 
 ## Design
 
-Create package `de.hoennig.gittally.watcher`:
+Create package `de.hoennig.werkator.watcher`:
 
 - `Watcher` component with a fixed-delay poll cycle (Spring `@Scheduled` or a managed executor; enabled only in server/watch mode, not during CLI commands or tests).
 - One poll cycle, never blocking on a build:
@@ -19,7 +19,7 @@ Create package `de.hoennig.gittally.watcher`:
   4. Start builds for due branches via `startBuild(branch, commit)` (async).
      The executor prepares a per-branch worktree itself (step 04 amendment) — the watcher must never check out or reset the primary worktree.
      Multiple branches may build concurrently (`builds.maxConcurrent`); the executor already serializes builds of the same branch, so the watcher only has to avoid enqueueing a branch that is already pending or running.
-  5. Run repository retention pruning and artifact pruning; also remove worktrees under `.git/gittally/worktrees/` of branches no longer on origin (`git worktree remove` or delete + `worktreePrune`).
+  5. Run repository retention pruning and artifact pruning; also remove worktrees under `.git/werkator/worktrees/` of branches no longer on origin (`git worktree remove` or delete + `worktreePrune`).
 - Decide here (or defer with a note): when a new commit arrives for a branch whose build is still running, keep the current queue-behind behavior or cancel the running build and start fresh — this may become a per-branch config option.
 - Startup sequence (port of legacy recovery): mark stale running builds interrupted, then enqueue restartable branches.
 - Auto-builds: per-branch `autoBuild.enabled` + `times` (UTC HH:MM) from the merged `branches` config.
@@ -34,7 +34,7 @@ Create package `de.hoennig.gittally.watcher`:
 ## Config
 
 New key `watcher.pollInterval` (e.g. `10s`, default matching legacy cadence).
-Update `GitTallyConfig`, `InitCommand` templates, and `docs/configuration.md` together.
+Update `WerkatorConfig`, `InitCommand` templates, and `docs/configuration.md` together.
 
 ## Tests
 
@@ -51,7 +51,7 @@ Update `GitTallyConfig`, `InitCommand` templates, and `docs/configuration.md` to
 
 ## Execution Notes (done 2026-07-07)
 
-Implemented as designed in `de.hoennig.gittally.watcher`; build green, 23 new tests
+Implemented as designed in `de.hoennig.werkator.watcher`; build green, 23 new tests
 (`WatcherTest`, `AutoBuildStateTest`, plus new `DurationParserTest` and `GitServiceTest` cases).
 Deviations and decisions:
 
@@ -72,7 +72,7 @@ Deviations and decisions:
 - Enqueue precedence per cycle: changed local branches, then recent new origin branches, then due auto-build slots;
   each branch at most once (an auto-build slot stays untriggered while its branch is pending/running and fires
   on a later cycle instead of being lost).
-- Auto-build state lives in `.git/gittally/auto-builds.json` (`FileAutoBuildState`, replaces `auto-builds.tsv`);
+- Auto-build state lives in `.git/werkator/auto-builds.json` (`FileAutoBuildState`, replaces `auto-builds.tsv`);
   entries of past days are dropped on write. Slot matching (`AutoBuildSlots`) picks the latest slot at or before
   the current UTC time, like legacy `auto_build_check`. Only branches named in the `branches` config
   (other than `default`) can auto-build; `default.autoBuild.enabled` does not extend to unlisted branches.
@@ -80,7 +80,7 @@ Deviations and decisions:
   on origin, after a best-effort fetch (a failing fetch recovers from the last known origin state).
   A stale latest PENDING entry is marked INTERRUPTED before its replacement build is enqueued,
   because the executor queue does not survive a restart.
-- Worktree cleanup deletes `.git/gittally/worktrees/<branchKey>` directories of branches gone from origin
+- Worktree cleanup deletes `.git/werkator/worktrees/<branchKey>` directories of branches gone from origin
   (never those of queued or running builds) and then calls `git worktree prune`.
 - `DurationParser` was extended with `s`/`m` suffixes for `watcher.pollInterval` (it only knew `d`/`h`).
 - Watcher health is exposed via `Watcher.state(): WatcherState` (running, last poll time, last fetch/poll error,

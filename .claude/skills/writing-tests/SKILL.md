@@ -1,9 +1,9 @@
 ---
 name: writing-tests
-description: GitTally testing conventions — Kotest FunSpec spec structure, MockK matchers, and the two patterns for mocking beans in Spring slice tests (springmockk @MockkBean or @TestConfiguration). Use when writing, extending, or refactoring tests.
+description: Werkator testing conventions — Kotest FunSpec spec structure, MockK matchers, and the two patterns for mocking beans in Spring slice tests (springmockk @MockkBean or @TestConfiguration). Use when writing, extending, or refactoring tests.
 ---
 
-# Writing Tests for GitTally
+# Writing Tests for Werkator
 
 Tests use **Kotest `FunSpec`** style. `SpringExtension` is registered globally in `io.kotest.provided.ProjectConfig` — do not add it per-spec.
 
@@ -23,7 +23,7 @@ Tests mirror the production package structure under `src/test/kotlin`.
 Run a single test class instead of the full suite while iterating:
 
 ```bash
-./gradlew test --tests "de.hoennig.gittally.ApplicationContextTest"
+./gradlew test --tests "de.hoennig.werkator.ApplicationContextTest"
 ```
 
 ## Mocking in Spring Slice Tests

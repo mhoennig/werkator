@@ -39,7 +39,7 @@ So that pull-request branches get their commit status verified as before.
 
 ##### Verified by
 
-- [WatcherTest: "a branch requiring a pull request is only built when its head matches a pull-request head"](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [WatcherTest: "a branch requiring a pull request is only built when its head matches a pull-request head"](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 #### Scenario#000.02: A gated branch without a pull request is not built!
 
@@ -54,7 +54,7 @@ So that work-in-progress branches do not consume build capacity.
 
 ##### Verified by
 
-- [WatcherTest: "a branch requiring a pull request is only built when its head matches a pull-request head"](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [WatcherTest: "a branch requiring a pull request is only built when its head matches a pull-request head"](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 #### Scenario#000.03: Pull-request detection works without an API token!
 
@@ -66,7 +66,7 @@ So that GitTally needs no Gitea credentials for this feature.
 
 ##### Verified by
 
-- [GitServiceTest: "pullRequestHeads returns the head commits of the remote's pull-request refs"](../../src/test/kotlin/de/hoennig/gittally/git/GitServiceTest.kt)
+- [GitServiceTest: "pullRequestHeads returns the head commits of the remote's pull-request refs"](../../src/test/kotlin/de/hoennig/werkator/git/GitServiceTest.kt)
 
 #### Scenario#000.04: Ungated setups make no extra remote calls!
 
@@ -78,7 +78,7 @@ So that existing installations see no new network traffic.
 
 ##### Verified by
 
-- [WatcherTest: "pull-request refs are not queried when no due branch requires a pull request"](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [WatcherTest: "pull-request refs are not queried when no due branch requires a pull request"](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 #### Scenario#000.05: A branch entry overrides the default!
 
@@ -91,7 +91,7 @@ So that permanent branches like `main` keep building after merges, whose merge c
 
 ##### Verified by
 
-- [WatcherTest: "a branch entry overrides requirePullRequest from the default entry"](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [WatcherTest: "a branch entry overrides requirePullRequest from the default entry"](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 #### Scenario#000.06: Auto builds respect the gate!
 
@@ -105,7 +105,7 @@ So that scheduled rebuilds follow the same policy as push-triggered builds.
 
 ##### Verified by
 
-- [WatcherTest: "an auto build requiring a pull request is skipped and its slot stays untriggered"](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [WatcherTest: "an auto build requiring a pull request is skipped and its slot stays untriggered"](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 #### Scenario#000.07: The gate can be disabled globally for plain git origins!
 
@@ -119,7 +119,7 @@ So that the same committed configuration works on environments whose origin is p
 
 ##### Verified by
 
-- [WatcherTest: "a disabled pull-request gate builds gated branches on plain-git origins without querying pull-request refs"](../../src/test/kotlin/de/hoennig/gittally/watcher/WatcherTest.kt)
+- [WatcherTest: "a disabled pull-request gate builds gated branches on plain-git origins without querying pull-request refs"](../../src/test/kotlin/de/hoennig/werkator/watcher/WatcherTest.kt)
 
 ## The Solution
 
