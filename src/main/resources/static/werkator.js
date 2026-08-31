@@ -105,6 +105,16 @@ const giteaRepoUrl = metaContent("werkator-gitea-repo-url");
 // it is kept in localStorage and only ever sent as a request header.
 const CONTROL_TOKEN_KEY = "werkator.controlToken";
 
+// The key was named after the old product name, so the rename left every browser
+// with a token under a name nothing reads any more — a secret that not even
+// "forget token" can reach. Dropped on load; the token itself is unchanged on the
+// server, so the one re-entry per browser is all the rename costs.
+try {
+    window.localStorage.removeItem("gittally.controlToken");
+} catch (error) {
+    // localStorage unavailable (private mode, blocked cookies) — nothing stored, nothing to drop
+}
+
 function storedControlToken() {
     try {
         return window.localStorage.getItem(CONTROL_TOKEN_KEY) || "";
