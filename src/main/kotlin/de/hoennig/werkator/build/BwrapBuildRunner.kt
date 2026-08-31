@@ -77,11 +77,19 @@ class BwrapBuildRunner(
                 val dest = args[i + 2]
                 val mountpoint = rootfsDir.resolve(dest.substring(1))
                 // Skip anything that already exists in the rootfs (e.g. /etc/resolv.conf
-                // is a file, and the rootfs ships it); only missing dirs are created.
+                // is a file the rootfs ships); only missing dirs are created.
                 if (dest.startsWith("/") && !Files.exists(mountpoint)) {
                     Files.createDirectories(mountpoint)
                 }
                 i += 3
+            } else if (arg == "--proc" || arg == "--dev" || arg == "--tmpfs") {
+                // The rootfs archive ships no /proc, /dev (excluded when packed), so
+                // these mountpoints must exist too.
+                val dest = args[i + 1]
+                if (dest.startsWith("/") && !Files.exists(rootfsDir.resolve(dest.substring(1)))) {
+                    Files.createDirectories(rootfsDir.resolve(dest.substring(1)))
+                }
+                i += 2
             } else {
                 i += 1
             }
