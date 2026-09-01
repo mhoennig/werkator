@@ -79,6 +79,11 @@ Bring intent 1 to the webspace: build locally, install the bundle — Werkator n
 - `tools/remote build` (the self-build) is retired with session A's prototype marker.
 - `docs/deployment.md` gains "Hostsharing Managed Webspace" as the third deployment variant — step 17 required this to be written from a verified setup, and the branch's live run provides exactly that.
 
+## Session Notes
+
+- 2026-09-01: The fat build image exists and is live on mih34: `tools/build-bwrap-rootfs.sh` gained `--pkgs-extra`, the archive `werkator-buildenv-trixie-java-go-node.tar.zst` (515 MB, JDK 21 + Go + Node/npm) was built locally, uploaded checksum-verified, and the machine config switched to it (deduplicating nine identical bwrap blocks the install prototype had appended).
+  The old archive and its unpacked environment stay as rollback until the `werkdock` build pool is green.
+
 ## Acceptance Criteria
 
 - Session A: PR-doc renamed to #4, ADR 0008 written, architecture skill mentions the third runtime, `tools/remote` header carries the prototype note.
