@@ -37,7 +37,14 @@ data class WerkatorConfig(
         build: String,
     ): BranchConfig {
         val branchConfig = branches[branch] ?: branches["default"] ?: BranchConfig()
-        return effectiveBuildDefinitions()[build]?.applyTo(branchConfig) ?: branchConfig
+        val settings = effectiveBuildDefinitions()[build]?.applyTo(branchConfig) ?: branchConfig
+        if (settings.docker.enabled && settings.bwrap.enabled) {
+            throw IllegalArgumentException(
+                "builds.$build on '$branch' enables both docker and bwrap; a build runs in exactly one sandbox. " +
+                    "Disable one of them.",
+            )
+        }
+        return settings
     }
 }
 
@@ -57,7 +64,22 @@ data class ServerConfig(
     val bindAddress: String = "127.0.0.1",
     /** Optional Impressum (legal disclosure) link shown in the web UI footer; empty hides the link. */
     val impressumUrl: String = "",
+    /**
+     * Resource limits for the generated systemd user unit (`init --systemd`); empty
+     * means the directive is not written. Needed on platforms where the service runs
+     * inside a shared memory slice, e.g. Hostsharing Managed Webspaces, where a
+     * runaway Gradle build would starve everything else in the package.
+     */
+    val systemd: SystemdConfig = SystemdConfig(),
     val nginx: NginxConfig = NginxConfig(),
+)
+
+/** Resource-limit directives of the systemd user unit (`server.systemd`, see [ServerConfig.systemd]). */
+data class SystemdConfig(
+    /** `MemoryMax=` of the unit, e.g. `1G`; empty omits the directive. */
+    val memoryMax: String = "",
+    /** `TasksMax=` of the unit, e.g. `512`; empty omits the directive. */
+    val tasksMax: String = "",
 )
 
 /**
@@ -157,6 +179,26 @@ data class BranchConfig(
     val statusContext: String = "",
     val autoBuild: AutoBuildConfig = AutoBuildConfig(),
     val docker: DockerConfig = DockerConfig(),
+    /** bubblewrap user-namespace sandbox; mutually exclusive with [docker]. */
+    val bwrap: BwrapConfig = BwrapConfig(),
+)
+
+/**
+ * bubblewrap build sandbox (Step 17): runs the build in an unprivileged user namespace
+ * with a prepared Debian root filesystem. For hosts without root and without a Docker
+ * daemon (e.g. Hostsharing managed webspaces); see `docs/plan/17-bwrap-build-runtime.md`.
+ */
+data class BwrapConfig(
+    /** Run the clean and build commands in a bwrap sandbox instead of natively. */
+    val enabled: Boolean = false,
+    /**
+     * Path or URL of the prepared rootfs archive (e.g. `werkator-buildenv-trixie-java21.tar.zst`),
+     * unpacked on demand into `.git/werkator/buildenv/<envKey>/rootfs`; required when [enabled].
+     * Pinned — a branch must not substitute a foreign rootfs via its committed config.
+     */
+    val rootfs: String = "",
+    /** Additional environment variables set inside the sandbox. */
+    val env: Map<String, String> = emptyMap(),
 )
 
 data class DockerConfig(
