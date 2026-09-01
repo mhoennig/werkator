@@ -91,6 +91,10 @@ Added for running Werkator on Hostsharing Managed Webspaces (2026-08-10):
 
 - [ ] `17-bwrap-build-runtime.md` — Werkator on a Managed Webspace: bubblewrap user-namespace build sandbox with a prepared rootfs (precondition check first — see the step file), plus web access under a domain via the platform's Apache proxy and Let's Encrypt
 
+Added to correct the bwrap prototype's drift toward self-building on the webspace (2026-09-01):
+
+- [ ] `21-werkdock-extraction-and-webspace-install.md` — roadmap in four sessions: close step 17's open ends, extract the sandbox tooling into a new repository (**Werkdock**, a docker-like filesystem-only sandbox CLI), let Werkator consume it, and replace the webspace self-build with the local-build-plus-install path of ADR 0006
+
 Added for surfacing build time as a trend (2026-08-31):
 
 - [ ] `20-build-duration-tracking.md` — a per-name duration trend over the existing history, derived on read in the History view: series, window average/min/max, and a visible marker when the latest build is slower than its window average (grouped by the history's own `name`, so branch builds and named jobs stay separate — complements Step 14, which owns phase timing)
@@ -105,3 +109,4 @@ Step 17 depends on 11, 15, and 16, and starts with a hard precondition check on 
 Step 18 depends on nothing in code but on the watched repository having migrated — its precondition check is a hard gate, not a formality.
 Step 19 depends on nothing; `WatcherState` and `/api/watcher` already carry everything it needs to render.
 Step 20 depends on nothing; the duration is already recorded, and the trend is derived read-only from `repository.history()`.
+Step 21 depends on 17; its sessions B and C grow Werkdock in the `werkdock/` subdirectory (later its own repository), and session D supersedes the self-build prototype in `tools/remote`.
