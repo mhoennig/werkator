@@ -70,7 +70,13 @@
                       th:text="${report.failures} + ' failed'">2 failed</span>
             </li>
         </ul>
-        <p th:if="${#lists.isEmpty(reportIndexes)}" class="muted">
+        <ul th:if="${!#lists.isEmpty(fileArtifacts)}">
+            <li th:each="file : ${fileArtifacts}">
+                <a th:href="${filesBase} + '/' + ${file}" target="_blank"
+                   rel="noopener noreferrer" th:text="${file}">werkdock/dist/werkdock</a>
+            </li>
+        </ul>
+        <p th:if="${#lists.isEmpty(reportIndexes) and #lists.isEmpty(fileArtifacts)}" class="muted">
             No artifact directories were produced by this build.
         </p>
     </article>

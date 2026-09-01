@@ -201,7 +201,9 @@ builds:
     cleanCommand: rm -rf build
     # shell command for each build
     buildCommand: ./gradlew --console=plain --no-daemon test
-    # directories copied as build artifacts
+    # directories copied as build artifacts; each is archived at its own
+    # workspace-relative path, except build/reports, which archives as reports/
+    # and is browsed by the artifact page's report index
     artifactDirs:
       - build/reports
       - build/doc
