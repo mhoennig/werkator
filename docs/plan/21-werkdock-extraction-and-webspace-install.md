@@ -73,7 +73,7 @@ A docker-like CLI over `bwrap`, filesystem isolation only.
 - Decided: the rootfs archive becomes a werkdock *image* (`werkator-buildenv-<source-hash>`, checked via `werkdock images`, loaded via `werkdock load`) in werkdock's own store — shared across every repository of the OS user, which resolves step 22's buildenv-sharing question; only the URL download cache and the persistent `/root` toolchain home stay under `.git/werkator/buildenv/`.
 - Consequence of werkdock's `--clearenv`: the server environment no longer leaks into builds, and the runner's TMPDIR workaround is gone.
 
-### D — The Managed-Webspace install path (this repo, independent of B/C)
+### D — The Managed-Webspace install path (this repo, independent of B/C; implemented 2026-09-01 on branch `werkator-consumes-werkdock`)
 
 Bring intent 1 to the webspace: build locally, install the bundle — Werkator never builds itself on the target.
 
@@ -94,6 +94,8 @@ Bring intent 1 to the webspace: build locally, install the bundle — Werkator n
   The image was then trimmed (headless JDK, en/de locales only, no man/doc/apt-lists): 351 MB compressed — smaller than the original JDK-only archive despite carrying Go and Node.
   All rollback assets on mih34 are removed; the PR for this branch is prepared (PR-doc with `PR#000` placeholder) and will be opened later.
 - 2026-09-01, session C deployed to mih34: the werkdock binary sits at `.werkator/bin/werkdock`, the machine config names it in `bwrap.werkdock`, the runtime bundle carries the delegating runner, and the TMPDIR workaround left the machine config (obsolete under werkdock's clearenv).
+- 2026-09-01, session D done and live-verified on mih34: `tools/remote` reworked to role-named commands (`instance-install`/`instance-update`/`instance-start` for the builder, `repo-init` for the built; the retired `install`/`build`/`start` fail loudly naming their successors); the self-build, the repo clone for it, and the GitHub-key step are gone — the instance installs from locally built artifacts (bundle + werkdock), the watched repo clones anonymously via https.
+  `instance-update` refuses to swap under a running build, `repo-init` is idempotent (checksum-skipped rootfs upload; the machine-config guard whose indentation mismatch once appended nine duplicate bwrap blocks is fixed); `docs/deployment.md` gained the Managed Webspace as the third variant, written from the verified setup.
 
 ## Acceptance Criteria
 
