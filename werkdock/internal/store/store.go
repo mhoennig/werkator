@@ -70,7 +70,7 @@ func (s Store) List() ([]string, error) {
 	}
 	var names []string
 	for _, e := range entries {
-		if e.IsDir() && nameRe.MatchString(e.Name()) {
+		if e.IsDir() && nameRe.MatchString(e.Name()) && !strings.HasSuffix(e.Name(), ".tmp") {
 			names = append(names, e.Name())
 		}
 	}
@@ -85,6 +85,11 @@ func (s Store) List() ([]string, error) {
 func (s Store) Load(archive, name string) error {
 	if !nameRe.MatchString(name) {
 		return fmt.Errorf("invalid image name: %q (allowed: lowercase letters, digits, '.', '_', '-')", name)
+	}
+	// ".tmp" is the staging suffix of this very function — a legal-looking
+	// image name ending in it would collide with interrupted loads.
+	if strings.HasSuffix(name, ".tmp") {
+		return fmt.Errorf("invalid image name: %q (the .tmp suffix is reserved for staging)", name)
 	}
 	archiveAbs, err := filepath.Abs(archive)
 	if err != nil {
