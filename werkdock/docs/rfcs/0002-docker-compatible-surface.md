@@ -2,7 +2,7 @@
 
 **Status:**
 - proposed: 2026-09-01
-- accepted: -
+- accepted: 2026-09-01 (level 1 as the shape of the CLI; levels 2 and 3 deferred indefinitely)
 - rejected: -
 
 **Proposal:** Werkdock's user-facing surface follows Docker wherever the filesystem-only contract allows: level 1 is a docker-compatible CLI (verbs, flags, exit codes), level 2 is pulling OCI images from registries, level 3 is a daemon offering the Docker Engine REST API subset that Testcontainers needs.
@@ -85,4 +85,6 @@ Ryuk stays disabled in documentation until proven.
 
 ## Decision Outcome
 
-Pending.
+Decided 2026-09-01: level 1 shapes the CLI — verbs and flags follow docker, unsupported flags fail loudly.
+Levels 2 and 3 (OCI pull, daemon API, Testcontainers) are deferred indefinitely; nothing in the code may make them harder, nothing is built for them now.
+The immediate goal is narrower than level 1's full verb list: `doctor`, `load`, and `run` — enough for the sandbox builds of Werkator, Werkbaum, and Werkdock itself; the remaining verbs follow with need.
