@@ -77,6 +77,9 @@ Bring intent 1 to the webspace: build locally, install the bundle — Werkator n
 - `tools/remote install` loses the repository clone and the GitHub-key step; it uploads the locally built runtime bundle (built on demand, as today) and runs `init`.
 - The rootfs upload stays, but for its real purpose: the sandbox for the repositories this instance *watches*, not for building Werkator.
 - `tools/remote build` (the self-build) is retired with session A's prototype marker.
+- Untangle the two roles `tools/remote` mixes (noted 2026-09-01): some of its commands manage the *builder* (the installed Werkator instance: install, start, control-token, the runtime bundle, the rootfs it builds others in), others act on the *built* (the watched repository: build, branch selection) — and Werkator itself overlaps with both (the instance IS a Werkator, and status/build/retry exist as `werkator` CLI commands too).
+  On the self-building instance both roles coincide in one product, which misleads: "updating werkator" can mean swapping the builder's bundle or building the repo's head, and they are different operations with different risks.
+  Session D's replacement must name the role in every command and in the script's vocabulary (e.g. `instance install`/`instance update` vs `repo build`), and prefer delegating built-side operations to the `werkator` CLI instead of reimplementing them.
 - `docs/deployment.md` gains "Hostsharing Managed Webspace" as the third deployment variant — step 17 required this to be written from a verified setup, and the branch's live run provides exactly that.
 
 ## Session Notes
