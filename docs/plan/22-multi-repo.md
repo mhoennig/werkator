@@ -38,14 +38,13 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 ### A — Decision and schema (ADR 0009)
 
-- Write ADR 0009: revise the one-instance-per-repository tenet to one-instance-per-*set*; record the aggregator idea and the key ownership split above.
-  Considered alternative to record: a federation dashboard proxying several single-repo instances — less invasive, but it keeps N services/ports and solves only the UI, not the operations burden.
+- ~~Write ADR 0009~~ — done 2026-09-01: `docs/adrs/0009-2026-09-01.multi-repo-instance.md` revises the one-instance-per-repository tenet to one-instance-per-*set* and records the aggregator idea, the key ownership split, the four 2026-09-01 decisions, and the rejected federation-dashboard alternative.
 - Define the instance config: `~/.werkator.yml` (decided 2026-09-01) — the repository registry plus the instance-level keys above; one instance per OS user, which matches the platform model (pac users on a webspace, service users elsewhere).
   `werkator server` without a home config serves the current directory exactly as today.
 - Decide the transition for instance keys that today sit in a repo's machine config (mih34's carries `server.*`): once a home config exists, repo-level instance keys are ignored with a warning naming both files — never merged silently.
 - Repo identity for display and routes (decided 2026-09-01): a short unique name per registry entry, defaulting to the repository's directory basename, overridable in the entry; duplicate resulting names abort the start loudly. Used as the route segment (`/repos/<name>/…`) and UI grouping key.
 - Precedence (decided 2026-09-01): when a home config with a registry exists, `werkator server` serves the registry regardless of the current directory — one user, one instance, deterministic; without a home config it serves the current directory exactly as today.
-- Update `docs/Werkator-Konzept.md` and AGENTS.md wording ("one instance per repository set").
+- Update `docs/Werkator-Konzept.md` and the AGENTS.md architecture wording ("one instance per repository set") when the implementation lands (sessions B–D) — until then the existing behavior description remains accurate; the AGENTS.md decision list carries ADR 0009 already.
 
 ### B — RepoContext refactor, behavior unchanged
 
@@ -80,7 +79,7 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 ## Acceptance Criteria
 
-- Session A: ADR 0009 merged; registry and key-ownership documented in `docs/configuration.md`.
+- Session A: ADR 0009 written (done 2026-09-01); the registry and key ownership land in `docs/configuration.md` together with the implementing sessions, since that reference describes implemented configuration only.
 - Session B: full suite green with `RepoContext` threaded through; no route or behavior change observable.
 - Session C: an instance with two registered repos builds pushes in both, with per-repo error isolation proven by a test (one broken origin, the other keeps building).
 - Session D: both repos browsable in one UI; single-repo installations keep their existing URLs.
