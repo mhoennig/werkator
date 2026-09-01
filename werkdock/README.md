@@ -12,6 +12,7 @@ Semantics:
 - `werkdock doctor` checks the host: user-namespace capability, disk and quota headroom.
 
 Status: bootstrap.
+The implementation language is proposed in [RFC 0001](docs/rfcs/0001-implementation-language.md) (Go).
 Werkdock grows in this subdirectory of the Werkator repository and moves to its own repository once it stands on its own.
 It must stay self-contained: no imports from Werkator code, no Gradle coupling to the Werkator build.
 The roadmap is session B of [docs/plan/21-werkdock-extraction-and-webspace-install.md](../docs/plan/21-werkdock-extraction-and-webspace-install.md).
