@@ -93,6 +93,7 @@ Bring intent 1 to the webspace: build locally, install the bundle — Werkator n
   Three defects found and fixed on the way: unanchored tar excludes dropped the Go stdlib's `sys` directory from the archive, pam_tmpdir's `TMPDIR` leaked into the sandbox (Werkator-side fix; Werkdock is immune via `--clearenv`), and non-report artifacts were stored below `reports/` and invisible in the UI.
   The image was then trimmed (headless JDK, en/de locales only, no man/doc/apt-lists): 351 MB compressed — smaller than the original JDK-only archive despite carrying Go and Node.
   All rollback assets on mih34 are removed; the PR for this branch is prepared (PR-doc with `PR#000` placeholder) and will be opened later.
+- 2026-09-01, session C deployed to mih34: the werkdock binary sits at `.werkator/bin/werkdock`, the machine config names it in `bwrap.werkdock`, the runtime bundle carries the delegating runner, and the TMPDIR workaround left the machine config (obsolete under werkdock's clearenv).
 
 ## Acceptance Criteria
 
