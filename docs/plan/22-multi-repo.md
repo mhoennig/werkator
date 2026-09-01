@@ -25,8 +25,8 @@ Consequences:
 
 Today all config comes from the repo's own layers; multi-repo splits ownership:
 
-- **Instance-level** (new instance config, not per repo): `server.*` (port, bind address, public base URL, nginx), the control token (one UI, one token), `executor.maxConcurrent` as the *global* cap, watcher interval, metrics.
-- **Repo-level** (unchanged, from the repo's config layers): `gitea.*` (each repo has its own owner/repo/token/statusContext), `git.*` credentials, `builds`/branch layer, retention, per-repo watcher options (e.g. `pullRequestGate`), sandbox policy and its pinning.
+- **Instance-level** (decided 2026-09-01: a `.werkator.yml` in the *home directory* of the user running the instance): `server.*` (port, bind address, public base URL / domain, nginx), the repository registry, the control token (one UI, one token), `executor.maxConcurrent` as the *global* cap, watcher interval, metrics.
+- **Repo-level** (unchanged, from the repo's own layers — machine config in its `.git/werkator/`, committed project config, branch layer): `gitea.*` (each repo has its own owner/repo/token/statusContext), `git.*` credentials, `builds`, retention, per-repo watcher options (e.g. `pullRequestGate`), sandbox policy and its pinning.
 - **Both**: a per-repo concurrency cap below the global one may come later; not in the first cut.
 
 The pinning model is untouched: pinned keys still come from each repo's machine config, and the branch layer still cannot reach them.
@@ -37,8 +37,9 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 - Write ADR 0009: revise the one-instance-per-repository tenet to one-instance-per-*set*; record the aggregator idea and the key ownership split above.
   Considered alternative to record: a federation dashboard proxying several single-repo instances — less invasive, but it keeps N services/ports and solves only the UI, not the operations burden.
-- Define the instance registry: an instance config file (e.g. `~/.config/werkator/<instance>.yml` or a file in an instance directory) listing repository paths, plus the instance-level keys.
-  `werkator server` without a registry serves the current directory exactly as today.
+- Define the instance config: `~/.werkator.yml` (decided 2026-09-01) — the repository registry plus the instance-level keys above; one instance per OS user, which matches the platform model (pac users on a webspace, service users elsewhere).
+  `werkator server` without a home config serves the current directory exactly as today.
+- Decide the transition for instance keys that today sit in a repo's machine config (mih34's carries `server.*`): once a home config exists, repo-level instance keys are ignored with a warning naming both files — never merged silently.
 - Define repo identity for display and routes: a short unique name per registry entry (default: directory basename), used as the route segment (`/repos/<name>/…`) and UI grouping key.
 - Update `docs/Werkator-Konzept.md` and AGENTS.md wording ("one instance per repository set").
 
@@ -69,6 +70,11 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 ## Open Questions
 
+- May `~/.werkator.yml` also carry *repo defaults* (e.g. one `git.account`/`git.token` for all repos of the same forge), merged beneath every repo's own layers — or is it strictly instance-only?
+  Defaults are convenient but widen where secrets live; strictly-instance-only keeps the "repository stays self-contained" property clean.
+- What wins when `werkator server` is started inside a repository while a home config exists — the registry, the cwd, or is that an error demanding an explicit flag?
+- Repo names for routes and display: registry-entry name with directory-basename default — or always explicit?
+- The same file name `.werkator.yml` now exists in a third location (home, repo root committed, repo `.git/werkator/`) — accept the overload, or name the home file differently (e.g. `~/.werkator-instance.yml`)?
 - Fairness across repos when the global concurrency cap is contended (round-robin per repo vs. FIFO) — decide in session C with the real queue behavior at hand.
 - Whether buildenv rootfs trees should be shared across repos (today each repo unpacks its own under `.git/werkator/buildenv/`) — the natural answer is Werkdock's image store (step 21 session C), not instance-level state; until then duplicate unpacked rootfs trees are the accepted cost.
 - Whether `artifactKey` needs a repo prefix or stays globally unique by construction (random suffix) — decide in session B when the routes are designed.
