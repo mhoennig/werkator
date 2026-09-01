@@ -95,6 +95,10 @@ Added to correct the bwrap prototype's drift toward self-building on the webspac
 
 - [ ] `21-werkdock-extraction-and-webspace-install.md` — roadmap in four sessions: close step 17's open ends, grow the sandbox tooling into **Werkdock** (a docker-like filesystem-only sandbox CLI, developed in the `werkdock/` subdirectory, later its own repository), let Werkator consume it, and replace the webspace self-build with the local-build-plus-install path of ADR 0006
 
+Added because one instance per repository does not scale to a second repository on a webspace (2026-09-01):
+
+- [ ] `22-multi-repo.md` — one Werkator instance serves a set of self-contained repositories: instance registry, `RepoContext` refactor, watcher/executor multiplexing with per-repo error isolation, repo-scoped routes and UI, rollout on mih34 with Werkbaum as the second repository (ADR 0009 revises the one-instance-per-repository tenet)
+
 Added for surfacing build time as a trend (2026-08-31):
 
 - [ ] `20-build-duration-tracking.md` — a per-name duration trend over the existing history, derived on read in the History view: series, window average/min/max, and a visible marker when the latest build is slower than its window average (grouped by the history's own `name`, so branch builds and named jobs stay separate — complements Step 14, which owns phase timing)
@@ -110,3 +114,4 @@ Step 18 depends on nothing in code but on the watched repository having migrated
 Step 19 depends on nothing; `WatcherState` and `/api/watcher` already carry everything it needs to render.
 Step 20 depends on nothing; the duration is already recorded, and the trend is derived read-only from `repository.history()`.
 Step 21 depends on 17; its sessions B and C grow Werkdock in the `werkdock/` subdirectory (later its own repository), and session D supersedes the self-build prototype in `tools/remote`.
+Step 22 depends on nothing in code; its session E depends on the trimmed build image of step 21 (Node for Werkbaum), and its buildenv-sharing question resolves via step 21 session C rather than instance-level state.
