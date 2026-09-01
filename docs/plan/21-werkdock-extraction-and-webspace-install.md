@@ -55,7 +55,8 @@ The `BuildRunner` half is a keeper regardless of the extraction; it is merged (P
 
 A docker-like CLI over `bwrap`, filesystem isolation only.
 
-- Semantics: an *image* is a rootfs archive; an *instance* is an unpacked, writable directory tree; `werkdock run <instance> -- <command>` executes in the sandbox with uid 0 mapped to the calling user.
+- Semantics: an *image* is a rootfs archive; an *instance* is an unpacked, writable directory tree and corresponds to a docker container; `werkdock run [flags] IMAGE [CMD...]` executes in the sandbox with uid 0 mapped to the calling user.
+- The surface is docker-compatible as far as the filesystem-only contract allows — verbs, flags, and (deferred) a Docker-Engine-API daemon for Testcontainers; levels and limits in Werkdock RFC 0002.
 - Host-shared by design, not by omission: network, uid mapping, `/proc`, `/dev`, `/tmp` come from the host; document this as the contract, since it is what makes the tool work without root on a Managed Webspace.
 - Moves in from Werkator: `tools/build-bwrap-rootfs.sh` (becomes the image build), the generic half of `tools/werkator-build-prerequisites.sh` (becomes `werkdock doctor`: userns capability, quota headroom), and the invocation logic of `BwrapBuildRunner` (mount ordering, mountpoint pre-creation, uid mapping — the parts hardened on the real webspace; the squash commit `71f1fc6` preserves the individual fix messages).
 - Known floor: bubblewrap 0.8.0 on the webspaces has no `--overlay`; writable spots are tmpfs/bind mounts until the platform reaches 0.9.

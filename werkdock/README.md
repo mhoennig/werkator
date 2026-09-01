@@ -4,12 +4,12 @@ A docker-like sandbox CLI over `bwrap` — filesystem isolation only.
 A dock is the enclosed basin in which ships are built: the dock gate controls what passes, the water outside is shared with the whole harbor.
 Accordingly, network, uid, `/proc`, `/dev`, and `/tmp` come from the host by contract; that is what makes Werkdock work without root on a Hostsharing Managed Webspace.
 
-Semantics:
+Semantics — docker-compatible as far as the filesystem-only contract allows (see [RFC 0002](docs/rfcs/0002-docker-compatible-surface.md)):
 
-- An *image* is a rootfs archive.
-- An *instance* is an unpacked, writable directory tree.
-- `werkdock run <instance> -- <command>` executes in the sandbox with uid 0 mapped to the calling user.
+- An *image* is a rootfs archive; an *instance* is an unpacked, writable directory tree and corresponds to a docker container.
+- `werkdock run [flags] IMAGE [CMD...]` creates an instance and executes in the sandbox with uid 0 mapped to the calling user; verbs and flags follow docker, unsupported docker flags fail loudly.
 - `werkdock doctor` checks the host: user-namespace capability, disk and quota headroom.
+- A daemon speaking the Docker Engine API subset (for Testcontainers) is designed for but deferred.
 
 Status: bootstrap.
 The implementation language is Go, decided in [RFC 0001](docs/rfcs/0001-implementation-language.md).
