@@ -421,7 +421,7 @@ All Werkator containers carry `org.hoennig.werkator` labels; stale build contain
 With `bwrap.enabled`, Werkator runs the build in a bubblewrap sandbox instead of native execution.
 This is the third runtime, for hosts without root and without a Docker daemon (e.g. Hostsharing managed webspaces); see `docs/plan/17-bwrap-build-runtime.md` and ADR 0008.
 Since step 21 session C the sandbox is executed by the `werkdock` CLI (`bwrap.werkdock`, default: resolved via `PATH`) — Werkator no longer invokes `bwrap` itself; `bwrap` must be installed for werkdock.
-`werkdock doctor` checks the host's capability, superseding `tools/werkator-build-prerequisites.sh`.
+`werkdock doctor` checks the host's capability (it replaced the retired `tools/werkator-build-prerequisites.sh` in step 23).
 
 `bwrap.rootfs` names the prepared root filesystem archive — a Debian-base rootfs with the build tools (JDK, git, locales, project-specific tooling) built elsewhere, since `debootstrap` is unavailable on the target.
 It is a local path or an `http(s)` URL; a URL is downloaded once into `.git/werkator/buildenv/`.

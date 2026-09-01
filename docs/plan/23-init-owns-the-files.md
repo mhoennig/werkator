@@ -15,7 +15,7 @@ Werkator becomes the executing app wherever possible; `tools/remote` shrinks to 
 
 Parameters travel as **files**, not as many CLI options — and each side gets the format that is native to it (refined 2026-09-01):
 
-- The **wrapper** keeps a small, bash-sourceable env file with the transport values only: `tools/remote --env .env.mih34 werkator repo-init` selects the target (default: `.env`), so several instances (`.env.mih34`, `.env.vm4006`, later a Werkbaum instance) are files, not edits.
+- The **wrapper** keeps a small, bash-sourceable env file with the transport values only: `tools/remote --env-file .env.mih34 werkator repo-init` selects the target (default: `.env`; named `--env-file` like docker's flag for the same thing, since `--env` means a single variable there), so several instances (`.env.mih34`, `.env.vm4006`, later a Werkbaum instance) are files, not edits.
 - **Werkator** takes a **YAML fragment in its own config schema**: `werkator init --apply mih34.yml` deep-merges the fragment into the machine config, idempotently — creating sections that are missing, updating the given values, never duplicating.
   No mapping table exists: the fragment says `server: {port: …}` and `builds: {default: {bwrap: …}}` directly, is validated by the existing schema binding, and is documented by the existing `docs/configuration.md`.
 - The wrapper uploads the fragment alongside the artifacts and calls `werkator init --apply …` remotely — the heredocs and `sed` calls in `tools/remote` disappear.
@@ -38,13 +38,13 @@ The removed legacy env-to-YAML conversion stays removed — there is no conversi
 - New subcommand `werkator control-token`: print the token, creating it exactly like `ControlTokenService` does — the bash duplication in the wrapper dies.
 - Tests per the writing-tests conventions; `docs/bootstrapping.md` documents `--apply` (the fragment keys need no new reference — they are ordinary `docs/configuration.md` keys).
 
-### B — Wrapper side
+### B — Wrapper side (implemented 2026-09-01 on branch `init-apply-config`)
 
-- `tools/remote --env FILE` (default `.env`); the init fragment named by `WERKATOR_INIT_CONFIG` is uploaded, and the remote init runs with `--apply`.
+- `tools/remote --env-file FILE` (default `.env`); the init fragment named by `WERKATOR_INIT_CONFIG` is uploaded, and the remote init runs with `--apply`.
 - `repo-init` and `instance-start` lose their heredoc/`sed` config writing; `control-token` delegates to the new subcommand.
 - `check-prerequisites` uploads the werkdock binary first and runs `werkdock doctor`; `tools/werkator-build-prerequisites.sh` retires (its werkdock port is the survivor).
 
-### C — Live verification and docs
+### C — Live verification and docs (done 2026-09-01)
 
 - Run the full wrapper flow against mih34 (`instance-update`, `repo-init`, `instance-start` as no-op re-runs); `docs/deployment.md`'s webspace section switches to the `--env` invocations.
 
@@ -53,5 +53,6 @@ The removed legacy env-to-YAML conversion stays removed — there is no conversi
 - Session A: done 2026-09-01 — `werkator init --apply …` installs and replaces a fragment idempotently; `werkator control-token` exists; full suite green.
   Deviation from the sketch above: the fragment is NOT merged into the machine config — it is installed verbatim as its own layer (`.git/werkator/.werkator.applied.yml`, above project, below machine config), because an in-place merge would re-serialize the machine config, destroying its comments and rewriting the file that holds the secrets; a verbatim copy also makes re-apply a plain file replacement.
   The `.htaccess` decision fell as proposed: generated beside the units by `init --systemd` whenever a `publicBaseUrl` is configured; the wrapper copies it into the domain docroot.
-- Session B: `tools/remote` contains no YAML heredocs and no `sed` into the machine config; the prerequisites bash script is gone.
-- Session C: the mih34 re-runs change nothing on a configured host and the deployment docs show only `--env`-style calls.
+- Session B: done 2026-09-01 — `tools/remote` contains no YAML heredocs and no `sed` into the machine config (the port lookups for idle check and port-forward read the *effective* config via `config:print`, so a port living in the applied fragment is found too); the prerequisites bash script is gone.
+- Session C: done 2026-09-01 — verified live on mih34 with the `.env.mih34` + `.env.mih34.yml` pair: instance-update, doctor-based check-prerequisites (PASS 6/6), repo-init applying the fragment, instance-start placing the generated `.htaccess` and restarting the unit, control-token via the CLI; `docs/deployment.md` shows only `--env-file`-style calls.
+  Known niggle: validating a fragment that carries a `builds.default` without triggers logs the loader's "no build defines onPush" warning, although a fragment is judged out of context — cosmetic, fix when it annoys.
