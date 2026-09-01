@@ -403,8 +403,8 @@ class ConfigLoader(
         /** `docker` keys a branch must never override: the sandbox policy. */
         private val PINNED_DOCKER_KEYS = setOf("enabled", "network")
 
-        /** `bwrap` keys a branch must never override: the sandbox policy (Step 17). */
-        private val PINNED_BWRAP_KEYS = setOf("enabled", "rootfs")
+        /** `bwrap` keys a branch must never override: the sandbox policy (Step 17) and its executing binary. */
+        private val PINNED_BWRAP_KEYS = setOf("enabled", "rootfs", "werkdock")
 
         /**
          * The one key of a build definition that says *when* and *for which branches* it

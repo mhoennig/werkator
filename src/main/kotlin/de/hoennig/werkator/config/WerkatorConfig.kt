@@ -197,6 +197,11 @@ data class BwrapConfig(
      * Pinned — a branch must not substitute a foreign rootfs via its committed config.
      */
     val rootfs: String = "",
+    /**
+     * The werkdock CLI executing the sandbox (step 21 session C); empty or the default
+     * resolves via PATH. Pinned — a branch must not substitute the executing binary.
+     */
+    val werkdock: String = "werkdock",
     /** Additional environment variables set inside the sandbox. */
     val env: Map<String, String> = emptyMap(),
 )

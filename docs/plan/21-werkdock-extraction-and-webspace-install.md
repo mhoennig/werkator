@@ -64,11 +64,14 @@ A docker-like CLI over `bwrap`, filesystem isolation only.
 - Own docs, plan, and ADRs under `werkdock/` from the start, so the later repository split is a directory move; the Werkator side only keeps what is Werkator-specific (the git-metadata mounts of step 16 and the config pinning).
 - Keep `werkdock/` self-contained: no imports from Werkator code, no Gradle coupling to the Werkator build — it must build and test on its own.
 
-### C — Werkator consumes Werkdock (this repo, after B)
+### C — Werkator consumes Werkdock (this repo, after B; implemented 2026-09-01 on branch `werkator-consumes-werkdock`)
 
 - `BwrapBuildRunner` shells out to `werkdock run` instead of assembling the raw `bwrap` argv — same pattern as git and docker: CLI, no library.
 - Config keys (`bwrap.enabled`, `bwrap.rootfs`) and their pinning stay as they are; only the executor behind them changes.
-- Decide in the step: whether the git-metadata mounts stay Werkator-side (passed as extra `--bind`/`--tmpfs` options to `werkdock run`) or become a Werkdock feature; the secrets-masking of `.git/werkator/` must hold either way.
+  One key was added: `bwrap.werkdock` (the executing binary, default via PATH) — pinned like the rest of the sandbox policy, since a branch must not substitute the executing binary.
+- Decided: the git-metadata mounts stay Werkator-side, passed as `-v …:ro` / `--tmpfs` / `-v` options whose flag order werkdock preserves (it grew `--tmpfs` and an ordered mount list for exactly this); the secrets-masking of `.git/werkator/` holds unchanged.
+- Decided: the rootfs archive becomes a werkdock *image* (`werkator-buildenv-<source-hash>`, checked via `werkdock images`, loaded via `werkdock load`) in werkdock's own store — shared across every repository of the OS user, which resolves step 22's buildenv-sharing question; only the URL download cache and the persistent `/root` toolchain home stay under `.git/werkator/buildenv/`.
+- Consequence of werkdock's `--clearenv`: the server environment no longer leaks into builds, and the runner's TMPDIR workaround is gone.
 
 ### D — The Managed-Webspace install path (this repo, independent of B/C)
 

@@ -68,6 +68,7 @@ data class BuildDefinition(
                 branchConfig.bwrap.copy(
                     enabled = bwrap?.enabled ?: branchConfig.bwrap.enabled,
                     rootfs = bwrap?.rootfs ?: branchConfig.bwrap.rootfs,
+                    werkdock = bwrap?.werkdock ?: branchConfig.bwrap.werkdock,
                     env = bwrap?.env ?: branchConfig.bwrap.env,
                 ),
         )
@@ -174,5 +175,7 @@ data class BwrapOverrides(
     val enabled: Boolean? = null,
     /** Rootfs archive source. Pinned — a branch must not substitute a foreign rootfs. */
     val rootfs: String? = null,
+    /** The werkdock CLI executing the sandbox. Pinned — a branch must not substitute the executing binary. */
+    val werkdock: String? = null,
     val env: Map<String, String>? = null,
 )

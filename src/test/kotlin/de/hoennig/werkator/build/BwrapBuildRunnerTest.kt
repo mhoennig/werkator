@@ -35,11 +35,18 @@ class BwrapBuildRunnerTest : FunSpec() {
                 ),
         )
 
-    private fun rootfsUnpacked(rootfs: String = "/srv/buildenv.tar.zst"): Path =
-        repoDir
-            .resolve(BwrapBuildRunner.BUILDENV_DIR)
-            .resolve(rootfs.sha12())
-            .resolve(BwrapBuildRunner.ROOTFS_DIR)
+    private fun imageName(rootfs: String = "/srv/buildenv.tar.zst"): String = "werkator-buildenv-${rootfs.sha12()}"
+
+    /** The image is already loaded: `werkdock images` lists it, so no load runs. */
+    private fun givenImageLoaded(rootfs: String = "/srv/buildenv.tar.zst") {
+        every { commandRunner.runOrThrow(listOf("werkdock", "images"), repoDir, any(), any()) } returns
+            GitCommandResult(0, imageName(rootfs) + "\n", "")
+    }
+
+    private fun givenImageMissing() {
+        every { commandRunner.runOrThrow(listOf("werkdock", "images"), repoDir, any(), any()) } returns
+            GitCommandResult(0, "some-other-image\n", "")
+    }
 
     init {
         beforeEach {
@@ -54,110 +61,92 @@ class BwrapBuildRunnerTest : FunSpec() {
             }
         }
 
-        test("unpacks the rootfs on demand and assembles the exact bwrap command") {
-            every {
-                commandRunner.runOrThrow(
-                    listOf("tar", "--no-same-owner", "-xf", "/srv/buildenv.tar.zst", "-C", rootfsUnpacked().toString()),
-                    repoDir,
-                    any(),
-                    any(),
-                )
-            } returns
-                GitCommandResult(0, "", "")
+        test("assembles the exact werkdock run command for a loaded image") {
+            givenImageLoaded()
 
             runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
 
-            val args = captured.single()
-            val rootfsDir = args[args.indexOf("--ro-bind") + 1]
-            args shouldBe
+            captured.single() shouldBe
                 listOf(
-                    "bwrap",
-                    "--unshare-user",
-                    "--unshare-pid",
-                    "--die-with-parent",
-                    "--uid",
-                    "0",
-                    "--gid",
-                    "0",
-                    "--ro-bind",
-                    rootfsUnpacked().toString(),
-                    "/",
-                    "--bind",
-                    repoDir.toString(),
-                    repoDir.toString(),
-                    "--bind",
+                    "werkdock",
+                    "run",
+                    "--rm",
+                    "-v",
+                    "$repoDir:$repoDir",
+                    "-v",
+                    "$workspace:$workspace",
+                    "-v",
+                    "${repoDir.resolve(".git/werkator/buildenv/home")}:/root",
+                    "-e",
+                    "branch=main",
+                    "-w",
                     workspace.toString(),
-                    workspace.toString(),
-                    "--bind",
-                    repoDir.resolve(".git/werkator/buildenv/home").toString(),
-                    "/root",
-                    "--ro-bind",
-                    "/etc/resolv.conf",
-                    "/etc/resolv.conf",
-                    "--proc",
-                    "/proc",
-                    "--dev",
-                    "/dev",
-                    "--tmpfs",
-                    "/tmp",
-                    "--setenv",
-                    "HOME",
-                    "/root",
-                    "--setenv",
-                    "TMPDIR",
-                    "/tmp",
-                    "--setenv",
-                    "TMP",
-                    "/tmp",
-                    "--setenv",
-                    "branch",
-                    "main",
-                    "--chdir",
-                    workspace.toString(),
+                    imageName(),
                     "/bin/sh",
                     "-c",
                     "./gradlew test",
                 )
-            Files.isDirectory(rootfsUnpacked()) shouldBe true
         }
 
-        test("binds a relative workspace path at its absolute location") {
-            // bwrap creates mountpoints for bind destinations inside the sandbox;
-            // a relative path would land in the read-only rootfs and fail with
-            // "Can't mkdir parents ...: Read-only file system" (seen on the webspace).
+        test("loads the image once when werkdock does not know it yet") {
+            givenImageMissing()
             every {
                 commandRunner.runOrThrow(
-                    listOf("tar", "--no-same-owner", "-xf", "/srv/buildenv.tar.zst", "-C", rootfsUnpacked().toString()),
+                    listOf("werkdock", "load", "-i", "/srv/buildenv.tar.zst", "--name", imageName()),
                     repoDir,
                     any(),
                     any(),
                 )
-            } returns
-                GitCommandResult(0, "", "")
+            } returns GitCommandResult(0, "", "")
 
+            runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
+
+            verify {
+                commandRunner.runOrThrow(
+                    listOf("werkdock", "load", "-i", "/srv/buildenv.tar.zst", "--name", imageName()),
+                    repoDir,
+                    any(),
+                    any(),
+                )
+            }
+        }
+
+        test("does not load an image werkdock already has") {
+            givenImageLoaded()
+
+            runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
+
+            verify(exactly = 0) { commandRunner.runOrThrow(match { "load" in it }, any(), any(), any()) }
+        }
+
+        test("uses the configured werkdock binary path") {
+            every { commandRunner.runOrThrow(listOf("/opt/bin/werkdock", "images"), repoDir, any(), any()) } returns
+                GitCommandResult(0, imageName() + "\n", "")
+            val branchConfig =
+                BranchConfig(
+                    bwrap = BwrapConfig(enabled = true, rootfs = "/srv/buildenv.tar.zst", werkdock = "/opt/bin/werkdock"),
+                )
+
+            runner.start("./gradlew test", workspace, emptyMap(), repoDir, branchConfig)
+
+            captured.single().first() shouldBe "/opt/bin/werkdock"
+        }
+
+        test("mounts a relative workspace path at its absolute location") {
+            givenImageLoaded()
             val relativeWorkspace = repoDir.relativize(workspace)
 
             runner.start("./gradlew test", relativeWorkspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
 
             val args = captured.single()
             val absolute = workspace.toAbsolutePath().normalize().toString()
-            val bindIdx = args.withIndex().filter { it.value == "--bind" }.map { it.index }
-            // first bind is the repo dir (mountpoint base), second is the workspace
-            args[bindIdx[1] + 1] shouldBe absolute
-            args[bindIdx[1] + 2] shouldBe absolute
-            args[args.indexOf("--chdir") + 1] shouldBe absolute
+            args shouldContainElement "-v"
+            args[args.indexOf("-w") + 1] shouldBe absolute
+            args.count { it == "$absolute:$absolute" } shouldBe 1
         }
 
-        test("does not re-unpack an already prepared rootfs") {
-            Files.createDirectories(rootfsUnpacked())
-
-            runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
-
-            verify(exactly = 0) { commandRunner.runOrThrow(match { it.first() == "tar" }, any(), any(), any()) }
-        }
-
-        test("adds bwrap env and passes the branch environment through") {
-            Files.createDirectories(rootfsUnpacked())
+        test("adds bwrap env after the branch environment") {
+            givenImageLoaded()
 
             runner.start(
                 "./gradlew test",
@@ -168,39 +157,43 @@ class BwrapBuildRunnerTest : FunSpec() {
             )
 
             val args = captured.single()
-            args[args.indexOf("branch") - 1] shouldBe "--setenv"
-            args[args.indexOf("branch") + 1] shouldBe "main"
-            args[args.indexOf("FOO") - 1] shouldBe "--setenv"
-            args[args.indexOf("FOO") + 1] shouldBe "bar"
+            args[args.indexOf("branch=main") - 1] shouldBe "-e"
+            args[args.indexOf("FOO=bar") - 1] shouldBe "-e"
+            args.indexOf("branch=main") shouldBe args.indexOf("FOO=bar") - 2
         }
 
-        test("exposes git metadata read-only with the werkator dir masked for a worktree workspace") {
+        test("exposes git metadata read-only with the werkator dir masked, in mount order") {
             val gitDir = repoDir.resolve(".git")
             val adminDir = gitDir.resolve("worktrees/workspace")
             Files.createDirectories(adminDir)
             Files.createDirectories(gitDir.resolve("werkator"))
             Files.createDirectories(workspace)
             Files.writeString(workspace.resolve(".git"), "gitdir: $adminDir\n")
-            Files.createDirectories(rootfsUnpacked())
+            givenImageLoaded()
 
             runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
 
             val args = captured.single()
-            args[args.indexOf(gitDir.toString()) - 1] shouldBe "--ro-bind"
+            args[args.indexOf("$gitDir:$gitDir:ro") - 1] shouldBe "-v"
             args[args.indexOf("$gitDir/werkator") - 1] shouldBe "--tmpfs"
-            args[args.indexOf(adminDir.toString()) - 1] shouldBe "--bind"
+            args[args.indexOf("$adminDir:$adminDir") - 1] shouldBe "-v"
+            // order: ro .git, tmpfs mask, admin dir, then the workspace bind that
+            // shadows the mask at its own path
+            val roGit = args.indexOf("$gitDir:$gitDir:ro")
+            val mask = args.indexOf("$gitDir/werkator")
+            val admin = args.indexOf("$adminDir:$adminDir")
+            val workspaceBind = args.indexOf("$workspace:$workspace")
+            (roGit < mask && mask < admin && admin < workspaceBind) shouldBe true
         }
 
         test("mounts no git metadata when the workspace is not a worktree") {
-            Files.createDirectories(rootfsUnpacked())
+            givenImageLoaded()
             Files.createDirectories(workspace)
 
             runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig())
 
             val args = captured.single()
             val gitDir = repoDir.resolve(".git")
-            // the sandbox's own /tmp tmpfs is always present; the point is that no tmpfs
-            // masks .git/werkator and no worktree admin dir is bound
             args.none { it == "$gitDir/werkator" } shouldBe true
             args.none { it.contains("worktrees/") } shouldBe true
         }
@@ -216,16 +209,17 @@ class BwrapBuildRunnerTest : FunSpec() {
             exception.message shouldContain "bwrap.rootfs"
         }
 
-        test("downloads a URL rootfs once before unpacking") {
+        test("downloads a URL rootfs once before loading it") {
             val url = "https://example.test/buildenv.tar.zst"
             val downloadTarget =
                 repoDir
                     .resolve(BwrapBuildRunner.BUILDENV_DIR)
                     .resolve(url.sha12())
                     .resolve("buildenv.tar.zst")
+            givenImageMissing()
             every { commandRunner.runOrThrow(listOf("curl", "-fsSL", "-o", downloadTarget.toString(), url), repoDir, any(), any()) } returns
                 GitCommandResult(0, "", "")
-            every { commandRunner.runOrThrow(match { it.first() == "tar" }, any(), any(), any()) } returns
+            every { commandRunner.runOrThrow(match { "load" in it }, any(), any(), any()) } returns
                 GitCommandResult(0, "", "")
 
             runner.start("./gradlew test", workspace, mapOf("branch" to "main"), repoDir, bwrapBranchConfig(rootfs = url))
@@ -233,9 +227,18 @@ class BwrapBuildRunnerTest : FunSpec() {
             verify {
                 commandRunner.runOrThrow(listOf("curl", "-fsSL", "-o", downloadTarget.toString(), url), repoDir, any(), any())
             }
-            verify { commandRunner.runOrThrow(match { it.first() == "tar" }, repoDir, any(), any()) }
+            verify {
+                commandRunner.runOrThrow(
+                    listOf("werkdock", "load", "-i", downloadTarget.toString(), "--name", "werkator-buildenv-${url.sha12()}"),
+                    repoDir,
+                    any(),
+                    any(),
+                )
+            }
         }
     }
+
+    private infix fun List<String>.shouldContainElement(element: String) = (element in this) shouldBe true
 
     private fun String.sha12(): String =
         java.security.MessageDigest

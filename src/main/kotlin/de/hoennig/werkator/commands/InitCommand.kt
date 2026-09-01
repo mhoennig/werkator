@@ -226,6 +226,7 @@ class InitCommand(
                 bwrap:
                   enabled: false        # run clean/build in a bwrap sandbox instead of natively (pinned)
                   rootfs: ""            # prepared rootfs archive (path or URL); required when enabled (pinned)
+                  werkdock: werkdock    # the werkdock CLI executing the sandbox; default resolves via PATH (pinned)
                   env: {}               # additional environment variables set inside the sandbox
                 # Gitea check this build reports as; empty uses gitea.statusContext.
                 # Two builds of one commit under the same context overwrite each other.
