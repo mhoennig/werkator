@@ -170,4 +170,4 @@ The build image grew into one fat trixie rootfs (JDK 21 headless + Go + Node/npm
 
 - Session C: `BwrapBuildRunner` delegates to the `werkdock` CLI.
 - Session D: the webspace install path replaces the self-build prototype in `tools/remote`, untangling the builder-vs-built roles.
-- Multi-repository support for one Werkator instance (planned as step 22, whose plan document rides along in this PR).
+- Multi-repository support for one Werkator instance (plan to be written).
