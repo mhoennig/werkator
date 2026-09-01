@@ -31,7 +31,7 @@ Observed in production on 2026-08-31: a restart of master rebuilt a commit from 
 - A row on `/` (Latest) and `/history` stands for a recorded build.
 - A build *name* is the pool: the branch itself for the default build, `<branch>@<build>` for a named one.
 
-#### Scenario#000.01: The Branches view builds the branch's current origin head
+#### Scenario#3.01: The Branches view builds the branch's current origin head
 
 So that a restart answers "build this branch as it is", which is what a branch row means.
 
@@ -45,7 +45,7 @@ So that a restart answers "build this branch as it is", which is what a branch r
 - [BuildsApiControllerTest: "restart with atOriginHead builds the branch as it is now, not the recorded commit"](../../src/test/kotlin/de/hoennig/werkator/server/BuildsApiControllerTest.kt)
 - [UiControllerTest: "the branches view restarts at the branch's origin head, the latest view repeats the run"](../../src/test/kotlin/de/hoennig/werkator/server/UiControllerTest.kt)
 
-#### Scenario#000.02: The row keeps its build definition and its real branch
+#### Scenario#3.02: The row keeps its build definition and its real branch
 
 So that restarting a named build does not silently turn it into a different build.
 
@@ -58,7 +58,7 @@ So that restarting a named build does not silently turn it into a different buil
 
 - [BuildsApiControllerTest: "restart with atOriginHead keeps the recorded build definition and its real branch"](../../src/test/kotlin/de/hoennig/werkator/server/BuildsApiControllerTest.kt)
 
-#### Scenario#000.03: A branch that is gone from origin is refused by name
+#### Scenario#3.03: A branch that is gone from origin is refused by name
 
 So that a restart cannot quietly fall back to a commit the user did not ask for.
 
@@ -71,7 +71,7 @@ So that a restart cannot quietly fall back to a commit the user did not ask for.
 
 - [BuildsApiControllerTest: "restart with atOriginHead of a branch gone from origin is refused by name"](../../src/test/kotlin/de/hoennig/werkator/server/BuildsApiControllerTest.kt)
 
-#### Scenario#000.04: Latest and History still repeat the recorded run
+#### Scenario#3.04: Latest and History still repeat the recorded run
 
 So that the one view whose rows are runs keeps the behavior that fits them.
 

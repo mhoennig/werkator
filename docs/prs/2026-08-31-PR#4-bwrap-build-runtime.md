@@ -28,7 +28,7 @@ Step 17 (docs/plan/17-bwrap-build-runtime.md) defines a third build runtime behi
 - `bwrap.enabled` and `bwrap.rootfs` are pinned (host-set), so a branch's committed config cannot switch its own sandbox off or substitute a foreign rootfs.
 - `docker.enabled` and `bwrap.enabled` are mutually exclusive per branch; enabling both is rejected, not silently picked.
 
-#### Scenario#000.01: A bwrap build runs the command inside the sandbox as root
+#### Scenario#4.01: A bwrap build runs the command inside the sandbox as root
 
 So that the build is isolated from the host exactly as the native and Docker runtimes intend.
 
@@ -43,7 +43,7 @@ So that the build is isolated from the host exactly as the native and Docker run
 
 - [BwrapBuildRunnerTest](../../src/test/kotlin/de/hoennig/werkator/build/BwrapBuildRunnerTest.kt)
 
-#### Scenario#000.02: Git metadata mounts keep secrets out of the sandbox
+#### Scenario#4.02: Git metadata mounts keep secrets out of the sandbox
 
 So that builds can run read-only git commands but never reach the machine config or the control token.
 
@@ -57,7 +57,7 @@ So that builds can run read-only git commands but never reach the machine config
 
 - [BwrapBuildRunnerTest](../../src/test/kotlin/de/hoennig/werkator/build/BwrapBuildRunnerTest.kt)
 
-#### Scenario#000.03: A branch cannot turn its sandbox off or swap its rootfs
+#### Scenario#4.03: A branch cannot turn its sandbox off or swap its rootfs
 
 So that the pinned sandbox policy holds for builds a branch invents as well as for ones the host already knows.
 
@@ -70,7 +70,7 @@ So that the pinned sandbox policy holds for builds a branch invents as well as f
 
 - [ConfigLoaderTest](../../src/test/kotlin/de/hoennig/werkator/config/ConfigLoaderTest.kt)
 
-#### Scenario#000.04: The dispatcher routes builds to the bwrap runtime
+#### Scenario#4.04: The dispatcher routes builds to the bwrap runtime
 
 So that a bwrap-explicit branch builds inside the sandbox rather than natively.
 
@@ -89,7 +89,7 @@ So that a bwrap-explicit branch builds inside the sandbox rather than natively.
 - Werkator's own build runs the full test suite, which includes `TestcontainersSmokeTest`.
 - On a Docker-less host (the webspace, and the bwrap sandbox that builds there), that test must not fail the self-build.
 
-#### Scenario#000.05: The Testcontainers smoke test is skipped, not failed, without Docker
+#### Scenario#4.05: The Testcontainers smoke test is skipped, not failed, without Docker
 
 So that a Docker-less build of Werkator itself stays green.
 

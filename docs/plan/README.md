@@ -93,7 +93,7 @@ Added for running Werkator on Hostsharing Managed Webspaces (2026-08-10):
 
 Added to correct the bwrap prototype's drift toward self-building on the webspace (2026-09-01):
 
-- [ ] `21-werkdock-extraction-and-webspace-install.md` — roadmap in four sessions: close step 17's open ends, extract the sandbox tooling into a new repository (**Werkdock**, a docker-like filesystem-only sandbox CLI), let Werkator consume it, and replace the webspace self-build with the local-build-plus-install path of ADR 0006
+- [ ] `21-werkdock-extraction-and-webspace-install.md` — roadmap in four sessions: close step 17's open ends, grow the sandbox tooling into **Werkdock** (a docker-like filesystem-only sandbox CLI, developed in the `werkdock/` subdirectory, later its own repository), let Werkator consume it, and replace the webspace self-build with the local-build-plus-install path of ADR 0006
 
 Added for surfacing build time as a trend (2026-08-31):
 
@@ -105,7 +105,7 @@ Steps 07–09 depend on 04–06.
 Steps 11 and 12 are optional/deferrable; 10 only needs 04–06.
 Step 13 depends on 07, 11, and 12.
 Step 15 depends on 12 and 13 and revises the containerized-runtime sketch in `docs/bootstrapping.md` (ADR 0006 is written as part of the step; GraalVM native image was evaluated and rejected there).
-Step 17 depends on 11, 15, and 16, and starts with a hard precondition check on the target webspace (ADR 0007 is written as part of the step).
+Step 17 depends on 11, 15, and 16, and starts with a hard precondition check on the target webspace (ADR 0008 is written as part of the step; the number 0007 announced in the step file was already taken).
 Step 18 depends on nothing in code but on the watched repository having migrated — its precondition check is a hard gate, not a formality.
 Step 19 depends on nothing; `WatcherState` and `/api/watcher` already carry everything it needs to render.
 Step 20 depends on nothing; the duration is already recorded, and the trend is derived read-only from `repository.history()`.
