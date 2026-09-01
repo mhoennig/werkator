@@ -7,10 +7,17 @@ Werkator is configured via YAML files. Settings are merged from several sources 
 | Layer                    | Path                       | Committed to Git | Purpose                                      |
 |--------------------------|----------------------------|------------------|----------------------------------------------|
 | Project config           | `.werkator.yml`            | Yes              | Shared team settings                         |
+| Applied instance fragment | `.git/werkator/.werkator.applied.yml` | No   | Instance parameters installed by `init --apply` |
 | Repo installation config | `.git/werkator/.werkator.yml` | No               | Machine- or user-specific overrides, secrets |
 | Branch config            | `.werkator.yml` committed on a branch | Yes  | That branch's build settings and build definitions |
 
-The repo install config (`.git/werkator/.werkator.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
+The repo install config (`.git/werkator/.werkator.yml`) wins on any key present in several files; the applied fragment wins over the project config. Typically the repo install config sets `git.token` and `git.account` without committing them.
+
+### The applied instance fragment (`init --apply`)
+
+`werkator init --apply FILE` installs a YAML fragment in this very schema as its own layer (step 23) — the file a deployment wrapper hands over instead of patching configs.
+The fragment is validated strictly before installing: an unknown key is refused loudly, never ignored, because a typo would otherwise install a value that silently does nothing.
+It is then copied verbatim (comments included) to `.git/werkator/.werkator.applied.yml`; re-applying replaces the file, so nothing accumulates or duplicates, and the hand-edited repo install config — which always wins — is never rewritten.
 
 ### Which Werkator a file is written for
 

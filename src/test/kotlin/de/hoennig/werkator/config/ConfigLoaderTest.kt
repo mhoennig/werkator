@@ -110,6 +110,63 @@ class ConfigLoaderTest : FunSpec() {
                 "./gradlew fromBranch"
         }
 
+        test("the applied instance fragment layers above the project config and below the machine config") {
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText("server:\n  port: 1000\n  publicBaseUrl: \"https://project/\"\n")
+            Files.createDirectories(dir.resolve(".git/werkator"))
+            dir.resolve(ConfigFiles.APPLIED).toFile().writeText("server:\n  port: 2000\n  bindAddress: 0.0.0.0\n")
+            dir
+                .resolve(".git/werkator/.werkator.yml")
+                .toFile()
+                .writeText("server:\n  port: 3000\n")
+
+            val server = loader.load(dir).server
+
+            // machine wins over applied wins over project; untouched keys fall through
+            server.port shouldBe 3000
+            server.bindAddress shouldBe "0.0.0.0"
+            server.publicBaseUrl shouldBe "https://project/"
+        }
+
+        test("applyInstanceFragment installs a valid fragment verbatim, and re-applying replaces it") {
+            val dir = Files.createTempDirectory("werkator-test")
+            val fragment = dir.resolve("mih34.yml")
+            fragment.toFile().writeText("# instance mih34\nserver:\n  port: 18088\n")
+
+            val target = loader.applyInstanceFragment(dir, fragment)
+
+            target shouldBe dir.resolve(ConfigFiles.APPLIED)
+            // verbatim copy: the comment survives
+            target.toFile().readText() shouldContain "# instance mih34"
+            loader.load(dir).server.port shouldBe 18088
+
+            fragment.toFile().writeText("server:\n  port: 19099\n")
+            loader.applyInstanceFragment(dir, fragment)
+            loader.load(dir).server.port shouldBe 19099
+        }
+
+        test("applyInstanceFragment refuses an unknown key loudly instead of installing a silent no-op") {
+            val dir = Files.createTempDirectory("werkator-test")
+            val fragment = dir.resolve("typo.yml")
+            fragment.toFile().writeText("server:\n  prot: 18088\n")
+
+            val exception =
+                shouldThrow<IllegalArgumentException> {
+                    loader.applyInstanceFragment(dir, fragment)
+                }
+
+            exception.message shouldContain "typo.yml"
+            Files.exists(dir.resolve(ConfigFiles.APPLIED)).shouldBeFalse()
+        }
+
+        test("applyInstanceFragment refuses a missing or empty fragment") {
+            val dir = Files.createTempDirectory("werkator-test")
+
+            shouldThrow<IllegalArgumentException> {
+                loader.applyInstanceFragment(dir, dir.resolve("absent.yml"))
+            }
+        }
+
         test("reads executor.maxConcurrent and defaults it to 1") {
             val dir = Files.createTempDirectory("werkator-test")
             loader.load(dir).executor.maxConcurrent shouldBe 1

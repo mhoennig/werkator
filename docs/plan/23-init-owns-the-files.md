@@ -31,7 +31,7 @@ The removed legacy env-to-YAML conversion stays removed — there is no conversi
 
 ## The Sessions
 
-### A — Werkator side
+### A — Werkator side (implemented 2026-09-01 on branch `init-apply-config`)
 
 - `init --apply FILE`: deep-merge the YAML fragment into the machine config — reusing the loader's merge, creating missing sections, updating given values, never duplicating (the duplication class dies here); a fragment that fails the schema binding or carries unknown keys is refused loudly.
 - `init --systemd` keeps generating the units; decide in the session whether the Apache `.htaccess` becomes part of the host-integration output when the applied config carries `server.port` and a public domain (proposal: yes, under `init --systemd`, since it is generated host integration exactly like the units).
@@ -50,6 +50,8 @@ The removed legacy env-to-YAML conversion stays removed — there is no conversi
 
 ## Acceptance Criteria
 
-- Session A: `werkator init --apply …` merges and re-merges a fragment idempotently; `werkator control-token` exists; full suite green.
+- Session A: done 2026-09-01 — `werkator init --apply …` installs and replaces a fragment idempotently; `werkator control-token` exists; full suite green.
+  Deviation from the sketch above: the fragment is NOT merged into the machine config — it is installed verbatim as its own layer (`.git/werkator/.werkator.applied.yml`, above project, below machine config), because an in-place merge would re-serialize the machine config, destroying its comments and rewriting the file that holds the secrets; a verbatim copy also makes re-apply a plain file replacement.
+  The `.htaccess` decision fell as proposed: generated beside the units by `init --systemd` whenever a `publicBaseUrl` is configured; the wrapper copies it into the domain docroot.
 - Session B: `tools/remote` contains no YAML heredocs and no `sed` into the machine config; the prerequisites bash script is gone.
 - Session C: the mih34 re-runs change nothing on a configured host and the deployment docs show only `--env`-style calls.

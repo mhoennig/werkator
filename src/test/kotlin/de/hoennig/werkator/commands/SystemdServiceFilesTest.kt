@@ -91,5 +91,11 @@ class SystemdServiceFilesTest : FunSpec() {
             content shouldContain "#JAVA_OPTS="
             content shouldContain ".werkator.yml"
         }
+        test("the htaccess proxies everything to the configured localhost port") {
+            val content = SystemdServiceFiles.htaccessContent(18088)
+
+            content shouldContain "DirectoryIndex disabled"
+            content shouldContain "RewriteRule .* http://127.0.0.1:18088%{REQUEST_URI} [proxy]"
+        }
     }
 }
