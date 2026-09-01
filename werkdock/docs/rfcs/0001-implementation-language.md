@@ -2,7 +2,7 @@
 
 **Status:**
 - proposed: 2026-09-01
-- accepted: -
+- accepted: 2026-09-01
 - rejected: -
 
 **Proposal:** Werkdock is implemented in **Go** — as a single static binary, stdlib-only, with the sandbox engine behind an interface so bwrap can later be replaced by native namespaces.
@@ -106,4 +106,4 @@ Consequence for the design, independent of the engine question's outcome: the sa
 
 ## Decision Outcome
 
-Pending — this RFC proposes Go; the decision is recorded here once made.
+Accepted on 2026-09-01: Werkdock is implemented in Go, under the terms of the concrete proposal above.
