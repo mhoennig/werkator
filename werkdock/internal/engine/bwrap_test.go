@@ -14,10 +14,12 @@ func TestArgvAssemblesTheHardenedInvocation(t *testing.T) {
 	b := &Bwrap{}
 	spec := RunSpec{
 		RootFS: "/store/images/buildenv/rootfs",
-		Binds: []Bind{
-			{Source: "/etc/resolv.conf", Dest: "/etc/resolv.conf", ReadOnly: true},
-			{Source: "/repo", Dest: "/repo"},
-			{Source: "/cache", Dest: "/root/.gradle"},
+		Mounts: []Mount{
+			{Mode: MountRoBind, Source: "/etc/resolv.conf", Dest: "/etc/resolv.conf"},
+			{Mode: MountRoBind, Source: "/repo/.git", Dest: "/repo/.git"},
+			{Mode: MountTmpfs, Dest: "/repo/.git/werkator"},
+			{Mode: MountBind, Source: "/repo", Dest: "/repo"},
+			{Mode: MountBind, Source: "/cache", Dest: "/root/.gradle"},
 		},
 		Env:     []EnvVar{{Key: "CI", Value: "true"}, {Key: "TERM", Value: "dumb"}},
 		Workdir: "/repo",
@@ -34,6 +36,8 @@ func TestArgvAssemblesTheHardenedInvocation(t *testing.T) {
 		"--ro-bind", "/store/images/buildenv/rootfs", "/",
 		"--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/root",
 		"--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
+		"--ro-bind", "/repo/.git", "/repo/.git",
+		"--tmpfs", "/repo/.git/werkator",
 		"--bind", "/repo", "/repo",
 		"--bind", "/cache", "/root/.gradle",
 		"--clearenv",
@@ -59,8 +63,8 @@ func TestArgvValidation(t *testing.T) {
 		{"relative rootfs", RunSpec{RootFS: "rootfs", Command: []string{"true"}}, "absolute"},
 		{"missing command", RunSpec{RootFS: "/r"}, "no command specified"},
 		{
-			"relative bind dest",
-			RunSpec{RootFS: "/r", Binds: []Bind{{Source: "/s", Dest: "work"}}, Command: []string{"true"}},
+			"relative mount dest",
+			RunSpec{RootFS: "/r", Mounts: []Mount{{Mode: MountBind, Source: "/s", Dest: "work"}}, Command: []string{"true"}},
 			"absolute",
 		},
 	}
@@ -103,17 +107,18 @@ func TestEnsureMountpointsCreatesMissingAndSkipsExisting(t *testing.T) {
 	}
 	spec := RunSpec{
 		RootFS: rootfs,
-		Binds: []Bind{
-			{Source: "/etc", Dest: "/etc/resolv.conf", ReadOnly: true}, // exists: skipped (source type irrelevant)
-			{Source: srcDir, Dest: "/repo/workspace"},                  // missing dir mountpoint
-			{Source: srcFile, Dest: "/etc/hosts.werkdock"},             // missing file mountpoint
+		Mounts: []Mount{
+			{Mode: MountRoBind, Source: "/etc", Dest: "/etc/resolv.conf"},   // exists: skipped (source type irrelevant)
+			{Mode: MountBind, Source: srcDir, Dest: "/repo/workspace"},      // missing dir mountpoint
+			{Mode: MountBind, Source: srcFile, Dest: "/etc/hosts.werkdock"}, // missing file mountpoint
+			{Mode: MountTmpfs, Dest: "/repo/.git/werkator"},                 // tmpfs mountpoint, no source
 		},
 		Command: []string{"true"},
 	}
 	if err := EnsureMountpoints(spec); err != nil {
 		t.Fatal(err)
 	}
-	for _, dir := range []string{"proc", "dev", "tmp", "root", "repo/workspace"} {
+	for _, dir := range []string{"proc", "dev", "tmp", "root", "repo/workspace", "repo/.git/werkator"} {
 		fi, err := os.Stat(filepath.Join(rootfs, dir))
 		if err != nil || !fi.IsDir() {
 			t.Errorf("expected directory mountpoint %s in the rootfs: %v", dir, err)
@@ -132,7 +137,7 @@ func TestEnsureMountpointsCreatesMissingAndSkipsExisting(t *testing.T) {
 func TestEnsureMountpointsRefusesEscapingDestinations(t *testing.T) {
 	spec := RunSpec{
 		RootFS:  t.TempDir(),
-		Binds:   []Bind{{Source: "/tmp", Dest: "/../outside"}},
+		Mounts:  []Mount{{Mode: MountBind, Source: "/tmp", Dest: "/../outside"}},
 		Command: []string{"true"},
 	}
 	err := EnsureMountpoints(spec)

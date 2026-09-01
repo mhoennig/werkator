@@ -27,6 +27,8 @@ func Main(args []string) int {
 		return runCmd(args[1:])
 	case "load":
 		return loadCmd(args[1:])
+	case "images":
+		return imagesCmd(args[1:])
 	case "doctor":
 		return doctorCmd(args[1:])
 	case "version", "--version":
@@ -49,11 +51,13 @@ Network, uid, /proc, /dev, and /tmp come from the host by contract.
 Usage:
   werkdock run [flags] IMAGE COMMAND [ARG...]   run a command in a sandbox
   werkdock load -i ARCHIVE [--name NAME]        import a rootfs archive as an image
+  werkdock images                               list loaded images, one name per line
   werkdock doctor [TARGET_DIR]                  check whether this host can run sandboxes
   werkdock version                              print the version
 
 Run flags:
-  -v, --volume SRC:DEST[:ro]   bind mount (repeatable, applied in order)
+  -v, --volume SRC:DEST[:ro]   bind mount (repeatable; -v and --tmpfs apply in flag order)
+      --tmpfs DEST             empty tmpfs at DEST (repeatable)
   -e, --env KEY=VALUE          set an environment variable (KEY alone copies it from the host)
   -w, --workdir DIR            working directory inside the sandbox (default /)
       --rm                     remove the instance afterwards (currently required)

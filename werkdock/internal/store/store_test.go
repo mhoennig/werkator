@@ -115,6 +115,25 @@ func TestRootFSValidation(t *testing.T) {
 	}
 }
 
+func TestListNamesLoadedImagesAndIgnoresTmpLeftovers(t *testing.T) {
+	st := Store{Root: t.TempDir()}
+	if names, err := st.List(); err != nil || names != nil {
+		t.Fatalf("empty store: got %v, %v", names, err)
+	}
+	for _, dir := range []string{"beta", "alpha", "broken.tmp"} {
+		if err := os.MkdirAll(filepath.Join(st.Root, "images", dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	names, err := st.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) != 2 || names[0] != "alpha" || names[1] != "beta" {
+		t.Errorf("got %v, want [alpha beta]", names)
+	}
+}
+
 func TestImageNameFromArchive(t *testing.T) {
 	tests := []struct{ in, want string }{
 		{"werkator-buildenv-trixie.tar.zst", "werkator-buildenv-trixie"},

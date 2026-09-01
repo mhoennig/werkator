@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -55,6 +56,26 @@ func (s Store) RootFS(name string) (string, error) {
 		return "", fmt.Errorf("no such image: %s (load it with: werkdock load -i ARCHIVE --name %s)", name, name)
 	}
 	return rootfs, nil
+}
+
+// List returns the names of all loaded images, sorted; half-written
+// `.tmp` directories from an interrupted load are not images.
+func (s Store) List() ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(s.Root, "images"))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() && nameRe.MatchString(e.Name()) {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // Load imports a rootfs archive as an image. The archive is unpacked
