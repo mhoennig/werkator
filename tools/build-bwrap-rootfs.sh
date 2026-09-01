@@ -69,8 +69,10 @@ command -v docker >/dev/null 2>&1 || die "docker is required to build the rootfs
 # Rootfs content: Werkator's own build needs a JDK 21 toolchain (Gradle
 # toolchain resolution), git, ca-certificates for HTTPS, locales for git, and
 # curl/unzip/xz-utils/zstd for the Gradle wrapper and general build hygiene.
+# The headless JDK on purpose: it skips the X11/fontconfig library stack
+# (~200 MB) and still supports headless AWT, which is all a CI build needs.
 # Keep this list additive — project-specific tooling goes on top of this base.
-PKGS="openjdk-21-jdk git ca-certificates locales procps file curl unzip xz-utils zstd"
+PKGS="openjdk-21-jdk-headless git ca-certificates locales procps file curl unzip xz-utils zstd"
 [ -z "$pkgs_extra" ] || PKGS="$PKGS $pkgs_extra"
 
 # The chroot step runs inside the freshly debootstrapped rootfs; passed into
@@ -84,6 +86,12 @@ apt-get clean
 rm -f /etc/localtime
 locale-gen en_US.UTF-8 de_DE.UTF-8 >/dev/null 2>&1 || true
 update-locale LANG=en_US.UTF-8 >/dev/null 2>&1 || true
+# Trim what a build environment never reads: translated message catalogs
+# except en/de (the generated locales in /usr/lib/locale stay untouched),
+# man pages, package docs, and the apt package lists (apt still works after
+# an apt-get update, should anyone ever need it inside the sandbox).
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name "en*" ! -name "de*" -exec rm -rf {} +
+rm -rf /usr/share/man/* /usr/share/doc/* /var/lib/apt/lists/* /var/cache/apt
 ' | base64 -w0)"
 
 # The outer script runs inside the Debian container as root. Build noise goes
