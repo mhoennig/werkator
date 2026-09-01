@@ -11,6 +11,18 @@ Semantics — docker-compatible as far as the filesystem-only contract allows (s
 - `werkdock doctor` checks the host: user-namespace capability, disk and quota headroom.
 - A daemon speaking the Docker Engine API subset (for Testcontainers) is designed for but deferred.
 
+## Disk Footprint
+
+Werkdock's storage model is coarser than Docker's on the image side and cheaper on the instance side:
+
+- An image is a flat, complete directory tree — there are no layers, and nothing is shared between images.
+  A JDK+Go+Node build image is roughly 2 GiB unpacked, plus its compressed archive (~0.5 GiB) as long as that is kept around.
+- An instance costs (almost) nothing: the rootfs is bound read-only into every sandbox, writable are only tmpfs (`/tmp`, `/root`) and the caller's binds.
+  Ten parallel runs in one image add zero filesystem copies; what grows per project are its own caches in bound volumes.
+- Consequence: prefer ONE fat image shared by all projects over per-project images.
+- Watch out for orphans: consumers that key an unpacked environment by the archive's source path (Werkator's bwrap runtime does) leave the old tree behind on every path change; pruning is manual until `rmi`/`prune` verbs exist.
+- Future options that would remove the flat-tree cost, in their own RFCs when they come due: overlayfs layers (the kernel allows it unprivileged in a user namespace since 5.11; the webspaces' bwrap 0.8.0 cannot yet) or hardlink deduplication between image versions in the store (the ostree principle, no root needed).
+
 ## Build and Test
 
 ```bash
