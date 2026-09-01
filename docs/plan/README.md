@@ -97,7 +97,7 @@ Added to correct the bwrap prototype's drift toward self-building on the webspac
 
 Added after step 21 session D exposed that `tools/remote` re-implements configuration Werkator owns (2026-09-01):
 
-- [ ] `23-init-owns-the-files.md` — Werkator becomes the executing app, `tools/remote` a thin wrapper: parameters travel as env files (`remote --env .env.mih34 werkator …`, `werkator --env … init`), `init` writes real values idempotently instead of templates the script patches, `werkator control-token` and `werkdock doctor` replace the bash duplications
+- [ ] `23-init-owns-the-files.md` — Werkator becomes the executing app, `tools/remote` a thin wrapper: the wrapper takes a transport env file (`remote --env .env.mih34 werkator …`), init takes a YAML fragment in the real config schema (`werkator init --apply mih34.yml`, deep-merged idempotently — no mapping table, no heredocs), `werkator control-token` and `werkdock doctor` replace the bash duplications
 
 Added for surfacing build time as a trend (2026-08-31):
 
@@ -114,4 +114,4 @@ Step 18 depends on nothing in code but on the watched repository having migrated
 Step 19 depends on nothing; `WatcherState` and `/api/watcher` already carry everything it needs to render.
 Step 20 depends on nothing; the duration is already recorded, and the trend is derived read-only from `repository.history()`.
 Step 21 depends on 17; its sessions B and C grow Werkdock in the `werkdock/` subdirectory (later its own repository), and session D supersedes the self-build prototype in `tools/remote`.
-Step 23 depends on 21 session D; its env-file convention (one file per instance) also feeds step 22's instance setup and should land before Werkbaum rolls out.
+Step 23 depends on 21 session D; its per-instance file convention (transport env + init fragment) also feeds step 22's instance setup and should land before Werkbaum rolls out.
