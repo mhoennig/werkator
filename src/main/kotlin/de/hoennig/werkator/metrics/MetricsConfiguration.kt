@@ -1,6 +1,7 @@
 package de.hoennig.werkator.metrics
 
 import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.repo.RepoRegistry
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -16,10 +17,12 @@ class MetricsConfiguration {
     @Bean
     fun systemMetricsCollector(
         artifactStore: ArtifactStore,
+        registry: RepoRegistry,
         clock: Clock,
     ): SystemMetricsCollector =
         SystemMetricsCollector(
             stateFile = { artifactStore.rootDir().resolve(SystemMetricsCollector.STATE_FILE_NAME) },
+            repoDirs = { registry.all().map { it.workingDir } },
             clock = clock,
         )
 }

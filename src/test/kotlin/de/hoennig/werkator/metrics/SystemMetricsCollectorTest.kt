@@ -20,7 +20,7 @@ class SystemMetricsCollectorTest : FunSpec() {
         repoSizeBytes: (Path) -> Long = { HALF_GIB_BYTES },
     ) = SystemMetricsCollector(
         stateFile = { tempDir.resolve("system-metrics-state.json") },
-        workingDir = tempDir,
+        repoDirs = { listOf(tempDir) },
         clock = Clock.fixed(now, ZoneOffset.UTC),
         procStat = tempDir.resolve("stat"),
         procMeminfo = tempDir.resolve("meminfo"),

@@ -35,7 +35,8 @@ data class PersistedMetricsState(
  */
 class SystemMetricsCollector(
     private val stateFile: () -> Path,
-    private val workingDir: Path = Paths.get("."),
+    /** The served repositories: the disk metric is the first one's file store, the repository size their sum. */
+    private val repoDirs: () -> List<Path> = { listOf(Paths.get(".")) },
     private val clock: Clock = Clock.systemUTC(),
     private val procStat: Path = Paths.get("/proc/stat"),
     private val procMeminfo: Path = Paths.get("/proc/meminfo"),
@@ -239,7 +240,7 @@ class SystemMetricsCollector(
             .removeSuffix(" kB")
             .toLong()
 
-    private fun readDisk(): DiskSpace? = readSource("disk") { diskSpace(workingDir) }
+    private fun readDisk(): DiskSpace? = readSource("disk") { diskSpace(repoDirs().first()) }
 
     /**
      * The repository size is expensive to determine (a full file walk), so unlike
@@ -251,7 +252,7 @@ class SystemMetricsCollector(
             samplesSinceRepoSizeProbe++
             return lastRepoSizeGib
         }
-        lastRepoSizeGib = readSource("repo size") { repoSizeBytes(workingDir) / BYTES_PER_GIB }
+        lastRepoSizeGib = readSource("repo size") { repoDirs().sumOf(repoSizeBytes) / BYTES_PER_GIB }
         samplesSinceRepoSizeProbe = 1
         return lastRepoSizeGib
     }

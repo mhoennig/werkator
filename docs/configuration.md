@@ -6,6 +6,7 @@ Werkator is configured via YAML files. Settings are merged from several sources 
 
 | Layer                    | Path                       | Committed to Git | Purpose                                      |
 |--------------------------|----------------------------|------------------|----------------------------------------------|
+| Instance config          | `~/.werkator.yml`          | No               | The repository registry and the instance-level settings; optional `defaults` below every repository (see below) |
 | Project config           | `.werkator.yml`            | Yes              | Shared team settings                         |
 | Applied instance fragment | `.git/werkator/.werkator.applied.yml` | No   | Instance parameters installed by `init --apply` |
 | Repo installation config | `.git/werkator/.werkator.yml` | No               | Machine- or user-specific overrides, secrets |
@@ -114,6 +115,53 @@ it can already run any command through `buildCommand`.
 The pinned settings are stripped wherever they appear, in a build definition as well as in
 a legacy `branches` entry. The deprecated `branches` section itself is read from the repo
 install/project config only, and only while nothing defines a build at all.
+
+## `~/.werkator.yml` — the instance configuration
+
+One Werkator instance serves a *set* of repositories (ADR 0009): one service, one port, one UI, one watcher loop.
+The set and everything shared by it live in `.werkator.yml` in the home directory of the user running Werkator — one instance per OS user.
+The file name is deliberately the same everywhere; only the location carries the meaning: home is the instance, the repository root is the project, `.git` is the machine.
+`WERKATOR_HOME` overrides the directory the file is looked up in.
+
+Without this file Werkator serves the current working directory exactly as before.
+With it, the registry wins over the current directory: `werkator server` serves the registered repositories wherever it is started.
+
+```yaml
+werkator:
+  version:
+    since: "0.9.16"          # like every other config file
+
+repositories:                # the registry; each entry is one served repository
+  - path: ~/repos/werkator   # absolute, or relative to the home directory (~ expands)
+  - path: ~/repos/werkbaum
+    name: baum               # optional; default is the directory basename
+
+server:                      # the instance's server section — port, bind address, public URL, nginx
+  port: 18080
+executor:
+  maxConcurrent: 2           # the global cap over all repositories
+watcher:
+  pollInterval: 10s          # one loop, one delay
+
+defaults:                    # optional: repository-level keys merged BELOW every repository's own layers
+  git:
+    account: ci-bot
+    token: "…"               # secrets may then live here instead of in each repository
+  gitea:
+    baseUrl: https://git.example.org
+```
+
+Key ownership once this file exists:
+
+- **Instance-level** — read from this file alone: the whole `server` section, `executor.maxConcurrent`, and `watcher.pollInterval`.
+  A repository file still carrying one of them is ignored on that key, with one warning naming both files; it is never merged silently.
+- **Repository defaults** — the `defaults` block, in the repository config schema: merged below each repository's project config, applied fragment, machine config, and branch layer, so a repository's own value always wins.
+  Pinning is unchanged: home defaults and the repository's machine config are both host-side layers, and a branch still cannot reach a pinned key.
+- **Repository-level** — everything else stays in the repository's own files: `gitea.*`, `git.*` credentials, `builds`, retention, the other `watcher` keys (`pullRequestGate`, `newBranchMaxAge`, `fastForwardLocalRefs`), and the sandbox policy.
+
+Repository names are the `--repo` selector of `werkator build`, `retry`, and `status` (without it a command means the current directory when served, otherwise the first registered repository) and will become the route segment of the web UI.
+Two entries resolving to the same name abort the start, as does an entry that is not a git repository.
+A repository whose configuration this Werkator must not read (see the version declaration) is skipped with an error; the others are served.
 
 ## Inspect the Effective Config
 
