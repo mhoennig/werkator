@@ -3,6 +3,7 @@ package de.hoennig.werkator.commands
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -20,9 +21,10 @@ class BuildCommandTest : FunSpec() {
     private val consoleBuildRunner = mockk<ConsoleBuildRunner>()
     private val dir: Path = Paths.get(".")
     private val repo = RepoContext("test", dir, mockk(), mockk())
+    private val registry = mockk<RepoRegistry>().also { every { it.current() } returns repo }
 
     private fun command(fragment: String? = null) =
-        BuildCommand(gitService, consoleBuildRunner, repo).apply {
+        BuildCommand(gitService, consoleBuildRunner, registry).apply {
             branchFragment = fragment
         }
 

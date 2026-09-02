@@ -5,6 +5,7 @@ import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -24,8 +25,9 @@ class RetryCommandTest : FunSpec() {
     private val consoleBuildRunner = mockk<ConsoleBuildRunner>()
     private val dir: Path = Paths.get(".")
     private val repo = RepoContext("test", dir, repository, mockk())
+    private val registry = mockk<RepoRegistry>().also { every { it.current() } returns repo }
 
-    private fun command() = RetryCommand(gitService, consoleBuildRunner, repo)
+    private fun command() = RetryCommand(gitService, consoleBuildRunner, registry)
 
     private fun result(
         branch: String,
