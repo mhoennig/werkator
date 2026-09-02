@@ -10,6 +10,7 @@ import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.config.WerkatorConfig
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.metrics.SystemMetricsCollector
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
 
@@ -65,6 +67,9 @@ class PermanentBranchRoutesTest : FunSpec() {
     @MockkBean
     lateinit var branchPermalinks: BranchPermalinks
 
+    @MockkBean
+    lateinit var repo: RepoContext
+
     private val artifactDir: Path = Files.createTempDirectory("werkator-permanent-routes-test")
 
     private val greenBuild =
@@ -89,7 +94,9 @@ class PermanentBranchRoutesTest : FunSpec() {
                 metricsCollector,
                 branchListing,
                 branchPermalinks,
+                repo,
             )
+            every { repo.workingDir } returns Paths.get(".")
             every { configLoader.load(any()) } returns WerkatorConfig()
             every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns WerkatorConfig()
             every { gitService.showFileAtCommit(any(), any(), any()) } returns null

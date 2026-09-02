@@ -48,7 +48,7 @@ class BuildsApiController(
 
     /** The legacy branches view: every origin branch with its latest build or `unknown`. */
     @GetMapping("/api/branches")
-    fun branches(): List<BranchDto> = branchListing.branches(workingDir)
+    fun branches(): List<BranchDto> = branchListing.branches(repo)
 
     @GetMapping("/api/builds/history")
     fun history(): List<BuildResultDto> = repository.history().map { BuildResultDto.from(it, it.isLatestGreen()) }

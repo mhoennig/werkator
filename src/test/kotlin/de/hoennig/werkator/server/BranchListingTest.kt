@@ -4,6 +4,7 @@ import de.hoennig.werkator.build.BuildResult
 import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -14,7 +15,15 @@ import java.time.Instant
 class BranchListingTest : FunSpec() {
     private val gitService = mockk<GitService>()
     private val repository = mockk<BuildResultRepository>()
-    private val listing = BranchListing(gitService, repository)
+    private val repo =
+        RepoContext(
+            "test",
+            java.nio.file.Paths
+                .get("."),
+            repository,
+            mockk(),
+        )
+    private val listing = BranchListing(gitService)
 
     private val mainResult =
         BuildResult(
@@ -38,7 +47,7 @@ class BranchListingTest : FunSpec() {
             every { repository.latestFor(any()) } returns null
             every { repository.latestGreenFor(any()) } returns null
 
-            val rows = listing.branches()
+            val rows = listing.branches(repo)
 
             // no bare "master" row next to master@release — it would read as "never built"
             rows.map { it.name } shouldBe listOf("master@release", "idle")
@@ -56,7 +65,7 @@ class BranchListingTest : FunSpec() {
             every { repository.latestFor(any()) } returns null
             every { repository.latestGreenFor(any()) } returns null
 
-            listing.branches().map { it.branch } shouldBe
+            listing.branches(repo).map { it.branch } shouldBe
                 listOf("main", "develop", "zz-flat", "aa/nested", "feature/x")
         }
 
@@ -68,7 +77,7 @@ class BranchListingTest : FunSpec() {
             every { repository.latestFor("feature/x") } returns null
             every { repository.latestGreenFor("feature/x") } returns null
 
-            val branches = listing.branches()
+            val branches = listing.branches(repo)
 
             branches[0].branch shouldBe "main"
             branches[0].status shouldBe "success"
@@ -90,7 +99,7 @@ class BranchListingTest : FunSpec() {
             every { repository.latestGreenFor("feature/x") } returns
                 mainResult.copy(branch = "feature/x", name = "feature/x", artifactKey = "green-key")
 
-            val branches = listing.branches()
+            val branches = listing.branches(repo)
 
             branches[0].status shouldBe "failed"
             branches[0].latestGreenUrl shouldBe null
@@ -107,7 +116,7 @@ class BranchListingTest : FunSpec() {
             every { repository.latestGreenFor("develop") } returns null
             every { repository.latestPerName() } returns listOf(mainResult, nightly)
 
-            val rows = listing.branches()
+            val rows = listing.branches(repo)
 
             rows.map { it.name } shouldBe listOf("main", "main@nightly", "develop")
             rows[1].branch shouldBe "main"
