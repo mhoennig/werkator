@@ -16,7 +16,7 @@ import (
 // runOptions is the parsed form of `werkdock run` flags, separated from
 // execution so the parsing is testable and a later daemon can reuse it.
 type runOptions struct {
-	Volumes []engine.Bind
+	Mounts  []engine.Mount
 	Env     []engine.EnvVar
 	Workdir string
 	Remove  bool
@@ -39,7 +39,7 @@ func runCmd(args []string) int {
 	}
 	spec := engine.RunSpec{
 		RootFS:  rootfs,
-		Binds:   hostBinds(opts.Volumes),
+		Mounts:  hostMounts(opts.Mounts),
 		Env:     opts.Env,
 		Workdir: opts.Workdir,
 		Command: opts.Command,
@@ -52,15 +52,15 @@ func runCmd(args []string) int {
 	return code
 }
 
-// hostBinds prepends the host mounts the contract prescribes: DNS comes
+// hostMounts prepends the host mounts the contract prescribes: DNS comes
 // from the host, so /etc/resolv.conf is bound read-only when it exists —
-// before the user binds, so an explicit bind over /etc wins.
-func hostBinds(volumes []engine.Bind) []engine.Bind {
-	var binds []engine.Bind
+// before the user mounts, so an explicit mount over /etc wins.
+func hostMounts(mounts []engine.Mount) []engine.Mount {
+	var all []engine.Mount
 	if fi, err := os.Stat("/etc/resolv.conf"); err == nil && fi.Mode().IsRegular() {
-		binds = append(binds, engine.Bind{Source: "/etc/resolv.conf", Dest: "/etc/resolv.conf", ReadOnly: true})
+		all = append(all, engine.Mount{Mode: engine.MountRoBind, Source: "/etc/resolv.conf", Dest: "/etc/resolv.conf"})
 	}
-	return append(binds, volumes...)
+	return append(all, mounts...)
 }
 
 // parseRun parses the docker-shaped run flags. Docker flags whose
@@ -69,10 +69,16 @@ func hostBinds(volumes []engine.Bind) []engine.Bind {
 func parseRun(args []string, getenv func(string) string) (*runOptions, error) {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var volumes, envs stringList
+	var envs stringList
 	opts := &runOptions{}
-	fs.Var(&volumes, "v", "bind mount SRC:DEST[:ro]")
-	fs.Var(&volumes, "volume", "bind mount SRC:DEST[:ro]")
+	// -v and --tmpfs collect into ONE ordered list: bwrap layers mounts in
+	// order, so a tmpfs between two binds (the git-metadata mask) must stay
+	// between them.
+	volumes := &mountFlag{mounts: &opts.Mounts}
+	tmpfs := &mountFlag{mounts: &opts.Mounts, tmpfs: true}
+	fs.Var(volumes, "v", "bind mount SRC:DEST[:ro]")
+	fs.Var(volumes, "volume", "bind mount SRC:DEST[:ro]")
+	fs.Var(tmpfs, "tmpfs", "empty tmpfs at DEST")
 	fs.Var(&envs, "e", "environment variable KEY=VALUE")
 	fs.Var(&envs, "env", "environment variable KEY=VALUE")
 	fs.StringVar(&opts.Workdir, "w", "", "working directory inside the sandbox")
@@ -101,13 +107,6 @@ func parseRun(args []string, getenv func(string) string) (*runOptions, error) {
 	}
 	opts.Image = rest[0]
 	opts.Command = rest[1:]
-	for _, v := range volumes {
-		bind, err := parseVolume(v)
-		if err != nil {
-			return nil, err
-		}
-		opts.Volumes = append(opts.Volumes, bind)
-	}
 	for _, e := range envs {
 		opts.Env = append(opts.Env, parseEnv(e, getenv))
 	}
@@ -117,25 +116,54 @@ func parseRun(args []string, getenv func(string) string) (*runOptions, error) {
 	return opts, nil
 }
 
-func parseVolume(v string) (engine.Bind, error) {
+func parseVolume(v string) (engine.Mount, error) {
 	parts := strings.Split(v, ":")
 	if len(parts) < 2 || len(parts) > 3 {
-		return engine.Bind{}, fmt.Errorf("invalid volume %q, expected SRC:DEST[:ro]", v)
+		return engine.Mount{}, fmt.Errorf("invalid volume %q, expected SRC:DEST[:ro]", v)
 	}
-	bind := engine.Bind{Source: parts[0], Dest: parts[1]}
+	mount := engine.Mount{Mode: engine.MountBind, Source: parts[0], Dest: parts[1]}
 	if len(parts) == 3 {
-		if parts[2] != "ro" {
-			return engine.Bind{}, fmt.Errorf("invalid volume option %q in %q, only 'ro' is supported", parts[2], v)
+		switch parts[2] {
+		case "ro":
+			mount.Mode = engine.MountRoBind
+		case "rw":
+			// docker accepts :rw as the explicit default; so do we
+		default:
+			return engine.Mount{}, fmt.Errorf("invalid volume option %q in %q, only 'ro' and 'rw' are supported", parts[2], v)
 		}
-		bind.ReadOnly = true
 	}
-	if !filepath.IsAbs(bind.Source) {
-		return engine.Bind{}, fmt.Errorf("volume source must be an absolute path: %s", bind.Source)
+	if !filepath.IsAbs(mount.Source) {
+		return engine.Mount{}, fmt.Errorf("volume source must be an absolute path: %s", mount.Source)
 	}
-	if !filepath.IsAbs(bind.Dest) {
-		return engine.Bind{}, fmt.Errorf("volume destination must be an absolute path: %s", bind.Dest)
+	if !filepath.IsAbs(mount.Dest) {
+		return engine.Mount{}, fmt.Errorf("volume destination must be an absolute path: %s", mount.Dest)
 	}
-	return bind, nil
+	return mount, nil
+}
+
+// mountFlag appends -v/--volume and --tmpfs values to one shared,
+// ordered mount list.
+type mountFlag struct {
+	mounts *[]engine.Mount
+	tmpfs  bool
+}
+
+func (f *mountFlag) String() string { return "" }
+
+func (f *mountFlag) Set(v string) error {
+	if f.tmpfs {
+		if !filepath.IsAbs(v) {
+			return fmt.Errorf("tmpfs destination must be an absolute path: %s", v)
+		}
+		*f.mounts = append(*f.mounts, engine.Mount{Mode: engine.MountTmpfs, Dest: v})
+		return nil
+	}
+	mount, err := parseVolume(v)
+	if err != nil {
+		return err
+	}
+	*f.mounts = append(*f.mounts, mount)
+	return nil
 }
 
 func parseEnv(e string, getenv func(string) string) engine.EnvVar {

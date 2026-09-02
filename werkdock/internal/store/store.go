@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -57,6 +58,26 @@ func (s Store) RootFS(name string) (string, error) {
 	return rootfs, nil
 }
 
+// List returns the names of all loaded images, sorted; half-written
+// `.tmp` directories from an interrupted load are not images.
+func (s Store) List() ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(s.Root, "images"))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() && nameRe.MatchString(e.Name()) && !strings.HasSuffix(e.Name(), ".tmp") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
 // Load imports a rootfs archive as an image. The archive is unpacked
 // with the tar CLI (compression auto-detected; .tar.zst needs the zstd
 // binary, which doctor checks) into a temporary directory and renamed
@@ -64,6 +85,11 @@ func (s Store) RootFS(name string) (string, error) {
 func (s Store) Load(archive, name string) error {
 	if !nameRe.MatchString(name) {
 		return fmt.Errorf("invalid image name: %q (allowed: lowercase letters, digits, '.', '_', '-')", name)
+	}
+	// ".tmp" is the staging suffix of this very function — a legal-looking
+	// image name ending in it would collide with interrupted loads.
+	if strings.HasSuffix(name, ".tmp") {
+		return fmt.Errorf("invalid image name: %q (the .tmp suffix is reserved for staging)", name)
 	}
 	archiveAbs, err := filepath.Abs(archive)
 	if err != nil {

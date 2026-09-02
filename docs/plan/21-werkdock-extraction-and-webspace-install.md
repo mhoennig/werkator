@@ -64,13 +64,16 @@ A docker-like CLI over `bwrap`, filesystem isolation only.
 - Own docs, plan, and ADRs under `werkdock/` from the start, so the later repository split is a directory move; the Werkator side only keeps what is Werkator-specific (the git-metadata mounts of step 16 and the config pinning).
 - Keep `werkdock/` self-contained: no imports from Werkator code, no Gradle coupling to the Werkator build — it must build and test on its own.
 
-### C — Werkator consumes Werkdock (this repo, after B)
+### C — Werkator consumes Werkdock (this repo, after B; implemented 2026-09-01 on branch `werkator-consumes-werkdock`)
 
 - `BwrapBuildRunner` shells out to `werkdock run` instead of assembling the raw `bwrap` argv — same pattern as git and docker: CLI, no library.
 - Config keys (`bwrap.enabled`, `bwrap.rootfs`) and their pinning stay as they are; only the executor behind them changes.
-- Decide in the step: whether the git-metadata mounts stay Werkator-side (passed as extra `--bind`/`--tmpfs` options to `werkdock run`) or become a Werkdock feature; the secrets-masking of `.git/werkator/` must hold either way.
+  One key was added: `bwrap.werkdock` (the executing binary, default via PATH) — pinned like the rest of the sandbox policy, since a branch must not substitute the executing binary.
+- Decided: the git-metadata mounts stay Werkator-side, passed as `-v …:ro` / `--tmpfs` / `-v` options whose flag order werkdock preserves (it grew `--tmpfs` and an ordered mount list for exactly this); the secrets-masking of `.git/werkator/` holds unchanged.
+- Decided: the rootfs archive becomes a werkdock *image* (`werkator-buildenv-<source-hash>`, checked via `werkdock images`, loaded via `werkdock load`) in werkdock's own store — shared across every repository of the OS user, which resolves step 22's buildenv-sharing question; only the URL download cache and the persistent `/root` toolchain home stay under `.git/werkator/buildenv/`.
+- Consequence of werkdock's `--clearenv`: the server environment no longer leaks into builds, and the runner's TMPDIR workaround is gone.
 
-### D — The Managed-Webspace install path (this repo, independent of B/C)
+### D — The Managed-Webspace install path (this repo, independent of B/C; implemented 2026-09-01 on branch `werkator-consumes-werkdock`)
 
 Bring intent 1 to the webspace: build locally, install the bundle — Werkator never builds itself on the target.
 
@@ -90,6 +93,9 @@ Bring intent 1 to the webspace: build locally, install the bundle — Werkator n
   Three defects found and fixed on the way: unanchored tar excludes dropped the Go stdlib's `sys` directory from the archive, pam_tmpdir's `TMPDIR` leaked into the sandbox (Werkator-side fix; Werkdock is immune via `--clearenv`), and non-report artifacts were stored below `reports/` and invisible in the UI.
   The image was then trimmed (headless JDK, en/de locales only, no man/doc/apt-lists): 351 MB compressed — smaller than the original JDK-only archive despite carrying Go and Node.
   All rollback assets on mih34 are removed; the PR for this branch is prepared (PR-doc with `PR#000` placeholder) and will be opened later.
+- 2026-09-01, session C deployed to mih34: the werkdock binary sits at `.werkator/bin/werkdock`, the machine config names it in `bwrap.werkdock`, the runtime bundle carries the delegating runner, and the TMPDIR workaround left the machine config (obsolete under werkdock's clearenv).
+- 2026-09-01, session D done and live-verified on mih34: `tools/remote` reworked to role-named commands (`instance-install`/`instance-update`/`instance-start` for the builder, `repo-init` for the built; the retired `install`/`build`/`start` fail loudly naming their successors); the self-build, the repo clone for it, and the GitHub-key step are gone — the instance installs from locally built artifacts (bundle + werkdock), the watched repo clones anonymously via https.
+  `instance-update` refuses to swap under a running build, `repo-init` is idempotent (checksum-skipped rootfs upload; the machine-config guard whose indentation mismatch once appended nine duplicate bwrap blocks is fixed); `docs/deployment.md` gained the Managed Webspace as the third variant, written from the verified setup.
 
 ## Acceptance Criteria
 

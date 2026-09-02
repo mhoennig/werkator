@@ -28,12 +28,12 @@ func TestParseRunSupportedFlags(t *testing.T) {
 	if !reflect.DeepEqual(opts.Command, []string{"sh", "-c", "./gradlew build"}) {
 		t.Errorf("command: got %q", opts.Command)
 	}
-	wantVolumes := []engine.Bind{
-		{Source: "/repo", Dest: "/repo"},
-		{Source: "/cache", Dest: "/root/.gradle", ReadOnly: true},
+	wantMounts := []engine.Mount{
+		{Mode: engine.MountBind, Source: "/repo", Dest: "/repo"},
+		{Mode: engine.MountRoBind, Source: "/cache", Dest: "/root/.gradle"},
 	}
-	if !reflect.DeepEqual(opts.Volumes, wantVolumes) {
-		t.Errorf("volumes: got %+v", opts.Volumes)
+	if !reflect.DeepEqual(opts.Mounts, wantMounts) {
+		t.Errorf("mounts: got %+v", opts.Mounts)
 	}
 	if !reflect.DeepEqual(opts.Env, []engine.EnvVar{{Key: "CI", Value: "true"}}) {
 		t.Errorf("env: got %+v", opts.Env)
@@ -96,7 +96,8 @@ func TestParseRunValidation(t *testing.T) {
 		{"no image", []string{"--rm"}, "no image specified"},
 		{"no command", []string{"--rm", "img"}, "no command specified"},
 		{"volume without dest", []string{"--rm", "-v", "/only-src", "img", "true"}, "expected SRC:DEST"},
-		{"volume with bad option", []string{"--rm", "-v", "/a:/b:rw", "img", "true"}, "only 'ro' is supported"},
+		{"volume with bad option", []string{"--rm", "-v", "/a:/b:cached", "img", "true"}, "only 'ro' and 'rw' are supported"},
+		{"relative tmpfs dest", []string{"--rm", "--tmpfs", "rel", "img", "true"}, "absolute"},
 		{"relative volume source", []string{"--rm", "-v", "rel:/b", "img", "true"}, "absolute"},
 		{"relative volume dest", []string{"--rm", "-v", "/a:rel", "img", "true"}, "absolute"},
 		{"relative workdir", []string{"--rm", "-w", "rel", "img", "true"}, "absolute"},
@@ -108,6 +109,39 @@ func TestParseRunValidation(t *testing.T) {
 				t.Errorf("got %v, want it to contain %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestParseRunKeepsMountFlagOrderAcrossVolumeAndTmpfs(t *testing.T) {
+	// The git-metadata mask depends on it: ro-bind .git, tmpfs over
+	// .git/werkator, then the workspace bind — in exactly this order.
+	opts, err := parseRun([]string{
+		"--rm",
+		"-v", "/r/.git:/r/.git:ro",
+		"--tmpfs", "/r/.git/werkator",
+		"-v", "/r/ws:/r/ws",
+		"img", "true",
+	}, noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []engine.Mount{
+		{Mode: engine.MountRoBind, Source: "/r/.git", Dest: "/r/.git"},
+		{Mode: engine.MountTmpfs, Dest: "/r/.git/werkator"},
+		{Mode: engine.MountBind, Source: "/r/ws", Dest: "/r/ws"},
+	}
+	if !reflect.DeepEqual(opts.Mounts, want) {
+		t.Errorf("mounts: got %+v", opts.Mounts)
+	}
+}
+
+func TestParseRunAcceptsTheExplicitRwVolumeOption(t *testing.T) {
+	opts, err := parseRun([]string{"--rm", "-v", "/a:/b:rw", "img", "true"}, noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(opts.Mounts, []engine.Mount{{Mode: engine.MountBind, Source: "/a", Dest: "/b"}}) {
+		t.Errorf("mounts: got %+v", opts.Mounts)
 	}
 }
 

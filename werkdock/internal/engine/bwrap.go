@@ -65,15 +65,20 @@ func (b *Bwrap) Argv(spec RunSpec) ([]string, error) {
 		"--tmpfs", "/tmp",
 		"--tmpfs", "/root",
 	}
-	for _, bd := range spec.Binds {
-		if !filepath.IsAbs(bd.Dest) {
-			return nil, fmt.Errorf("bind destination must be an absolute path: %s", bd.Dest)
+	for _, m := range spec.Mounts {
+		if !filepath.IsAbs(m.Dest) {
+			return nil, fmt.Errorf("mount destination must be an absolute path: %s", m.Dest)
 		}
-		flag := "--bind"
-		if bd.ReadOnly {
-			flag = "--ro-bind"
+		switch m.Mode {
+		case MountBind:
+			args = append(args, "--bind", m.Source, m.Dest)
+		case MountRoBind:
+			args = append(args, "--ro-bind", m.Source, m.Dest)
+		case MountTmpfs:
+			args = append(args, "--tmpfs", m.Dest)
+		default:
+			return nil, fmt.Errorf("unknown mount mode %d for %s", m.Mode, m.Dest)
 		}
-		args = append(args, flag, bd.Source, bd.Dest)
 	}
 	args = append(args,
 		"--clearenv",
@@ -108,17 +113,23 @@ func EnsureMountpoints(spec RunSpec) error {
 			return err
 		}
 	}
-	for _, bd := range spec.Binds {
-		target, err := rootfsPath(spec.RootFS, bd.Dest)
+	for _, m := range spec.Mounts {
+		target, err := rootfsPath(spec.RootFS, m.Dest)
 		if err != nil {
 			return err
 		}
 		if _, err := os.Lstat(target); err == nil {
 			continue
 		}
-		src, err := os.Stat(bd.Source)
+		if m.Mode == MountTmpfs {
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		src, err := os.Stat(m.Source)
 		if err != nil {
-			return fmt.Errorf("bind source %s: %w", bd.Source, err)
+			return fmt.Errorf("bind source %s: %w", m.Source, err)
 		}
 		if src.Mode().IsRegular() {
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
