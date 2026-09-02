@@ -140,7 +140,7 @@ class Watcher(
             }
             log.info("restarting unfinished build {} of branch {}", result.build, result.branch)
             // the re-run resolves its settings from the current config by the recorded build name
-            buildExecutor.startBuild(result.branch, commit, workingDir, result.build)
+            buildExecutor.startBuild(repo, result.branch, commit, result.build)
         }
     }
 
@@ -344,7 +344,7 @@ class Watcher(
             return false
         }
         log.info("enqueueing build {} of branch {} at commit {}", build, branch, commit)
-        buildExecutor.startBuild(branch, commit, workingDir, build)
+        buildExecutor.startBuild(repo, branch, commit, build)
         return true
     }
 

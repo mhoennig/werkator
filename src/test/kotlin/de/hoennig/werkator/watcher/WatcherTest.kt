@@ -91,8 +91,8 @@ class WatcherTest : FunSpec() {
             every { gitService.fastForwardLocalBranches(any()) } returns emptyList()
             every { buildExecutor.currentBuilds() } returns emptyList()
             every { buildExecutor.startBuild(any(), any(), any(), any()) } answers {
-                val branch = firstArg<String>()
-                val commit = secondArg<String>()
+                val branch = secondArg<String>()
+                val commit = thirdArg<String>()
                 startedBuilds += branch to commit
                 runningBuild(branch, commit)
             }
@@ -411,7 +411,7 @@ class WatcherTest : FunSpec() {
 
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-abc")
             // the deprecated branch schedule rebuilds the branch's own pool with the default build
-            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-abc", BuildDefinition.DEFAULT) }
             harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
         }
 
@@ -440,7 +440,7 @@ class WatcherTest : FunSpec() {
             // glob selector: main and release/1.x fire once, feature/x is not selected
             harness.startedBuilds shouldContainExactlyInAnyOrder
                 listOf("main" to "commit-abc", "release/1.x" to "commit-rel")
-            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-abc", "pitest") }
             harness.autoBuildState().isTriggered("main@pitest", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
         }
 
@@ -463,7 +463,7 @@ class WatcherTest : FunSpec() {
             harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("active" to "commit-act")
-            verify { harness.buildExecutor.startBuild("active", "commit-act", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "active", "commit-act", "pitest") }
         }
 
         test("an onPush build definition builds the changed branches it selects") {
@@ -483,10 +483,10 @@ class WatcherTest : FunSpec() {
             harness.watcher.poll(harness.repo)
 
             // the implicit default build covers both branches; lint only selects main
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
-            verify { harness.buildExecutor.startBuild("feature/x", "commit-feat", any(), BuildDefinition.DEFAULT) }
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), "lint") }
-            verify(exactly = 0) { harness.buildExecutor.startBuild("feature/x", "commit-feat", any(), "lint") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "feature/x", "commit-feat", BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", "lint") }
+            verify(exactly = 0) { harness.buildExecutor.startBuild(harness.repo, "feature/x", "commit-feat", "lint") }
         }
 
         test("builds.default with onPush false disables the implicit on-push build") {
@@ -511,7 +511,7 @@ class WatcherTest : FunSpec() {
 
             harness.watcher.poll(harness.repo)
 
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", BuildDefinition.DEFAULT) }
         }
 
         test("a build definition committed on a branch fires for that branch, without any entry in the primary config") {
@@ -531,7 +531,7 @@ class WatcherTest : FunSpec() {
             harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("experiment" to "commit-exp")
-            verify { harness.buildExecutor.startBuild("experiment", "commit-exp", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "experiment", "commit-exp", "pitest") }
             harness
                 .autoBuildState()
                 .isTriggered("experiment@pitest", LocalDate.parse("2026-07-07"), "11:00")
@@ -610,7 +610,7 @@ class WatcherTest : FunSpec() {
 
             harness.watcher.poll(harness.repo)
 
-            verify { harness.buildExecutor.startBuild("main", "commit-1", any(), "nightly") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-1", "nightly") }
         }
 
         test("an unreadable branch config falls back to the primary definitions instead of failing the poll") {
@@ -630,7 +630,7 @@ class WatcherTest : FunSpec() {
                 .state()
                 .lastPollError
                 .shouldBeNull()
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", BuildDefinition.DEFAULT) }
         }
 
         test("an auto-build slot stays untriggered while the branch is still building") {
@@ -684,7 +684,7 @@ class WatcherTest : FunSpec() {
             harness.watcher.recoverOnStartup(harness.repo)
 
             // otherwise a restart mid-nightly-build would repeat it as a regular build in the wrong pool
-            verify { harness.buildExecutor.startBuild("main", "commit-1", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-1", "pitest") }
         }
 
         test("startup recovery closes out an orphaned PENDING build of a branch gone from origin") {

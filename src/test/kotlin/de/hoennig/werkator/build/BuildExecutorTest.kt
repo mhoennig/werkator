@@ -2,6 +2,7 @@ package de.hoennig.werkator.build
 
 import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.gitea.GiteaClient
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -48,14 +49,13 @@ class BuildExecutorTest : FunSpec() {
                     Files.createDirectories(workingDir.resolve(workspaceSubdir))
                 }
             }
+        val repo = RepoContext("test", workingDir, repository, artifactStore)
         val executor =
             BuildExecutor(
-                repository = repository,
                 configLoader = ConfigLoader(),
                 giteaClient = giteaClient,
                 buildRunner = buildRunner,
                 workspaces = workspaces,
-                artifactStore = artifactStore,
                 eventPublisher =
                     ApplicationEventPublisher { event ->
                         if (event is BuildStatusChangedEvent) {
@@ -112,7 +112,7 @@ class BuildExecutorTest : FunSpec() {
                     cleanCommand = "echo clean-\$branch",
                 )
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
 
             awaitStatus(h, "main", BuildStatus.SUCCESS)
             awaitIdle(h)
@@ -141,7 +141,7 @@ class BuildExecutorTest : FunSpec() {
         test("build commands run in the workspace prepared for the branch") {
             val h = harness(buildCommand = "pwd", workspaceSubdir = "branch-workspace")
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
 
             awaitStatus(h, "main", BuildStatus.SUCCESS)
             awaitIdle(h)
@@ -151,7 +151,7 @@ class BuildExecutorTest : FunSpec() {
         test("the repository reports RUNNING while the build sleeps") {
             val h = harness("sleep 10")
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
 
             eventually(10.seconds) {
                 h.repository.latestFor("main")?.status shouldBe BuildStatus.RUNNING
@@ -166,8 +166,8 @@ class BuildExecutorTest : FunSpec() {
             // the first build sleeps, the second (queued behind it) finishes instantly
             val h = harness("test -f slow-done || { touch slow-done; sleep 2; }")
 
-            h.executor.startBuild("main", "abc123", h.workingDir)
-            val second = h.executor.startBuild("main", "abc124", h.workingDir)
+            h.executor.startBuild(h.repo, "main", "abc123")
+            val second = h.executor.startBuild(h.repo, "main", "abc124")
 
             eventually(30.seconds) {
                 h.repository
@@ -207,7 +207,7 @@ class BuildExecutorTest : FunSpec() {
                 }
             val h = harness("unused", buildRunner = auxRunner)
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
             eventually(10.seconds) {
                 h.repository.latestFor("main")?.status shouldBe BuildStatus.RUNNING
             }
@@ -232,7 +232,7 @@ class BuildExecutorTest : FunSpec() {
                     """.trimIndent(),
                 )
 
-            val nightly = h.executor.startBuild("main", "sha-1", h.workingDir, "pitest")
+            val nightly = h.executor.startBuild(h.repo, "main", "sha-1", "pitest")
             awaitStatus(h, "main@pitest", BuildStatus.SUCCESS)
             awaitIdle(h)
 
@@ -250,7 +250,7 @@ class BuildExecutorTest : FunSpec() {
             h.repository.latestFor("main") shouldBe null
 
             // the same branch under the default build runs the regular command
-            val regular = h.executor.startBuild("main", "sha-2", h.workingDir)
+            val regular = h.executor.startBuild(h.repo, "main", "sha-2")
             awaitStatus(h, "main", BuildStatus.SUCCESS)
             awaitIdle(h)
             Files.readString(regular.stagingDir.resolve("build.stdout.log")) shouldContain "regular-main"
@@ -263,7 +263,7 @@ class BuildExecutorTest : FunSpec() {
         test("a build whose definition was removed from the config falls back to the branch's settings") {
             val h = harness(buildCommand = "echo regular-\$branch")
 
-            val build = h.executor.startBuild("main", "sha-1", h.workingDir, "gone-build")
+            val build = h.executor.startBuild(h.repo, "main", "sha-1", "gone-build")
             awaitStatus(h, "main@gone-build", BuildStatus.SUCCESS)
             awaitIdle(h)
 
@@ -273,23 +273,23 @@ class BuildExecutorTest : FunSpec() {
         test("startBuild returns the active build of the same branch and commit instead of stacking a duplicate") {
             val h = harness("sleep 30")
 
-            val first = h.executor.startBuild("main", "abc123", h.workingDir)
+            val first = h.executor.startBuild(h.repo, "main", "abc123")
             // a double-triggered UI restart: same branch, same commit, while queued or running
-            val duplicate = h.executor.startBuild("main", "abc123", h.workingDir)
+            val duplicate = h.executor.startBuild(h.repo, "main", "abc123")
             duplicate.artifactKey shouldBe first.artifactKey
             h.repository.history().map { it.artifactKey } shouldContainExactly listOf(first.artifactKey)
 
             // another build definition of the same commit is its own pool — not a duplicate
-            val nightly = h.executor.startBuild("main", "abc123", h.workingDir, "pitest")
+            val nightly = h.executor.startBuild(h.repo, "main", "abc123", "pitest")
             nightly.artifactKey shouldNotBe first.artifactKey
 
             // another commit of the branch is a distinct build, queued behind the first
-            val newerCommit = h.executor.startBuild("main", "abc124", h.workingDir)
+            val newerCommit = h.executor.startBuild(h.repo, "main", "abc124")
             newerCommit.artifactKey shouldNotBe first.artifactKey
 
             // a cancel-requested build no longer blocks re-queueing its commit
             h.executor.cancel(first.artifactKey).shouldBeTrue()
-            val again = h.executor.startBuild("main", "abc123", h.workingDir)
+            val again = h.executor.startBuild(h.repo, "main", "abc123")
             again.artifactKey shouldNotBe first.artifactKey
 
             h.executor.cancel(nightly.artifactKey).shouldBeTrue()
@@ -303,8 +303,8 @@ class BuildExecutorTest : FunSpec() {
         test("a build cancelled while still queued records neither runningSince nor a duration") {
             val h = harness("sleep 30")
 
-            val first = h.executor.startBuild("main", "abc123", h.workingDir)
-            val second = h.executor.startBuild("main", "abc124", h.workingDir)
+            val first = h.executor.startBuild(h.repo, "main", "abc123")
+            val second = h.executor.startBuild(h.repo, "main", "abc124")
             eventually(30.seconds) {
                 h.executor.currentBuilds().map { it.artifactKey } shouldContain first.artifactKey
             }
@@ -325,7 +325,7 @@ class BuildExecutorTest : FunSpec() {
         test("a failing build command records FAILED with a duration") {
             val h = harness("exit 3")
 
-            h.executor.startBuild("main", "abc123", h.workingDir)
+            h.executor.startBuild(h.repo, "main", "abc123")
 
             awaitStatus(h, "main", BuildStatus.FAILED)
             awaitIdle(h)
@@ -337,7 +337,7 @@ class BuildExecutorTest : FunSpec() {
         test("a failing clean command fails the build without running the build command") {
             val h = harness(buildCommand = "echo forbidden-\$branch", cleanCommand = "exit 1")
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
 
             awaitStatus(h, "main", BuildStatus.FAILED)
             awaitIdle(h)
@@ -348,7 +348,7 @@ class BuildExecutorTest : FunSpec() {
         test("cancel kills a sleeping process tree and records CANCELLED") {
             val h = harness("echo \$\$ > pid-file; sleep 30 & sleep 30 & wait")
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
 
             lateinit var root: ProcessHandle
             var children = emptyList<ProcessHandle>()
@@ -376,7 +376,7 @@ class BuildExecutorTest : FunSpec() {
         test("shutdown kills an executing build and records INTERRUPTED, not FAILED") {
             val h = harness("echo \$\$ > pid-file; sleep 30")
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
             eventually(10.seconds) {
                 Files.exists(h.workingDir.resolve("pid-file")).shouldBeTrue()
             }
@@ -402,8 +402,8 @@ class BuildExecutorTest : FunSpec() {
         test("a build still queued at shutdown stays PENDING for the startup recovery") {
             val h = harness("sleep 30")
 
-            val first = h.executor.startBuild("main", "sha-1", h.workingDir)
-            val second = h.executor.startBuild("main", "sha-2", h.workingDir)
+            val first = h.executor.startBuild(h.repo, "main", "sha-1")
+            val second = h.executor.startBuild(h.repo, "main", "sha-2")
             eventually(10.seconds) {
                 h.repository
                     .history()
@@ -432,7 +432,7 @@ class BuildExecutorTest : FunSpec() {
         test("shutdown without any build in flight is a no-op") {
             val h = harness("echo ok")
 
-            h.executor.startBuild("main", "abc123", h.workingDir)
+            h.executor.startBuild(h.repo, "main", "abc123")
             awaitStatus(h, "main", BuildStatus.SUCCESS)
             awaitIdle(h)
 
@@ -450,7 +450,7 @@ class BuildExecutorTest : FunSpec() {
         test("the live log grows while the build is still running") {
             val h = harness("echo one-\$branch; sleep 3; echo two-\$branch")
 
-            val build = h.executor.startBuild("main", "abc123", h.workingDir)
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
 
             eventually(10.seconds) {
                 Files.readString(build.liveLogFile) shouldContain "one-main"
@@ -467,7 +467,7 @@ class BuildExecutorTest : FunSpec() {
                 h.giteaClient.publishStatus(any(), any(), any(), any(), any(), any())
             } throws RuntimeException("gitea down")
 
-            h.executor.startBuild("main", "abc123", h.workingDir)
+            h.executor.startBuild(h.repo, "main", "abc123")
 
             awaitStatus(h, "main", BuildStatus.SUCCESS)
         }
@@ -488,8 +488,8 @@ class BuildExecutorTest : FunSpec() {
                     """.trimIndent(),
                 )
 
-            h.executor.startBuild("branch-a", "sha-a", h.workingDir)
-            h.executor.startBuild("branch-b", "sha-b", h.workingDir)
+            h.executor.startBuild(h.repo, "branch-a", "sha-a")
+            h.executor.startBuild(h.repo, "branch-b", "sha-b")
 
             h.repository.latestFor("branch-b")?.status shouldBe BuildStatus.PENDING
 
@@ -503,8 +503,8 @@ class BuildExecutorTest : FunSpec() {
         test("with maxConcurrent 2 two branches build at the same time") {
             val h = harness("sleep 10", maxConcurrent = 2)
 
-            val buildA = h.executor.startBuild("branch-a", "sha-a", h.workingDir)
-            val buildB = h.executor.startBuild("branch-b", "sha-b", h.workingDir)
+            val buildA = h.executor.startBuild(h.repo, "branch-a", "sha-a")
+            val buildB = h.executor.startBuild(h.repo, "branch-b", "sha-b")
 
             eventually(10.seconds) {
                 h.repository.latestFor("branch-a")?.status shouldBe BuildStatus.RUNNING
@@ -522,8 +522,8 @@ class BuildExecutorTest : FunSpec() {
         test("a second build of the same branch waits even when a slot is free") {
             val h = harness("sleep 1", maxConcurrent = 2)
 
-            val first = h.executor.startBuild("main", "sha-1", h.workingDir)
-            val second = h.executor.startBuild("main", "sha-2", h.workingDir)
+            val first = h.executor.startBuild(h.repo, "main", "sha-1")
+            val second = h.executor.startBuild(h.repo, "main", "sha-2")
 
             eventually(30.seconds) {
                 h.repository
@@ -539,8 +539,8 @@ class BuildExecutorTest : FunSpec() {
         test("cancel only affects the addressed build, other branches keep running") {
             val h = harness("sleep 10", maxConcurrent = 2)
 
-            val buildA = h.executor.startBuild("branch-a", "sha-a", h.workingDir)
-            val buildB = h.executor.startBuild("branch-b", "sha-b", h.workingDir)
+            val buildA = h.executor.startBuild(h.repo, "branch-a", "sha-a")
+            val buildB = h.executor.startBuild(h.repo, "branch-b", "sha-b")
             eventually(10.seconds) {
                 h.repository.latestFor("branch-a")?.status shouldBe BuildStatus.RUNNING
                 h.repository.latestFor("branch-b")?.status shouldBe BuildStatus.RUNNING

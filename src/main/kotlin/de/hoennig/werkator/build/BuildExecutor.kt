@@ -4,6 +4,7 @@ import de.hoennig.werkator.config.BranchConfig
 import de.hoennig.werkator.config.BuildDefinition
 import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.gitea.GiteaClient
+import de.hoennig.werkator.repo.RepoContext
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.ContextClosedEvent
@@ -14,7 +15,6 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.time.Duration
 import java.time.Instant
@@ -26,31 +26,30 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
- * Runs builds asynchronously: up to `executor.maxConcurrent` branches at the same time
- * (default 1), but never more than one build per branch. Each branch builds in its
- * own git worktree via [BranchWorkspaces], never in the primary checkout.
- * Every status transition is persisted via the [BuildResultRepository], published
- * to Gitea (non-fatal), and emitted as a [BuildStatusChangedEvent].
+ * Runs builds asynchronously: up to `executor.maxConcurrent` builds at the same time
+ * across all repositories (default 1), but never more than one build per branch of
+ * a repository. Each branch builds in its own git worktree via [BranchWorkspaces],
+ * never in the primary checkout. Every status transition is persisted in the
+ * build's [RepoContext.results], published to Gitea (non-fatal), and emitted as a
+ * [BuildStatusChangedEvent].
  */
 @Service
 class BuildExecutor(
-    private val repository: BuildResultRepository,
     private val configLoader: ConfigLoader,
     private val giteaClient: GiteaClient,
     private val buildRunner: BuildRunner,
     private val workspaces: BranchWorkspaces,
-    private val artifactStore: ArtifactStore,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(BuildExecutor::class.java)
 
-    /** One serial worker per branch enforces at most one build per branch. */
-    private val branchWorkers = ConcurrentHashMap<String, ExecutorService>()
+    /** One serial worker per (repository, branch) enforces at most one build per branch of a repository. */
+    private val branchWorkers = ConcurrentHashMap<Pair<RepoContext, String>, ExecutorService>()
 
     /** All accepted, not yet finished builds by artifact key — queued and running. */
     private val builds = ConcurrentHashMap<String, ActiveBuild>()
 
-    /** Global concurrency limit; sized from `executor.maxConcurrent` on first use. */
+    /** Global concurrency limit across all repositories; sized from `executor.maxConcurrent` on first use. */
     @Volatile
     private var slots: Semaphore? = null
 
@@ -61,9 +60,10 @@ class BuildExecutor(
     fun currentBuilds(): List<RunningBuild> = builds.values.filter { it.running }.map { it.runningBuild }
 
     /**
-     * Persists a PENDING result and queues the build; returns immediately.
+     * Persists a PENDING result in [repo] and queues the build; returns immediately.
      * A build of the same branch waits until the branch's previous build finished;
-     * builds of other branches run concurrently while slots are free.
+     * builds of other branches — of this or any other repository — run concurrently
+     * while slots are free.
      * While a build of the same branch and commit is already queued or executing (and
      * not cancel-requested), that build is returned instead of stacking a duplicate —
      * a double-triggered UI restart must not queue the same commit twice. Re-running
@@ -76,15 +76,16 @@ class BuildExecutor(
      * worktree, serialized with the branch's other builds.
      */
     fun startBuild(
+        repo: RepoContext,
         branch: String,
         commit: String,
-        workingDir: Path = Paths.get("."),
         build: String = BuildDefinition.DEFAULT,
     ): RunningBuild {
         val name = BuildDefinition.poolName(branch, build)
         val duplicate =
             builds.values.firstOrNull {
                 !it.cancelled.get() &&
+                    it.repo === repo &&
                     it.runningBuild.name == name &&
                     it.runningBuild.commit == commit
             }
@@ -114,13 +115,13 @@ class BuildExecutor(
                 duration = null,
                 artifactKey = runningBuild.artifactKey,
             )
-        repository.append(pending)
+        repo.results.append(pending)
         eventPublisher.publishEvent(BuildStatusChangedEvent(pending))
-        val activeBuild = ActiveBuild(runningBuild, workingDir)
+        val activeBuild = ActiveBuild(runningBuild, repo)
         builds[runningBuild.artifactKey] = activeBuild
         publishGiteaStatus(activeBuild, BuildStatus.PENDING, duration = null)
         branchWorkers
-            .computeIfAbsent(branch) { serialWorker(it) }
+            .computeIfAbsent(repo to branch) { serialWorker(branch) }
             .submit { execute(activeBuild) }
         return runningBuild
     }
@@ -171,7 +172,7 @@ class BuildExecutor(
         var finalStatus: BuildStatus? = BuildStatus.FAILED
         var workspace: Path? = null
         try {
-            slot = slotsFor(build.workingDir)
+            slot = slotsFor(build.repo.workingDir)
             slot.acquire()
             if (build.cancelled.get()) {
                 finalStatus = BuildStatus.CANCELLED
@@ -188,7 +189,7 @@ class BuildExecutor(
                 workspaces.prepare(
                     branch = build.runningBuild.branch,
                     commit = build.runningBuild.commit,
-                    repoDir = build.workingDir,
+                    repoDir = build.repo.workingDir,
                 )
             workspace = preparedWorkspace
             val exitCode = runBuildCommands(build, preparedWorkspace)
@@ -220,7 +221,7 @@ class BuildExecutor(
                 val duration = build.runningBuild.runningSince?.let { Duration.between(it, Instant.now()) }
                 val result = transition(build, finalStatus, duration)
                 try {
-                    artifactStore.persist(result, build.runningBuild.stagingDir, workspace)
+                    build.repo.artifactStore.persist(result, build.runningBuild.stagingDir, workspace)
                 } catch (e: Exception) {
                     log.warn("could not persist artifacts of {}: {}", result.artifactKey, e.message)
                 }
@@ -231,8 +232,9 @@ class BuildExecutor(
     }
 
     /**
-     * The semaphore is sized once from the first build's config;
-     * changing `executor.maxConcurrent` requires a restart.
+     * The semaphore is sized once from the first build's config — the global cap is an
+     * instance-level setting (ADR 0009) and does not vary by repository; changing
+     * `executor.maxConcurrent` requires a restart.
      */
     private fun slotsFor(workingDir: Path): Semaphore {
         slots?.let { return it }
@@ -256,7 +258,7 @@ class BuildExecutor(
         build: ActiveBuild,
         workspace: Path,
     ): Int {
-        val branchConfig = buildConfig(build.runningBuild, build.workingDir, workspace)
+        val branchConfig = buildConfig(build.runningBuild, build.repo.workingDir, workspace)
         val buildCommand = branchConfig.buildCommand
         val stagingDir = build.runningBuild.stagingDir
         Files.newOutputStream(stagingDir.resolve(branchConfig.stdoutLog)).use { stdoutLog ->
@@ -293,7 +295,7 @@ class BuildExecutor(
                 command = command,
                 workingDir = workspace,
                 environment = mapOf("branch" to build.runningBuild.branch),
-                repoDir = build.workingDir,
+                repoDir = build.repo.workingDir,
                 branchConfig = branchConfig,
                 onAuxProcess = { aux ->
                     // preparation phases (e.g. a Docker image build) must die on cancellation
@@ -363,7 +365,7 @@ class BuildExecutor(
     ): BuildResult {
         val runningBuild = build.runningBuild
         val updated =
-            repository.updateByArtifactKey(runningBuild.artifactKey) {
+            build.repo.results.updateByArtifactKey(runningBuild.artifactKey) {
                 it.copy(
                     status = status,
                     runningSince = runningBuild.runningSince ?: it.runningSince,
@@ -378,7 +380,7 @@ class BuildExecutor(
                 runningSince = runningBuild.runningSince,
                 duration = duration,
                 artifactKey = runningBuild.artifactKey,
-            ).also { repository.append(it) }
+            ).also { build.repo.results.append(it) }
         eventPublisher.publishEvent(BuildStatusChangedEvent(updated))
         publishGiteaStatus(build, status, duration)
         return updated
@@ -395,7 +397,7 @@ class BuildExecutor(
                 status = status,
                 description = description(status, duration),
                 targetUrl = null,
-                workingDir = build.workingDir,
+                workingDir = build.repo.workingDir,
                 // from the primary config, not the worktree: statusContext is pinned, so a
                 // branch cannot report under a check name it was not given
                 context = statusContextOf(build),
@@ -409,7 +411,7 @@ class BuildExecutor(
     private fun statusContextOf(build: ActiveBuild): String =
         try {
             configLoader
-                .load(build.workingDir)
+                .load(build.repo.workingDir)
                 .buildSettings(build.runningBuild.branch, build.runningBuild.build)
                 .statusContext
         } catch (e: Exception) {
@@ -496,7 +498,7 @@ class BuildExecutor(
 
     private class ActiveBuild(
         val runningBuild: RunningBuild,
-        val workingDir: Path,
+        val repo: RepoContext,
     ) {
         val cancelled = AtomicBoolean(false)
 

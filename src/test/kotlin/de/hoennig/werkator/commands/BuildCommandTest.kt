@@ -2,6 +2,7 @@ package de.hoennig.werkator.commands
 
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -18,11 +19,11 @@ class BuildCommandTest : FunSpec() {
     private val gitService = mockk<GitService>()
     private val consoleBuildRunner = mockk<ConsoleBuildRunner>()
     private val dir: Path = Paths.get(".")
+    private val repo = RepoContext("test", dir, mockk(), mockk())
 
     private fun command(fragment: String? = null) =
-        BuildCommand(gitService, consoleBuildRunner).apply {
+        BuildCommand(gitService, consoleBuildRunner, repo).apply {
             branchFragment = fragment
-            workingDir = dir
         }
 
     init {
@@ -35,13 +36,13 @@ class BuildCommandTest : FunSpec() {
             every { gitService.currentBranch(dir) } returns "main"
             every { gitService.localHeadCommit("main", dir) } returns "local-head"
             every { gitService.hasNewCommits("main", dir) } returns false
-            every { consoleBuildRunner.buildAndStream("main", "local-head", dir) } returns BuildStatus.SUCCESS
+            every { consoleBuildRunner.buildAndStream(repo, "main", "local-head") } returns BuildStatus.SUCCESS
 
             var exitCode = -1
             captureConsole { exitCode = command().call() }
 
             exitCode shouldBe 0
-            verify { consoleBuildRunner.buildAndStream("main", "local-head", dir) }
+            verify { consoleBuildRunner.buildAndStream(repo, "main", "local-head") }
         }
 
         test("builds origin's head when the branch has new commits on origin") {
@@ -49,20 +50,20 @@ class BuildCommandTest : FunSpec() {
             every { gitService.localHeadCommit("main", dir) } returns "local-head"
             every { gitService.hasNewCommits("main", dir) } returns true
             every { gitService.originHeadCommit("main", dir) } returns "origin-head"
-            every { consoleBuildRunner.buildAndStream("main", "origin-head", dir) } returns BuildStatus.SUCCESS
+            every { consoleBuildRunner.buildAndStream(repo, "main", "origin-head") } returns BuildStatus.SUCCESS
 
             var exitCode = -1
             captureConsole { exitCode = command().call() }
 
             exitCode shouldBe 0
-            verify { consoleBuildRunner.buildAndStream("main", "origin-head", dir) }
+            verify { consoleBuildRunner.buildAndStream(repo, "main", "origin-head") }
         }
 
         test("a failing build exits with code 1") {
             every { gitService.currentBranch(dir) } returns "main"
             every { gitService.localHeadCommit("main", dir) } returns "local-head"
             every { gitService.hasNewCommits("main", dir) } returns false
-            every { consoleBuildRunner.buildAndStream("main", "local-head", dir) } returns BuildStatus.FAILED
+            every { consoleBuildRunner.buildAndStream(repo, "main", "local-head") } returns BuildStatus.FAILED
 
             var exitCode = -1
             captureConsole { exitCode = command().call() }
@@ -75,13 +76,13 @@ class BuildCommandTest : FunSpec() {
             every { gitService.originBranches(dir) } returns listOf("main", "feature/x")
             every { gitService.localHeadCommit("feature/x", dir) } returns null
             every { gitService.originHeadCommit("feature/x", dir) } returns "origin-head"
-            every { consoleBuildRunner.buildAndStream("feature/x", "origin-head", dir) } returns BuildStatus.SUCCESS
+            every { consoleBuildRunner.buildAndStream(repo, "feature/x", "origin-head") } returns BuildStatus.SUCCESS
 
             var exitCode = -1
             captureConsole { exitCode = command(fragment = "x").call() }
 
             exitCode shouldBe 0
-            verify { consoleBuildRunner.buildAndStream("feature/x", "origin-head", dir) }
+            verify { consoleBuildRunner.buildAndStream(repo, "feature/x", "origin-head") }
         }
 
         test("an ambiguous fragment lists the candidates and exits with code 2") {
@@ -126,7 +127,7 @@ class BuildCommandTest : FunSpec() {
             every { gitService.currentBranch(dir) } returns "main"
             every { gitService.localHeadCommit("main", dir) } returns "local-head"
             every { gitService.hasNewCommits("main", dir) } returns false
-            every { consoleBuildRunner.buildAndStream("main", "local-head", dir) } returns BuildStatus.SUCCESS
+            every { consoleBuildRunner.buildAndStream(repo, "main", "local-head") } returns BuildStatus.SUCCESS
 
             var exitCode = -1
             val console = captureConsole { exitCode = command().call() }

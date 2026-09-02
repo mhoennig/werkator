@@ -6,6 +6,7 @@ import de.hoennig.werkator.build.FileBuildResultRepository
 import de.hoennig.werkator.build.ProcessBuildRunner
 import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.gitea.GiteaClient
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -37,18 +38,17 @@ class BuildExecutorArtifactIntegrationTest : FunSpec() {
             )
             val workspace = Files.createDirectories(workingDir.resolve("workspace"))
             val store = FileArtifactStore(ConfigLoader(), workingDir)
+            val repo = RepoContext("test", workingDir, FileBuildResultRepository(workingDir.resolve("build-results.json")), store)
             val executor =
                 BuildExecutor(
-                    repository = FileBuildResultRepository(workingDir.resolve("build-results.json")),
                     configLoader = ConfigLoader(),
                     giteaClient = mockk<GiteaClient>(relaxed = true),
                     buildRunner = ProcessBuildRunner(),
                     workspaces = BranchWorkspaces { _, _, _ -> workspace },
-                    artifactStore = store,
                     eventPublisher = ApplicationEventPublisher { },
                 )
 
-            val build = executor.startBuild("main", "abc123", workingDir)
+            val build = executor.startBuild(repo, "main", "abc123")
 
             lateinit var artifactDir: java.nio.file.Path
             eventually(30.seconds) {
