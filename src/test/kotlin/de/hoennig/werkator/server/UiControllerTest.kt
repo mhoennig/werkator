@@ -291,6 +291,30 @@ class UiControllerTest : FunSpec() {
                 ).andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
         }
 
+        test("artifact index lists plain files outside reports/ and keeps logs and report files out of that list") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("files-view-key"))
+            Files.writeString(artifactDir.resolve("build.stdout.log"), "out")
+            Files.createDirectories(artifactDir.resolve("werkdock/dist"))
+            Files.writeString(artifactDir.resolve("werkdock/dist/werkdock"), "elf")
+            Files.createDirectories(artifactDir.resolve("reports/tests"))
+            Files.writeString(artifactDir.resolve("reports/tests/index.html"), "<html></html>")
+            every { repository.history() } returns listOf(successResult)
+            every { artifactStore.artifactDir("files-view-key") } returns artifactDir
+
+            val page =
+                mockMvc
+                    .perform(get("/builds/files-view-key"))
+                    .andExpect(status().isOk)
+                    .andExpect(
+                        content().string(containsString("""/artifacts/files-view-key/werkdock/dist/werkdock" target="_blank"""")),
+                    ).andReturn()
+                    .response.contentAsString
+            // stored at its own path, not below reports/; the log stays in the
+            // logs section and is not repeated in the files list
+            page shouldNotContain "reports/werkdock"
+            (page.split("/artifacts/files-view-key/build.stdout.log").size - 1) shouldBe 1
+        }
+
         test("the artifact page shows the command of the build's own definition, not the plain branch command") {
             val pitestResult =
                 successResult.copy(

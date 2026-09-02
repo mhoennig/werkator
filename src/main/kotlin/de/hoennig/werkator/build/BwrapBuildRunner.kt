@@ -200,6 +200,14 @@ class BwrapBuildRunner(
         args += listOf("--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf")
         args += listOf("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp")
         args += listOf("--setenv", "HOME", "/root")
+        // The sandbox /tmp is a fresh tmpfs, but bwrap inherits the server's
+        // environment — on hosts with pam_tmpdir that includes
+        // TMPDIR=/tmp/user/<uid>, which does not exist inside and breaks every
+        // tool honoring it (go: "creating work dir: stat ...: no such file or
+        // directory"; the JVM ignores TMPDIR, so Gradle never noticed). Set
+        // both back to /tmp; explicit env below can still override.
+        args += listOf("--setenv", "TMPDIR", "/tmp")
+        args += listOf("--setenv", "TMP", "/tmp")
         for ((key, value) in environment) {
             args += listOf("--setenv", key, value)
         }

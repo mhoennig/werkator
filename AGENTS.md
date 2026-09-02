@@ -79,6 +79,8 @@ All major decisions are in `docs/adrs/`. Run `adr-status` (after `source .envrc`
 - **Rewrite architecture**: JSON-file persistence behind a repository interface, server-rendered UI with JSON polling, no managed nginx — systemd unit behind the host's reverse proxy (ADR 0004)
 - **Managed nginx/TLS**: revises ADR 0004 — an opt-in nginx+certbot container for hosts without a reverse proxy (e.g. Hostsharing), planned as `docs/plan/13-nginx-tls.md` (ADR 0005)
 - **Runtime bundle distribution**: `./gradlew runtimeBundle` builds a jlink-trimmed JRE + jar tarball for hosts without a Java runtime; GraalVM native image and a containerized runtime were rejected (ADR 0006)
+- **Build definitions**: a top-level `builds` section of named builds with `trigger` blocks replaces the branch-owned `autoBuild` schedules (ADR 0007)
+- **bwrap build runtime**: on hosts without root and without Docker (Hostsharing Managed Webspaces), builds run in a `bwrap` user-namespace sandbox over a prepared rootfs — filesystem isolation only, network and uid shared with the host; proot/fakechroot and unisolated native builds were rejected (ADR 0008)
 
 ## Skills
 
