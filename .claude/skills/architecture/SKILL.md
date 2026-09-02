@@ -19,12 +19,13 @@ WerkatorApplication   ← @SpringBootApplication
 CliRunner             ← CommandLineRunner + ExitCodeGenerator
 WerkatorCommand       ← root @Command, delegates to subcommands
 commands/
-  InitCommand         ← "init [--systemd]"
+  InitCommand         ← "init [--systemd] [--apply FILE]"
   ServerCommand       ← "server"
   StatusCommand       ← "status [--history]"
   BuildCommand        ← "build [<branch>]"
   RetryCommand        ← "retry"
   ConfigPrintCommand  ← "config:print [--full]"
+  ControlTokenCommand ← "control-token"
 ```
 
 `status`, `build`, and `retry` implement `Callable<Int>` for their exit codes (0 success, 1 build failure, 2 usage/config errors).
@@ -40,14 +41,15 @@ Two independent staleness signals, never merged: the `live-indicator` badge says
 
 ## Configuration System
 
-Werkator is configured by two YAML files, deep-merged by `ConfigLoader` (later wins):
+Werkator is configured by three YAML files, deep-merged by `ConfigLoader` (later wins):
 
 1. `.werkator.yml` at the repo root — committed, shared team settings.
-2. `.git/werkator/.werkator.yml` — not committed; machine-specific overrides and secrets (`git.account`, `git.token`).
+2. `.git/werkator/.werkator.applied.yml` — not committed; the instance fragment installed verbatim by `init --apply` (step 23), validated strictly (unknown keys refused) and replaced wholesale on re-apply.
+3. `.git/werkator/.werkator.yml` — not committed; machine-specific overrides and secrets (`git.account`, `git.token`); hand-edited, always wins.
 
 Every lookup falls back to the pre-rename name (`ConfigFiles`): `.gittally.yml`, and `.git/gittally/.gittally.yml` for the machine layer. Current name first, and where both exist the old one is ignored rather than merged — a missing config is not an error, so an un-renamed installation would otherwise start on defaults without a single failure.
 
-On top of those comes the **branch layer**: the `.werkator.yml` committed on a branch, applied by `loadWithBranchLayer` (the watcher passes the content read via `git show`, `loadForWorktree` the file in the build worktree). A branch describes its own CI and wins over both layers — the whole `builds` section — so a configuration can be tried out on a branch without touching other branches' builds. `stripPinned` removes what is not a description of this branch's build: `git`, `server`, `gitea`, `executor`, `watcher`, and — inside every `builds` definition as well as every legacy `branches` entry — `requirePullRequest`, `statusContext`, and `docker.enabled`/`docker.network`.
+On top of those comes the **branch layer**: the `.werkator.yml` committed on a branch, applied by `loadWithBranchLayer` (the watcher passes the content read via `git show`, `loadForWorktree` the file in the build worktree). A branch describes its own CI and wins over both layers — the whole `builds` section — so a configuration can be tried out on a branch without touching other branches' builds. `stripPinned` removes what is not a description of this branch's build: `git`, `server`, `gitea`, `executor`, `watcher`, and — inside every `builds` definition as well as every legacy `branches` entry — `requirePullRequest`, `statusContext`, `docker.enabled`/`docker.network`, and `bwrap.enabled`/`bwrap.rootfs`/`bwrap.werkdock`.
 
 Each file is version-checked before merging (`werkator.version.since`/`below`, `ConfigVersions.verdict`), so the message can name the file to fix: `since` is hard in both directions — too old a Werkator, or a file written before `ConfigVersions.FORMAT_BROKE_IN` and read after it — while `below` only warns. There is no format version (`apiVersion`) on purpose: only one configuration generation is supported, and the declared version exists to make the incompatibility nameable.
 

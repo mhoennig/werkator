@@ -31,6 +31,16 @@ class InitCommand(
     )
     var systemd: Boolean = false
 
+    @Option(
+        names = ["--apply"],
+        description = [
+            "install a config-schema YAML fragment as the applied instance layer " +
+                "(validated strictly; re-applying replaces the previous fragment)",
+        ],
+        paramLabel = "FILE",
+    )
+    var apply: Path? = null
+
     /** Replaceable for tests: the jar this JVM was started from, or null when not run via `java -jar`. */
     internal var jarPathResolver: () -> Path? = { runningJarPath() }
 
@@ -52,6 +62,17 @@ class InitCommand(
 
         createRepoInstallConfig(root, detected, normalizedWorkingDir)
         createProjectConfig(root, detected, normalizedWorkingDir)
+        // before the systemd files, which read the effective configuration —
+        // an applied fragment's port and limits must reach the generated unit
+        apply?.let { fragment ->
+            try {
+                val target = configLoader.applyInstanceFragment(root, fragment)
+                println("applied $fragment as ${target.toFile().relativeTo(normalizedWorkingDir.toFile())}")
+            } catch (e: Exception) {
+                println("Error: ${e.message}")
+                return
+            }
+        }
         if (systemd) {
             createSystemdFiles(root, normalizedWorkingDir)
         }
@@ -274,12 +295,14 @@ class InitCommand(
      * already loadable (re-running `init --systemd` on an installed instance); during
      * the very first bootstrap they stay unset and the defaults (no directives) apply.
      */
-    private fun loadedSystemdConfig(): de.hoennig.werkator.config.SystemdConfig =
+    private fun loadedSystemdConfig(): de.hoennig.werkator.config.SystemdConfig = loadedServerConfig().systemd
+
+    private fun loadedServerConfig(): de.hoennig.werkator.config.ServerConfig =
         try {
-            configLoader.load(Paths.get(".")).server.systemd
+            configLoader.load(Paths.get(".")).server
         } catch (_: Exception) {
             de.hoennig.werkator.config
-                .SystemdConfig()
+                .ServerConfig()
         }
 
     private fun createSystemdFiles(
@@ -324,6 +347,19 @@ class InitCommand(
         println("created ${pruneServiceFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
         pruneTimerFile.toFile().writeText(SystemdServiceFiles.pruneTimerContent())
         println("created ${pruneTimerFile.toFile().relativeTo(normalizedWorkingDir.toFile())}")
+
+        // generated host integration like the units: only meaningful behind a web
+        // frontend, so it needs a public base URL; unused elsewhere and harmless
+        val server = loadedServerConfig()
+        if (server.publicBaseUrl.isNotBlank()) {
+            val htaccessFile = werkatorDir.resolve(SystemdServiceFiles.HTACCESS_NAME)
+            htaccessFile.toFile().writeText(SystemdServiceFiles.htaccessContent(server.port))
+            println(
+                "created ${htaccessFile.toFile().relativeTo(
+                    normalizedWorkingDir.toFile(),
+                )} (Apache reverse proxy; copy it into the domain docroot on a managed webspace)",
+            )
+        }
 
         println("install and start the service and the nightly Docker cleanup with:")
         println("  ln -sf $unitFile ~/.config/systemd/user/$unitName")

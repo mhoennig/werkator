@@ -17,8 +17,10 @@ class InitCommandTest : FunSpec() {
     private val initCommand =
         InitCommand(
             gitService,
+            // default (null) BuildProperties provider: a relaxed ObjectProvider mock
+            // returns a raw Object under type erasure and breaks the version check
             de.hoennig.werkator.config
-                .ConfigLoader(mockk(relaxed = true)),
+                .ConfigLoader(),
         )
 
     init {
@@ -120,6 +122,47 @@ class InitCommandTest : FunSpec() {
             initCommand.run()
 
             projectConfig.toFile().readText() shouldBe "existing: content"
+        }
+
+        test("--apply installs the fragment as the applied layer and the effective config sees it") {
+            val tempDir = Files.createTempDirectory("werkator-init-test")
+            initCommand.workingDir = tempDir
+            val fragment = tempDir.resolve("mih34.yml")
+            fragment.toFile().writeText("server:\n  port: 18088\n")
+            initCommand.apply = fragment
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            tempDir
+                .resolve(de.hoennig.werkator.config.ConfigFiles.APPLIED)
+                .toFile()
+                .shouldExist()
+            de.hoennig.werkator.config
+                .ConfigLoader()
+                .load(tempDir)
+                .server.port shouldBe 18088
+            initCommand.apply = null
+        }
+
+        test("--apply with an invalid fragment installs nothing") {
+            val tempDir = Files.createTempDirectory("werkator-init-test")
+            initCommand.workingDir = tempDir
+            val fragment = tempDir.resolve("typo.yml")
+            fragment.toFile().writeText("server:\n  prot: 18088\n")
+            initCommand.apply = fragment
+
+            every { gitService.getTopLevel(tempDir) } returns tempDir
+            every { gitService.getOriginUrl(tempDir) } returns "https://git.example.org/my-org/my-repo.git"
+
+            initCommand.run()
+
+            Files
+                .exists(tempDir.resolve(de.hoennig.werkator.config.ConfigFiles.APPLIED))
+                .shouldBeFalse()
+            initCommand.apply = null
         }
 
         test("--systemd generates unit and environment file with install instructions") {

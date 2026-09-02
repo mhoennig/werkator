@@ -11,8 +11,10 @@ import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
 import org.springframework.stereotype.Service
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
@@ -26,6 +28,17 @@ class ConfigLoader(
         ObjectMapper(YAMLFactory().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER))
             .registerKotlinModule()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+
+    /**
+     * For validating instance fragments ([applyInstanceFragment]) only: unknown keys
+     * fail there instead of being ignored — the regular layers stay lenient so an old
+     * Werkator can read a newer file.
+     */
+    private val strictYaml =
+        ObjectMapper(YAMLFactory().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER))
+            .registerKotlinModule()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true)
             .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
 
     /** Keys already reported by [dropNonDefinitionBuilds]; the config is loaded on every poll cycle. */
@@ -285,13 +298,50 @@ class ConfigLoader(
         val repoInstallName = ConfigFiles.firstExisting(workingDir, ConfigFiles.repoInstall)
         val projectName = ConfigFiles.firstExisting(workingDir)
         val repoInstall = loadFile(workingDir.resolve(repoInstallName).toFile())
+        val applied = loadFile(workingDir.resolve(ConfigFiles.APPLIED).toFile())
         val project = loadFile(workingDir.resolve(projectName).toFile())
         // per file, so the message names the file to fix — the merged map has no provenance
         checkVersion(project, projectName, ROLLBACK_HINT)
+        checkVersion(applied, ConfigFiles.APPLIED, ROLLBACK_HINT)
         checkVersion(repoInstall, repoInstallName, ROLLBACK_HINT)
         checkTriggerBlocks(project, projectName, ROLLBACK_HINT)
+        checkTriggerBlocks(applied, ConfigFiles.APPLIED, ROLLBACK_HINT)
         checkTriggerBlocks(repoInstall, repoInstallName, ROLLBACK_HINT)
-        return deepMerge(project, repoInstall)
+        // the applied instance fragment sits above the committed project config and
+        // below the hand-edited machine config, which always has the last word
+        return deepMerge(deepMerge(project, applied), repoInstall)
+    }
+
+    /**
+     * Validates and installs an instance fragment (`init --apply`, step 23): the file
+     * must be non-empty, pass the version and trigger checks, and bind *strictly*
+     * against the schema — an unknown key is refused loudly, never ignored, because a
+     * typo in a fragment would otherwise install a value that silently does nothing.
+     * The fragment is then copied verbatim (comments included) to [ConfigFiles.APPLIED];
+     * re-applying replaces the file, so nothing can accumulate or duplicate.
+     */
+    fun applyInstanceFragment(
+        workingDir: Path,
+        fragment: Path,
+    ): Path {
+        val raw = loadFile(fragment.toFile())
+        require(raw.isNotEmpty()) { "instance fragment $fragment is missing, empty, or not a YAML mapping" }
+        checkVersion(raw, fragment.toString(), ROLLBACK_HINT)
+        checkTriggerBlocks(raw, fragment.toString(), ROLLBACK_HINT)
+        try {
+            strictYaml.convertValue(resolveBuildSections(dropNonDefinitionBuilds(raw)), WerkatorConfig::class.java)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException(
+                "instance fragment $fragment does not match the configuration schema: ${e.message}",
+                e,
+            )
+        }
+        val target = workingDir.resolve(ConfigFiles.APPLIED)
+        Files.createDirectories(target.parent)
+        val temp = Files.createTempFile(target.parent, ".werkator.applied", ".tmp")
+        Files.copy(fragment, temp, StandardCopyOption.REPLACE_EXISTING)
+        Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        return target
     }
 
     /**
