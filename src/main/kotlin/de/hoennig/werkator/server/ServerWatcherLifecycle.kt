@@ -1,6 +1,6 @@
 package de.hoennig.werkator.server
 
-import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import de.hoennig.werkator.watcher.Watcher
 import jakarta.annotation.PreDestroy
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -9,7 +9,7 @@ import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
 
 /**
- * Starts the watcher poll loop over the served repository once the server context
+ * Starts the watcher poll loop over the served repositories once the server context
  * is ready and stops it on shutdown. Only in the `server` profile — CLI commands
  * and tests never start the loop (see [Watcher]).
  */
@@ -17,11 +17,11 @@ import org.springframework.stereotype.Component
 @Profile("server")
 class ServerWatcherLifecycle(
     private val watcher: Watcher,
-    private val repo: RepoContext,
+    private val registry: RepoRegistry,
 ) {
     @EventListener(ApplicationReadyEvent::class)
     fun onApplicationReady() {
-        watcher.start(repo)
+        watcher.start(registry.all())
     }
 
     @PreDestroy
