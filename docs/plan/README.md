@@ -95,6 +95,10 @@ Added to correct the bwrap prototype's drift toward self-building on the webspac
 
 - [ ] `21-werkdock-extraction-and-webspace-install.md` — roadmap in four sessions: close step 17's open ends, grow the sandbox tooling into **Werkdock** (a docker-like filesystem-only sandbox CLI, developed in the `werkdock/` subdirectory, later its own repository), let Werkator consume it, and replace the webspace self-build with the local-build-plus-install path of ADR 0006
 
+Added after step 21 session D exposed that `tools/remote` re-implements configuration Werkator owns (2026-09-01):
+
+- [ ] `23-init-owns-the-files.md` — Werkator becomes the executing app, `tools/remote` a thin wrapper: the wrapper takes a transport env file (`remote --env .env.mih34 werkator …`), init takes a YAML fragment in the real config schema (`werkator init --apply mih34.yml`, deep-merged idempotently — no mapping table, no heredocs), `werkator control-token` and `werkdock doctor` replace the bash duplications
+
 Added for surfacing build time as a trend (2026-08-31):
 
 - [ ] `20-build-duration-tracking.md` — a per-name duration trend over the existing history, derived on read in the History view: series, window average/min/max, and a visible marker when the latest build is slower than its window average (grouped by the history's own `name`, so branch builds and named jobs stay separate — complements Step 14, which owns phase timing)
@@ -110,3 +114,4 @@ Step 18 depends on nothing in code but on the watched repository having migrated
 Step 19 depends on nothing; `WatcherState` and `/api/watcher` already carry everything it needs to render.
 Step 20 depends on nothing; the duration is already recorded, and the trend is derived read-only from `repository.history()`.
 Step 21 depends on 17; its sessions B and C grow Werkdock in the `werkdock/` subdirectory (later its own repository), and session D supersedes the self-build prototype in `tools/remote`.
+Step 23 depends on 21 session D; its per-instance file convention (transport env + init fragment) also feeds step 22's instance setup and should land before Werkbaum rolls out.
