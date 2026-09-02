@@ -48,9 +48,10 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 ### B — RepoContext refactor, behavior unchanged
 
-- Introduce a `RepoContext` (working dir, config loading, git access, result repository, artifact store key, watcher state) and thread it through executor, watcher, and server code paths that today implicitly use the single `workingDir`.
-- The executor becomes instance-global with repo-scoped pools: serialization per (repo, branch), the global `maxConcurrent` across repos; `BuildResult` needs no schema change — results stay in each repo's own JSON file, the repo dimension exists only in memory and in routes.
-- Single-repo behavior, routes, and UI stay byte-identical; the full test suite is the acceptance gate.
+- ~~Introduce a `RepoContext` (working dir, config loading, git access, result repository, artifact store key, watcher state) and thread it through executor, watcher, and server code paths that today implicitly use the single `workingDir`.~~ — done 2026-09-02 (PR #11): `RepoContext` (`repo` package) carries `name`, `workingDir`, `results`, `artifactStore`; git access and config loading stay path-based services taking `repo.workingDir` (the home `defaults:` layer of session C is the moment config loading needs the context). The watcher's per-repo memory lives in a `RepoWatch` keyed by context; `WatcherState` stays one per instance until session C.
+- ~~The executor becomes instance-global with repo-scoped pools: serialization per (repo, branch), the global `maxConcurrent` across repos; `BuildResult` needs no schema change — results stay in each repo's own JSON file, the repo dimension exists only in memory and in routes.~~ — done 2026-09-02: `startBuild(repo, branch, commit, build)`, pools keyed by (context, branch), one semaphore.
+- ~~Single-repo behavior, routes, and UI stay byte-identical; the full test suite is the acceptance gate.~~ — done: no route, template, or config change; the current-directory context is a bean and the result/artifact-store beans are its members.
+- Carried over to session C (found while threading): `StateDirMigration` runs once per process on the cwd and must run per registered repo; `SystemMetricsCollector` measures the cwd's repository size; `ServerCommand` reads `server.*` from the cwd; `RunningBuild` carries no repository, so `BuildExecutor.currentBuilds()` and the watcher's worktree pruning cannot tell repos apart yet (harmless today: at worst a worktree of another repo's branch name is kept one cycle longer).
 
 ### C — The registry and N repositories
 
@@ -75,12 +76,12 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 - Fairness across repos when the global concurrency cap is contended (round-robin per repo vs. FIFO) — decide in session C with the real queue behavior at hand.
 - Whether buildenv rootfs trees should be shared across repos (today each repo unpacks its own under `.git/werkator/buildenv/`) — the natural answer is Werkdock's image store (step 21 session C), not instance-level state; until then duplicate unpacked rootfs trees are the accepted cost.
-- Whether `artifactKey` needs a repo prefix or stays globally unique by construction (random suffix) — decide in session B when the routes are designed.
+- ~~Whether `artifactKey` needs a repo prefix or stays globally unique by construction (random suffix) — decide in session B when the routes are designed.~~ — decided 2026-09-02: no prefix. The key is derived from pool name and start time, and both the results file and the artifact store are per repository, so it only ever has to be unique within one; the repo dimension enters through the route segment in session D, never through the key. A prefix would also change every existing artifact directory name.
 
 ## Acceptance Criteria
 
 - Session A: ADR 0009 written (done 2026-09-01); the registry and key ownership land in `docs/configuration.md` together with the implementing sessions, since that reference describes implemented configuration only.
-- Session B: full suite green with `RepoContext` threaded through; no route or behavior change observable.
+- ~~Session B: full suite green with `RepoContext` threaded through; no route or behavior change observable.~~ — done 2026-09-02.
 - Session C: an instance with two registered repos builds pushes in both, with per-repo error isolation proven by a test (one broken origin, the other keeps building).
 - Session D: both repos browsable in one UI; single-repo installations keep their existing URLs.
 - Session E: mih34 builds Werkator and Werkbaum from one service; `docs/deployment.md` describes the registry setup.

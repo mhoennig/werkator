@@ -1,10 +1,8 @@
 package de.hoennig.werkator.server
 
-import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import org.springframework.stereotype.Component
-import java.nio.file.Path
-import java.nio.file.Paths
 
 /**
  * The branches-view data, shared by the JSON API and the server-rendered page:
@@ -18,10 +16,10 @@ import java.nio.file.Paths
 @Component
 class BranchListing(
     private val gitService: GitService,
-    private val repository: BuildResultRepository,
 ) {
-    fun branches(workingDir: Path = Paths.get(".")): List<BranchDto> {
-        val heads = gitService.originBranchHeads(workingDir)
+    fun branches(repo: RepoContext): List<BranchDto> {
+        val repository = repo.results
+        val heads = gitService.originBranchHeads(repo.workingDir)
         val namedResults = repository.latestPerName().filter { it.name != it.branch && it.branch in heads }
         val branchesWithNamedPool = namedResults.map { it.branch }.toSet()
         val branchRows =

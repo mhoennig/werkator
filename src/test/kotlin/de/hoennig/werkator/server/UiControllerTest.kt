@@ -17,6 +17,7 @@ import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.metrics.MetricAggregate
 import de.hoennig.werkator.metrics.SystemMetrics
 import de.hoennig.werkator.metrics.SystemMetricsCollector
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -36,6 +37,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.web.server.ResponseStatusException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
 
@@ -72,6 +74,9 @@ class UiControllerTest : FunSpec() {
 
     @MockkBean
     lateinit var branchPermalinks: BranchPermalinks
+
+    @MockkBean
+    lateinit var repo: RepoContext
 
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
@@ -113,7 +118,9 @@ class UiControllerTest : FunSpec() {
                 metricsCollector,
                 branchListing,
                 branchPermalinks,
+                repo,
             )
+            every { repo.workingDir } returns Paths.get(".")
             every { configLoader.load(any()) } returns
                 WerkatorConfig(
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),

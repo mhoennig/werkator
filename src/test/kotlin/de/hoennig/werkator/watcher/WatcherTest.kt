@@ -21,6 +21,7 @@ import de.hoennig.werkator.config.TriggerConfig
 import de.hoennig.werkator.config.WatcherConfig
 import de.hoennig.werkator.config.WerkatorConfig
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -62,12 +63,11 @@ class WatcherTest : FunSpec() {
         val artifactStore = mockk<ArtifactStore>()
         val startedBuilds = CopyOnWriteArrayList<Pair<String, String>>()
         val configLoader = mockk<ConfigLoader>()
+        val repo = RepoContext("test", workingDir, repository, artifactStore)
         val watcher =
             Watcher(
                 gitService = gitService,
                 buildExecutor = buildExecutor,
-                repository = repository,
-                artifactStore = artifactStore,
                 configLoader = configLoader,
                 clock = Clock.fixed(noon, ZoneOffset.UTC),
             )
@@ -91,8 +91,8 @@ class WatcherTest : FunSpec() {
             every { gitService.fastForwardLocalBranches(any()) } returns emptyList()
             every { buildExecutor.currentBuilds() } returns emptyList()
             every { buildExecutor.startBuild(any(), any(), any(), any()) } answers {
-                val branch = firstArg<String>()
-                val commit = secondArg<String>()
+                val branch = secondArg<String>()
+                val commit = thirdArg<String>()
                 startedBuilds += branch to commit
                 runningBuild(branch, commit)
             }
@@ -159,7 +159,7 @@ class WatcherTest : FunSpec() {
             val harness = Harness()
             every { harness.gitService.fetchOrigin(any()) } throws RuntimeException("origin unreachable")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.watcher
                 .state()
@@ -170,7 +170,7 @@ class WatcherTest : FunSpec() {
             verify(exactly = 0) { harness.artifactStore.prune(any()) }
 
             every { harness.gitService.fetchOrigin(any()) } returns Unit
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.watcher
                 .state()
@@ -183,19 +183,19 @@ class WatcherTest : FunSpec() {
             val logged = captureWatcherLog()
             every { harness.gitService.fetchOrigin(any()) } throws RuntimeException("origin unreachable")
 
-            repeat(5) { harness.watcher.poll(harness.workingDir) }
+            repeat(5) { harness.watcher.poll(harness.repo) }
 
             // one wrong token used to write a warning every ten seconds, 297 of them in an hour
             logged().filter { it.contains("fetching origin failed") } shouldHaveSize 1
 
             every { harness.gitService.fetchOrigin(any()) } returns Unit
-            repeat(3) { harness.watcher.poll(harness.workingDir) }
+            repeat(3) { harness.watcher.poll(harness.repo) }
 
             logged().filter { it.contains("fetching origin succeeded again") } shouldHaveSize 1
 
             // a different failure is a different message and is worth saying again
             every { harness.gitService.fetchOrigin(any()) } throws RuntimeException("host is down")
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             logged().filter { it.contains("fetching origin failed") } shouldHaveSize 2
         }
@@ -209,7 +209,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
             every { harness.gitService.originHeadCommit("feature/new", any()) } returns "commit-feature"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly
                 listOf("main" to "commit-main", "feature/new" to "commit-feature")
@@ -223,7 +223,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
             every { harness.gitService.fastForwardLocalBranches(any()) } returns listOf("main")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             // syncing the ref before the decision would hide the very commit being enqueued here
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-main")
@@ -238,7 +238,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.fastForwardLocalBranches(any()) } throws RuntimeException("ref locked")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.watcher
                 .state()
@@ -251,7 +251,7 @@ class WatcherTest : FunSpec() {
             val harness = Harness(WerkatorConfig(watcher = WatcherConfig(fastForwardLocalRefs = false)))
             every { harness.gitService.originBranches(any()) } returns listOf("main")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             verify(exactly = 0) { harness.gitService.fastForwardLocalBranches(any()) }
         }
@@ -264,7 +264,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.hasNewCommits("main", any()) } returns true
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-new"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds.shouldBeEmpty()
         }
@@ -280,7 +280,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-2"
             every { harness.gitService.originHeadCommit("feature/other", any()) } returns "commit-3"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("feature/other" to "commit-3")
             harness.watcher.state().queuedBranches shouldContainExactly listOf("main")
@@ -294,11 +294,11 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.hasNewCommits("main", any()) } returns true
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
             harness.startedBuilds.shouldBeEmpty()
 
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-def"
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-def")
         }
@@ -306,7 +306,7 @@ class WatcherTest : FunSpec() {
         test("poll filters new origin branches by the configured newBranchMaxAge") {
             val harness = Harness(WerkatorConfig(watcher = WatcherConfig(newBranchMaxAge = "12h")))
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             verify { harness.gitService.newOriginBranches(Duration.ofHours(12), any()) }
         }
@@ -319,7 +319,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("feature/no-pr", any()) } returns "commit-solo"
             every { harness.gitService.pullRequestHeads(any()) } returns setOf("commit-pr")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("feature/pr" to "commit-pr")
         }
@@ -330,7 +330,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.newOriginBranches(any(), any()) } returns listOf("feature/x")
             every { harness.gitService.originHeadCommit("feature/x", any()) } returns "commit-x"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("feature/x" to "commit-x")
             verify(exactly = 0) { harness.gitService.pullRequestHeads(any()) }
@@ -348,7 +348,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.newOriginBranches(any(), any()) } returns listOf("feature/no-pr")
             every { harness.gitService.originHeadCommit("feature/no-pr", any()) } returns "commit-solo"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("feature/no-pr" to "commit-solo")
             verify(exactly = 0) { harness.gitService.pullRequestHeads(any()) }
@@ -370,7 +370,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.hasNewCommits("main", any()) } returns true
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-main")
         }
@@ -394,7 +394,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds.shouldBeEmpty()
             harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeFalse()
@@ -406,12 +406,12 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
 
-            harness.watcher.poll(harness.workingDir)
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-abc")
             // the deprecated branch schedule rebuilds the branch's own pool with the default build
-            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-abc", BuildDefinition.DEFAULT) }
             harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
         }
 
@@ -434,13 +434,13 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
             every { harness.gitService.originHeadCommit("release/1.x", any()) } returns "commit-rel"
 
-            harness.watcher.poll(harness.workingDir)
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
+            harness.watcher.poll(harness.repo)
 
             // glob selector: main and release/1.x fire once, feature/x is not selected
             harness.startedBuilds shouldContainExactlyInAnyOrder
                 listOf("main" to "commit-abc", "release/1.x" to "commit-rel")
-            verify { harness.buildExecutor.startBuild("main", "commit-abc", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-abc", "pitest") }
             harness.autoBuildState().isTriggered("main@pitest", LocalDate.parse("2026-07-07"), "11:00").shouldBeTrue()
         }
 
@@ -460,10 +460,10 @@ class WatcherTest : FunSpec() {
                     "dormant" to noon.minus(Duration.ofDays(10)),
                 )
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("active" to "commit-act")
-            verify { harness.buildExecutor.startBuild("active", "commit-act", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "active", "commit-act", "pitest") }
         }
 
         test("an onPush build definition builds the changed branches it selects") {
@@ -480,13 +480,13 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
             every { harness.gitService.originHeadCommit("feature/x", any()) } returns "commit-feat"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             // the implicit default build covers both branches; lint only selects main
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
-            verify { harness.buildExecutor.startBuild("feature/x", "commit-feat", any(), BuildDefinition.DEFAULT) }
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), "lint") }
-            verify(exactly = 0) { harness.buildExecutor.startBuild("feature/x", "commit-feat", any(), "lint") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "feature/x", "commit-feat", BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", "lint") }
+            verify(exactly = 0) { harness.buildExecutor.startBuild(harness.repo, "feature/x", "commit-feat", "lint") }
         }
 
         test("builds.default with onPush false disables the implicit on-push build") {
@@ -497,7 +497,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.hasNewCommits("main", any()) } returns true
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds.shouldBeEmpty()
         }
@@ -509,9 +509,9 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.hasNewCommits("main", any()) } returns true
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", BuildDefinition.DEFAULT) }
         }
 
         test("a build definition committed on a branch fires for that branch, without any entry in the primary config") {
@@ -528,10 +528,10 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("experiment", any()) } returns "commit-exp"
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("experiment" to "commit-exp")
-            verify { harness.buildExecutor.startBuild("experiment", "commit-exp", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "experiment", "commit-exp", "pitest") }
             harness
                 .autoBuildState()
                 .isTriggered("experiment@pitest", LocalDate.parse("2026-07-07"), "11:00")
@@ -550,7 +550,7 @@ class WatcherTest : FunSpec() {
             every { harness.configLoader.loadWithBranchLayer(any(), "branch-yaml") } returns branchLayer
             every { harness.gitService.originHeadCommit("experiment", any()) } returns "commit-exp"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("experiment" to "commit-exp")
         }
@@ -569,7 +569,7 @@ class WatcherTest : FunSpec() {
             every { harness.configLoader.loadWithBranchLayer(any(), "branch-yaml") } returns branchLayer
             every { harness.gitService.originHeadCommit(any(), any()) } returns "commit-any"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             // the definition selects main, but it is only known on experiment — so nothing is built
             harness.startedBuilds.shouldBeEmpty()
@@ -580,12 +580,12 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.originBranchHeads(any()) } returns mapOf("main" to "commit-1")
 
-            harness.watcher.poll(harness.workingDir)
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
+            harness.watcher.poll(harness.repo)
             verify(exactly = 1) { harness.gitService.showFileAtCommit("commit-1", Watcher.CONFIG_FILE, any()) }
 
             every { harness.gitService.originBranchHeads(any()) } returns mapOf("main" to "commit-2")
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             verify(exactly = 1) { harness.gitService.showFileAtCommit("commit-2", Watcher.CONFIG_FILE, any()) }
         }
@@ -596,7 +596,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originBranchHeads(any()) } returns mapOf("main" to "commit-1")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-1"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
             harness.startedBuilds.shouldBeEmpty()
 
             // the machine config gains a scheduled build while the branch stays where it is:
@@ -608,9 +608,9 @@ class WatcherTest : FunSpec() {
             every { harness.configLoader.load(any()) } returns edited
             every { harness.configLoader.loadWithBranchLayer(any(), anyNullable()) } returns edited
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
-            verify { harness.buildExecutor.startBuild("main", "commit-1", any(), "nightly") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-1", "nightly") }
         }
 
         test("an unreadable branch config falls back to the primary definitions instead of failing the poll") {
@@ -624,13 +624,13 @@ class WatcherTest : FunSpec() {
                 RuntimeException("mapping problem")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-main"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.watcher
                 .state()
                 .lastPollError
                 .shouldBeNull()
-            verify { harness.buildExecutor.startBuild("main", "commit-main", any(), BuildDefinition.DEFAULT) }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-main", BuildDefinition.DEFAULT) }
         }
 
         test("an auto-build slot stays untriggered while the branch is still building") {
@@ -639,7 +639,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originBranches(any()) } returns listOf("main")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-abc"
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.startedBuilds.shouldBeEmpty()
             harness.autoBuildState().isTriggered("main", LocalDate.parse("2026-07-07"), "11:00").shouldBeFalse()
@@ -655,7 +655,7 @@ class WatcherTest : FunSpec() {
             every { harness.gitService.originHeadCommit("feature/a", any()) } returns "commit-2"
             every { harness.gitService.originHeadCommit("queued", any()) } returns "commit-3"
 
-            harness.watcher.recoverOnStartup(harness.workingDir)
+            harness.watcher.recoverOnStartup(harness.repo)
 
             harness.startedBuilds shouldContainExactlyInAnyOrder
                 listOf("main" to "commit-1", "feature/a" to "commit-2", "queued" to "commit-3")
@@ -671,7 +671,7 @@ class WatcherTest : FunSpec() {
             harness.seed("main", BuildStatus.INTERRUPTED, commit = "commit-2")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-2"
 
-            harness.watcher.recoverOnStartup(harness.workingDir)
+            harness.watcher.recoverOnStartup(harness.repo)
 
             harness.startedBuilds shouldContainExactly listOf("main" to "commit-2")
         }
@@ -681,17 +681,17 @@ class WatcherTest : FunSpec() {
             harness.seed("main", BuildStatus.INTERRUPTED, commit = "commit-1", build = "pitest")
             every { harness.gitService.originHeadCommit("main", any()) } returns "commit-1"
 
-            harness.watcher.recoverOnStartup(harness.workingDir)
+            harness.watcher.recoverOnStartup(harness.repo)
 
             // otherwise a restart mid-nightly-build would repeat it as a regular build in the wrong pool
-            verify { harness.buildExecutor.startBuild("main", "commit-1", any(), "pitest") }
+            verify { harness.buildExecutor.startBuild(harness.repo, "main", "commit-1", "pitest") }
         }
 
         test("startup recovery closes out an orphaned PENDING build of a branch gone from origin") {
             val harness = Harness()
             val orphan = harness.seed("gone", BuildStatus.PENDING, commit = "commit-1")
 
-            harness.watcher.recoverOnStartup(harness.workingDir)
+            harness.watcher.recoverOnStartup(harness.repo)
 
             // PENDING is prune-immune; left as-is, the gone branch could never be pruned
             harness.startedBuilds.shouldBeEmpty()
@@ -709,7 +709,7 @@ class WatcherTest : FunSpec() {
             val removedWorktree = harness.worktreeDir("gone")
             every { harness.gitService.originBranches(any()) } returns listOf("main")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.repository.history().map { it.branch } shouldContainExactly listOf("main")
             verify {
@@ -728,7 +728,7 @@ class WatcherTest : FunSpec() {
             keeping.seed("main", BuildStatus.FAILED, commit = "commit-2")
             every { keeping.gitService.originBranches(any()) } returns listOf("main")
 
-            keeping.watcher.poll(keeping.workingDir)
+            keeping.watcher.poll(keeping.repo)
 
             keeping.repository.history().map { it.status } shouldContainExactly
                 listOf(BuildStatus.FAILED, BuildStatus.SUCCESS)
@@ -739,7 +739,7 @@ class WatcherTest : FunSpec() {
             dropping.seed("main", BuildStatus.FAILED, commit = "commit-2")
             every { dropping.gitService.originBranches(any()) } returns listOf("main")
 
-            dropping.watcher.poll(dropping.workingDir)
+            dropping.watcher.poll(dropping.repo)
 
             dropping.repository.history().map { it.status } shouldContainExactly listOf(BuildStatus.FAILED)
         }
@@ -751,7 +751,7 @@ class WatcherTest : FunSpec() {
             harness.seed("main", BuildStatus.FAILED, commit = "commit-2")
             every { harness.gitService.originBranches(any()) } returns listOf("main")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             harness.repository.history().map { it.commit } shouldContainExactly listOf("commit-2")
         }
@@ -762,7 +762,7 @@ class WatcherTest : FunSpec() {
             val busyWorktree = harness.worktreeDir("busy")
             every { harness.gitService.originBranches(any()) } returns listOf("busy")
 
-            harness.watcher.poll(harness.workingDir)
+            harness.watcher.poll(harness.repo)
 
             Files.exists(busyWorktree).shouldBeTrue()
         }
@@ -772,14 +772,14 @@ class WatcherTest : FunSpec() {
             val fetches = CountDownLatch(2)
             every { harness.gitService.fetchOrigin(any()) } answers { fetches.countDown() }
 
-            harness.watcher.start(harness.workingDir)
+            harness.watcher.start(harness.repo)
 
             fetches.await(5, TimeUnit.SECONDS).shouldBeTrue()
             harness.watcher
                 .state()
                 .running
                 .shouldBeTrue()
-            shouldThrow<IllegalStateException> { harness.watcher.start(harness.workingDir) }
+            shouldThrow<IllegalStateException> { harness.watcher.start(harness.repo) }
 
             harness.watcher.stop()
 

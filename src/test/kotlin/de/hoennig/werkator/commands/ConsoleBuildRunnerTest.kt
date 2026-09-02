@@ -6,6 +6,7 @@ import de.hoennig.werkator.build.BuildResult
 import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.build.RunningBuild
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -23,9 +24,10 @@ class ConsoleBuildRunnerTest : FunSpec() {
     private val artifactStore = mockk<ArtifactStore>()
 
     private lateinit var tempDir: Path
+    private lateinit var repo: RepoContext
 
     private fun runner() =
-        ConsoleBuildRunner(buildExecutor, repository, artifactStore).apply {
+        ConsoleBuildRunner(buildExecutor).apply {
             pollIntervalMillis = 1
             persistTimeoutMillis = 100
         }
@@ -56,6 +58,7 @@ class ConsoleBuildRunnerTest : FunSpec() {
         beforeEach {
             clearMocks(buildExecutor, repository, artifactStore)
             tempDir = Files.createTempDirectory("werkator-console-build-test")
+            repo = RepoContext("test", tempDir, repository, artifactStore)
         }
 
         afterEach {
@@ -66,7 +69,7 @@ class ConsoleBuildRunnerTest : FunSpec() {
             val stagingDir = Files.createDirectory(tempDir.resolve("staging"))
             val build = runningBuild(stagingDir)
             Files.writeString(build.liveLogFile, "compiling ...\ntests green\n")
-            every { buildExecutor.startBuild("main", "0123456789abcdef", tempDir) } returns build
+            every { buildExecutor.startBuild(repo, "main", "0123456789abcdef") } returns build
             // the terminal status arrives together with the finished persist (staging gone)
             every { repository.history() } answers {
                 stagingDir.toFile().deleteRecursively()
@@ -75,7 +78,7 @@ class ConsoleBuildRunnerTest : FunSpec() {
             every { artifactStore.artifactDir("main-key") } returns null
 
             var status: BuildStatus? = null
-            val console = captureConsole { status = runner().buildAndStream("main", "0123456789abcdef", tempDir) }
+            val console = captureConsole { status = runner().buildAndStream(repo, "main", "0123456789abcdef") }
 
             status shouldBe BuildStatus.SUCCESS
             console.stdout shouldContain "compiling ...\ntests green\n"
@@ -87,12 +90,12 @@ class ConsoleBuildRunnerTest : FunSpec() {
             val build = runningBuild(stagingDir)
             val persistedDir = Files.createDirectory(tempDir.resolve("persisted"))
             Files.writeString(persistedDir.resolve(BuildExecutor.LIVE_LOG_FILE), "full build output\n")
-            every { buildExecutor.startBuild("main", "0123456789abcdef", tempDir) } returns build
+            every { buildExecutor.startBuild(repo, "main", "0123456789abcdef") } returns build
             every { repository.history() } returns listOf(result(BuildStatus.FAILED))
             every { artifactStore.artifactDir("main-key") } returns persistedDir
 
             var status: BuildStatus? = null
-            val console = captureConsole { status = runner().buildAndStream("main", "0123456789abcdef", tempDir) }
+            val console = captureConsole { status = runner().buildAndStream(repo, "main", "0123456789abcdef") }
 
             status shouldBe BuildStatus.FAILED
             console.stdout shouldContain "full build output"
@@ -103,11 +106,11 @@ class ConsoleBuildRunnerTest : FunSpec() {
             val stagingDir = Files.createDirectory(tempDir.resolve("staging"))
             val build = runningBuild(stagingDir)
             Files.writeString(build.liveLogFile, "some output\n")
-            every { buildExecutor.startBuild("main", "0123456789abcdef", tempDir) } returns build
+            every { buildExecutor.startBuild(repo, "main", "0123456789abcdef") } returns build
             every { repository.history() } returns listOf(result(BuildStatus.SUCCESS, duration = null))
 
             var status: BuildStatus? = null
-            val console = captureConsole { status = runner().buildAndStream("main", "0123456789abcdef", tempDir) }
+            val console = captureConsole { status = runner().buildAndStream(repo, "main", "0123456789abcdef") }
 
             status shouldBe BuildStatus.SUCCESS
             console.stdout shouldContain "some output"
