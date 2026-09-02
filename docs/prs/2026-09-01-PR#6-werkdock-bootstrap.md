@@ -27,7 +27,7 @@ Getting there surfaced and fixed three real defects: the rootfs archive silently
 - The contract is filesystem isolation only: network, uid mapping target, `/proc`, `/dev`, `/tmp` come from the host.
 - RFC 0001 decided Go (stdlib-only, one static binary); RFC 0002 decided the docker-compatible surface.
 
-#### Scenario#000.01: A command runs inside the sandbox as root with a clean environment
+#### Scenario#6.01: A command runs inside the sandbox as root with a clean environment
 
 So that builds are reproducible and docker knowledge transfers.
 
@@ -43,7 +43,7 @@ So that builds are reproducible and docker knowledge transfers.
 - [TestRunInsideRealSandbox](../../werkdock/internal/engine/bwrap_test.go) (gated: skips without bwrap/userns)
 - [TestRunPassesTheExitCodeThrough](../../werkdock/internal/engine/bwrap_test.go)
 
-#### Scenario#000.02: Docker flags whose promise cannot be kept are refused loudly
+#### Scenario#6.02: Docker flags whose promise cannot be kept are refused loudly
 
 So that a docker user is never silently under-isolated.
 
@@ -57,7 +57,7 @@ So that a docker user is never silently under-isolated.
 - [TestParseRunRefusesDockerFlagsLoudly](../../werkdock/internal/cli/run_test.go)
 - [TestParseRunRequiresRmForNow](../../werkdock/internal/cli/run_test.go)
 
-#### Scenario#000.03: Images load atomically and mountpoints are pre-created
+#### Scenario#6.03: Images load atomically and mountpoints are pre-created
 
 So that a failed load leaves no half image and bind targets missing from a read-only rootfs cannot fail the run.
 
@@ -72,7 +72,7 @@ So that a failed load leaves no half image and bind targets missing from a read-
 - [TestLoadUnpacksArchiveIntoTheStore, TestLoadLeavesNoHalfImageOnFailure](../../werkdock/internal/store/store_test.go)
 - [TestEnsureMountpointsCreatesMissingAndSkipsExisting, TestEnsureMountpointsRefusesEscapingDestinations](../../werkdock/internal/engine/bwrap_test.go)
 
-#### Scenario#000.04: `werkdock doctor` decides whether a host can run sandboxes
+#### Scenario#6.04: `werkdock doctor` decides whether a host can run sandboxes
 
 So that a broken host fails loudly before the first build, in the PASS/FAIL format of the prerequisites script it ports.
 
@@ -87,7 +87,7 @@ So that a broken host fails loudly before the first build, in the PASS/FAIL form
 
 ### Feature: Werkdock builds itself on the webspace
 
-#### Scenario#000.05: The `werkdock` build definition compiles the Go module in the sandbox
+#### Scenario#6.05: The `werkdock` build definition compiles the Go module in the sandbox
 
 So that "Werkdock builds itself" is CI reality while it lives in this repository.
 
@@ -100,7 +100,7 @@ So that "Werkdock builds itself" is CI reality while it lives in this repository
 
 - live run on mih34 (config change; the definition mechanics are covered by the existing build-definition tests)
 
-#### Scenario#000.06: The rootfs archive contains everything its packages installed
+#### Scenario#6.06: The rootfs archive contains everything its packages installed
 
 So that a directory of the Go stdlib named `sys` is never again silently missing (seen live: "package internal/runtime/sys is not in std").
 
@@ -110,9 +110,9 @@ So that a directory of the Go stdlib named `sys` is never again silently missing
 
 ##### Verified by
 
-- live rebuild + archive listing (script change; asserted by the green go build in Scenario#000.05)
+- live rebuild + archive listing (script change; asserted by the green go build in Scenario#6.05)
 
-#### Scenario#000.07: The sandbox resets TMPDIR to its own /tmp
+#### Scenario#6.07: The sandbox resets TMPDIR to its own /tmp
 
 So that hosts with pam_tmpdir (`TMPDIR=/tmp/user/<uid>`) cannot break tools honoring TMPDIR inside the sandbox.
 
@@ -126,7 +126,7 @@ So that hosts with pam_tmpdir (`TMPDIR=/tmp/user/<uid>`) cannot break tools hono
 
 ### Feature: honest artifact paths
 
-#### Scenario#000.08: Non-report artifact directories keep their own paths and appear on the artifact page
+#### Scenario#6.08: Non-report artifact directories keep their own paths and appear on the artifact page
 
 So that a built binary is neither mislabeled below `reports/` nor invisible.
 
@@ -168,6 +168,6 @@ The build image grew into one fat trixie rootfs (JDK 21 headless + Go + Node/npm
 
 ## Follow-up PRs
 
-- Session C: `BwrapBuildRunner` delegates to the `werkdock` CLI.
-- Session D: the webspace install path replaces the self-build prototype in `tools/remote`, untangling the builder-vs-built roles.
-- Multi-repository support for one Werkator instance (step 22, planned on branch `22-multi-repo`).
+- PR #7: session C (`BwrapBuildRunner` delegates to the `werkdock` CLI) and session D (the webspace install path replaces the self-build prototype in `tools/remote`).
+- PR #8/#9: `tools/remote` and `werkator init` stop duplicating each other's configuration writing.
+- PR #10: multi-repository support for one Werkator instance (step 22).
