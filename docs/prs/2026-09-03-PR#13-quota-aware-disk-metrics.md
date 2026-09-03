@@ -31,16 +31,19 @@ The system page should show the same truth, continuously.
 
 ## The Scenarios
 
-### Feature: the disk metric is the quota when a quota binds
+### Feature: the disk metric is the tightest budget — user quota, group quota, or the volume
 
 #### Background
 
 - `quota(1)` prints one block per subject (`-u` the user, `-g` its groups), each with one line per filesystem: `blocks` (1 KiB units, currently used), `quota` (soft limit), `limit` (hard limit), grace, then the same four for files.
   A subject without quota prints `… : none`.
   A `*` after `blocks` marks "over the soft limit".
-- The **binding quota** of a directory is, among the user and group lines of the directory's filesystem, the one with the smallest headroom (`soft − blocks`, its total minus its usage).
-- The **total** the page reports is the binding quota's **soft** limit, the hard limit is shown alongside (see Open Questions for the choice).
-- Where no quota line matches the directory's filesystem, the file-store numbers apply unchanged — Docker hosts and developer machines render exactly as today.
+- Three **candidates** can limit what a directory may still take: the user quota, the group quota (each the lines of the directory's filesystem) and the volume itself (the file store, `df` semantics).
+  Each has a headroom: `soft − blocks` for a quota, the usable space for the volume.
+- The **binding candidate** is the one with the smallest headroom; its numbers are the disk metric — total, used and free come from one source, never mixed.
+  On `mih09` today that is the group quota (6.96 GiB left against 33.86 GiB on the volume); a user quota, once the webspace introduces one, joins the comparison without any change.
+- For a quota the **total** is its **soft** limit, the hard limit is shown alongside (see Open Questions for the choice).
+- Where no quota line matches the directory's filesystem, the volume is the only candidate — Docker hosts and developer machines render exactly as today.
 - The directory is the first served repository's, as for the file-store metric today.
 
 #### Scenario#13.01: A group quota replaces the volume numbers
@@ -58,18 +61,20 @@ So that the operator of a Managed Webspace sees the budget the package can fill,
 - [SystemMetricsCollectorTest — "a group quota on the repository's filesystem replaces the file-store disk numbers"](../../src/test/kotlin/de/hoennig/werkator/metrics/SystemMetricsCollectorTest.kt) (planned)
 - [DiskQuotaTest — "the mih09 output parses into one group line per filesystem and no user line"](../../src/test/kotlin/de/hoennig/werkator/metrics/DiskQuotaTest.kt) (planned, fixture: the attachment below)
 
-#### Scenario#13.02: The binding quota is the tighter one of user and group
+#### Scenario#13.02: The tightest of user quota, group quota and volume binds
 
-So that a user quota below the group's (or the other way round) never hides the limit that fails first.
+So that neither a user quota below the group's, nor a nearly full host volume below both, is hidden by the wider budgets.
 
 - **Given** a user quota with 2 GiB headroom and a group quota with 7 GiB headroom on the same filesystem
+  - **and** the volume has 34 GiB usable
 - **When** a sample is taken
 - **Then** the user quota binds: its soft limit is the total, its blocks the used value
-  - **and** with the user quota reporting `none`, the group quota binds.
+  - **and** with the user quota reporting `none`, the group quota binds
+  - **and** with the volume down to 1 GiB usable, the volume binds and the metric shows the file-store numbers, quotas or not.
 
 ##### Verified by
 
-- [DiskQuotaTest — "among user and group quotas of one filesystem the smallest headroom binds"](../../src/test/kotlin/de/hoennig/werkator/metrics/DiskQuotaTest.kt) (planned)
+- [DiskQuotaTest — "among user quota, group quota and volume the smallest headroom binds"](../../src/test/kotlin/de/hoennig/werkator/metrics/DiskQuotaTest.kt) (planned)
 
 #### Scenario#13.03: Only the quota of the repository's filesystem counts
 
@@ -85,19 +90,19 @@ So that a full quota on another volume (on `mih09`: `/dev/sdb1`) does not shrink
 
 - [DiskQuotaTest — "only the lines of the directory's file store are considered, matched exactly or by device name"](../../src/test/kotlin/de/hoennig/werkator/metrics/DiskQuotaTest.kt) (planned)
 
-#### Scenario#13.04: Without a binding quota the file store stays the source
+#### Scenario#13.04: Without a quota the volume stays the source
 
 So that hosts without quota tooling, without a quota, or with an unreadable `quota` output render exactly as before.
 
 - **Given** `quota` is absent, fails, prints `none` for user and group, or prints only other filesystems
 - **When** a sample is taken
 - **Then** `diskTotalGib`, `diskUsedGib` and `diskFreeGib` are the file-store values
-  - **and** the snapshot carries no quota name
+  - **and** the snapshot names the volume as the source and no quota
   - **and** an absent or failing `quota` is logged once, not every 60 s, like every other source.
 
 ##### Verified by
 
-- [SystemMetricsCollectorTest — "without a binding quota the file store stays the disk source"](../../src/test/kotlin/de/hoennig/werkator/metrics/SystemMetricsCollectorTest.kt) (planned)
+- [SystemMetricsCollectorTest — "without a quota the volume stays the disk source"](../../src/test/kotlin/de/hoennig/werkator/metrics/SystemMetricsCollectorTest.kt) (planned)
 - [SystemMetricsCollectorTest — "unreadable sources degrade to null metrics, never fail the sample"](../../src/test/kotlin/de/hoennig/werkator/metrics/SystemMetricsCollectorTest.kt) (existing, extended by the quota source)
 
 #### Scenario#13.05: A changed disk source restarts the disk series
@@ -121,12 +126,14 @@ So that `Disk total: 8.00 GiB` on a 71 GiB host is not mistaken for a broken met
 - **Given** a snapshot with a binding group quota
 - **When** the system page renders or polls
 - **Then** the info line reads `Disk total: 8.00 GiB (group quota mih09, hard limit 12.00 GiB)`
-  - **and** without a quota it reads `Disk total: 70.99 GiB` as today
+  - **and** with a binding user quota `Disk total: 4.00 GiB (user quota mih09-werkator, hard limit 6.00 GiB)`
+  - **and** with the volume binding although quotas exist `Disk total: 70.99 GiB (volume, tighter than the quotas)`
+  - **and** without any quota it reads `Disk total: 70.99 GiB` as today
   - **and** the server-rendered line and the polled line are identical.
 
 ##### Verified by
 
-- [UiViewsTest — "the disk total names the binding quota and its hard limit"](../../src/test/kotlin/de/hoennig/werkator/server/UiViewsTest.kt) (planned)
+- [UiViewsTest — "the disk total names the binding source: user quota, group quota, or the volume"](../../src/test/kotlin/de/hoennig/werkator/server/UiViewsTest.kt) (planned)
 - `werkator.js` mirrors `UiFormats.diskTotal` (manual: the polled line must equal the rendered one after the first refresh)
 
 #### Scenario#13.07: The highlighting follows the quota
@@ -152,20 +159,21 @@ Linux exposes quotas only through the `quotactl` syscall, which Java cannot reac
 The exit status is not read as a failure signal — `quota` also uses it to say "over quota" — only the parsed output counts; an absent binary or an empty output means "no quota", never a failed sample.
 This is the same decision `werkdock doctor` took in Go; the two parsers stay separate because the tools are different binaries in different languages, but the fixture is the same real output.
 
-**Choose the binding line in a pure function.**
-`DiskQuota` (new, package `de.hoennig.werkator.metrics`) parses the output into lines `{kind user|group, subject, filesystem, blocksKib, softKib, hardKib}` and picks the binding one for a directory: lines of the directory's file store (`Files.getFileStore(dir).name()` is the mount's device string, the same string `quota` prints; a resolved device path is matched by its last segment as `werkdock` does), then the smallest `soft − blocks` among them.
-A line whose soft limit is 0 (unset) uses the hard limit as total; a line with both 0 is no quota.
-`total = soft`, `used = blocks`, `free = max(0, total − blocks)`, all in KiB and converted to GiB like the file-store numbers.
-The function is pure over strings, so the whole matrix — user only, group only, both, none, two filesystems, `*` marker, `none` line — is a Kotest table.
+**Choose the binding candidate in a pure function.**
+`DiskQuota` (new, package `de.hoennig.werkator.metrics`) parses the output into lines `{kind user|group, subject, filesystem, blocksKib, softKib, hardKib}` and keeps the lines of the directory's file store (`Files.getFileStore(dir).name()` is the mount's device string, the same string `quota` prints; a resolved device path is matched by its last segment as `werkdock` does).
+Each remaining line becomes a candidate `DiskSpace` with `total = soft`, `used = blocks`, `free = max(0, total − blocks)`; a line whose soft limit is 0 (unset) uses the hard limit as total, a line with both 0 is no candidate.
+The volume's `fileStoreDiskSpace(dir)` is the last candidate, and `bindingDiskSpace(candidates)` returns the one with the smallest `free` — the tightest budget wins, and total, used and free always come from that one source.
+All of it is pure over strings and numbers, so the whole matrix — user only, group only, both, none, volume tighter than the quotas, two filesystems, `*` marker, `none` line — is a Kotest table.
 
 **The collector gets one more injectable source.**
-`SystemMetricsCollector` gains `quotaOutput: () -> String?` next to `diskSpace` (the process call with a 5 s timeout in production, a string in tests); `readDisk()` asks the quota first and falls back to `fileStoreDiskSpace` when nothing binds.
-`DiskSpace` gains a nullable `quota: DiskQuotaInfo` (`kind`, `subject`, `filesystem`, `softLimitGib`, `hardLimitGib`), carried into `SystemMetrics.diskQuota` — an additive JSON field, the three existing disk fields keep their names.
-The persisted state gains `diskSource` (`"filestore"` or `"quota:<kind>:<subject>:<filesystem>"`); a mismatch drops the two disk series before the sample is recorded (Scenario#13.05).
+`SystemMetricsCollector` gains `quotaOutput: () -> String?` next to `diskSpace` (the process call with a 5 s timeout in production, a string in tests); `readDisk()` collects the quota candidates plus the file store and takes the binding one — a failing `quota` simply leaves the volume as the only candidate.
+`DiskSpace` gains a `source: DiskSource` (`kind` `volume|user|group`, `subject`, `filesystem`, and for a quota `softLimitGib`/`hardLimitGib`), carried into `SystemMetrics.diskSource` — an additive JSON field, the three existing disk fields keep their names; `quotasPresent: Boolean` says whether a quota lost against the volume, for the info line.
+The persisted state gains `diskSource` (`"volume"` or `"quota:<kind>:<subject>:<filesystem>"`); a mismatch drops the two disk series before the sample is recorded (Scenario#13.05).
+That reset also fires when the binding candidate switches at runtime, e.g. from the group quota to a newly introduced user quota — the series then describe one budget at a time.
 The quota is read every sample: it is one syscall behind a small process, cheaper than the repo-size walk, and a raised quota should show within a minute.
 
 **The page names the budget.**
-`UiFormats.diskTotal(metrics)` formats `8.00 GiB (group quota mih09, hard limit 12.00 GiB)` or the plain total; `werkator.js` gets the identical function for the poll — the UI invariant that server-rendered and polled output match.
+`UiFormats.diskTotal(metrics)` formats `8.00 GiB (group quota mih09, hard limit 12.00 GiB)`, `… (user quota …)`, `70.99 GiB (volume, tighter than the quotas)` or the plain total when no quota exists; `werkator.js` gets the identical function for the poll — the UI invariant that server-rendered and polled output match.
 Rows, labels and the highlighting stay as they are: `utilizationClass(used, total)` simply receives the quota as the total.
 
 **Where it is verified live.**
@@ -177,7 +185,7 @@ The first sample after the update restarts the disk min/max/avg, visible as `Max
 
 1. `DiskQuota` parser and selection with the table test and the `mih09` fixture.
 2. `SystemMetricsCollector`: the quota source, the fallback, `diskSource` in the state, the series reset.
-3. `SystemMetrics.diskQuota`, `UiFormats.diskTotal`, `SystemMetricsView`, `werkator.js`, `UiViewsTest`.
+3. `SystemMetrics.diskSource`, `UiFormats.diskTotal`, `SystemMetricsView`, `werkator.js`, `UiViewsTest`.
 4. Docs: the metrics paragraph of the architecture skill, one sentence in `docs/deployment.md` (Hostsharing section) and in `docs/plan/09-system-metrics.md` (implementation note), and this PR-doc's "Verified by" links turned from planned into real.
 5. Deploy to `mih09` via `tools/remote --env-file .env.mih09 werkator instance-update`, check the page and the journal for the one-time source log line.
 
@@ -186,8 +194,9 @@ The first sample after the update restarts the disk min/max/avg, visible as `Max
 - **Soft or hard limit as the total?** Planned: the soft limit, with the hard limit in the info line.
   Beyond the soft limit the grace period starts and writes fail once it expires, so for a service that runs for weeks the soft limit is the effective one; and a page that turns critical *before* the hard stop is the point of the highlighting.
   The reviewer may prefer the hard limit as the total and the soft limit as the warn threshold instead — that would need a third highlighting rule, hence not planned.
+- **The volume as a candidate — decided.** The owner asked for the smallest of user quota, group quota and free disk space, so the volume competes on equal terms instead of being only the fallback; that is what Scenario#13.02 and `bindingDiskSpace` describe.
 - **A configuration switch?** Planned: none.
-  The quota is detected and falls back to the file store; a key `metrics.disk: quota|filestore` would be a fourth place to keep in sync (`WerkatorConfig`, `init` templates, `docs/configuration.md`) for a choice nobody is expected to make.
+  The quota is detected and the volume is always a candidate; a key `metrics.disk: quota|filestore` would be a fourth place to keep in sync (`WerkatorConfig`, `init` templates, `docs/configuration.md`) for a choice nobody is expected to make.
 - **Which directory's filesystem?** Planned: the first served repository's, as today.
   The artifact root and the worktrees live under it by default; an artifact root on another volume would need its own line — noted as a follow-up.
 
