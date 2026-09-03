@@ -599,6 +599,20 @@ function initCurrentBuilds() {
 /** The total each utilization metric is compared against for the critical highlighting. */
 const UTILIZATION_TOTALS = { cpuUsed: "cpuCount", ramUsedGib: "ramTotalGib", diskUsedGib: "diskTotalGib" };
 
+/** Mirrors UiFormats.diskTotal exactly, since both render the same field from GET /api/system. */
+function formatDiskTotal(metrics) {
+    if (metrics.diskTotalGib == null) {
+        return "n/a";
+    }
+    const totalText = formatMetric(metrics.diskTotalGib) + " GiB";
+    const source = metrics.diskSource;
+    if (!source || source.kind === "volume") {
+        return metrics.quotasPresent ? totalText + " (volume, tighter than the quotas)" : totalText;
+    }
+    const hardLimit = formatMetric(source.hardLimitGib);
+    return totalText + " (" + source.kind + " quota " + source.subject + ", hard limit " + hardLimit + " GiB)";
+}
+
 /** Same thresholds as UiFormats.utilizationClass: warn from 80% of the total, critical from 90%. */
 function utilizationClass(used, total) {
     if (used == null || total == null || !(total > 0)) {
@@ -647,7 +661,7 @@ function initSystemTable() {
         });
         setText("info-cpu-count", metrics.cpuCount != null ? metrics.cpuCount + " cores" : "n/a");
         setText("info-ram-total", metrics.ramTotalGib != null ? formatMetric(metrics.ramTotalGib) + " GiB" : "n/a");
-        setText("info-disk-total", metrics.diskTotalGib != null ? formatMetric(metrics.diskTotalGib) + " GiB" : "n/a");
+        setText("info-disk-total", formatDiskTotal(metrics));
         setText("info-updated", formatTimeOfDay(metrics.timestamp));
     }
 

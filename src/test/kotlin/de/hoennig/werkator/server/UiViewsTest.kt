@@ -1,12 +1,34 @@
 package de.hoennig.werkator.server
 
 import de.hoennig.werkator.config.GiteaConfig
+import de.hoennig.werkator.metrics.DiskSource
 import de.hoennig.werkator.metrics.MetricAggregate
 import de.hoennig.werkator.metrics.SystemMetrics
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import java.time.Duration
 import java.time.Instant
+
+private fun metricsWithDisk(
+    diskTotalGib: Double,
+    diskSource: DiskSource? = null,
+    quotasPresent: Boolean = false,
+) = SystemMetrics(
+    timestamp = Instant.parse("2026-09-03T12:00:00Z"),
+    sampleCount = 1,
+    cpuCount = 4,
+    ramTotalGib = 8.0,
+    diskTotalGib = diskTotalGib,
+    diskSource = diskSource,
+    quotasPresent = quotasPresent,
+    cpuUsed = null,
+    cpuIdle = null,
+    ramUsedGib = null,
+    ramFreeGib = null,
+    diskUsedGib = null,
+    diskFreeGib = null,
+    repoSizeGib = null,
+)
 
 class UiViewsTest : FunSpec() {
     init {
@@ -69,6 +91,36 @@ class UiViewsTest : FunSpec() {
             classesByKey["ramFreeGib"] shouldBe ""
             classesByKey["diskFreeGib"] shouldBe ""
             classesByKey["repoSizeGib"] shouldBe ""
+        }
+
+        test("the disk total names the binding source: user quota, group quota, or the volume") {
+            UiFormats.diskTotal(metricsWithDisk(70.99, diskSource = null)) shouldBe "70.99 GiB"
+
+            UiFormats.diskTotal(
+                metricsWithDisk(
+                    8.0,
+                    diskSource = DiskSource(kind = "group", subject = "mih09", hardLimitGib = 12.0),
+                ),
+            ) shouldBe "8.00 GiB (group quota mih09, hard limit 12.00 GiB)"
+
+            UiFormats.diskTotal(
+                metricsWithDisk(
+                    4.0,
+                    diskSource = DiskSource(kind = "user", subject = "mih09-werkator", hardLimitGib = 6.0),
+                ),
+            ) shouldBe "4.00 GiB (user quota mih09-werkator, hard limit 6.00 GiB)"
+
+            UiFormats.diskTotal(
+                metricsWithDisk(70.99, diskSource = DiskSource.volume(), quotasPresent = true),
+            ) shouldBe "70.99 GiB (volume, tighter than the quotas)"
+
+            UiFormats.diskTotal(
+                metricsWithDisk(70.99, diskSource = DiskSource.volume(), quotasPresent = false),
+            ) shouldBe "70.99 GiB"
+        }
+
+        test("the disk total is n/a when the disk metric itself is unavailable") {
+            UiFormats.diskTotal(metricsWithDisk(0.0, diskSource = null).copy(diskTotalGib = null)) shouldBe "n/a"
         }
 
         test("Gitea web links escape branch segments but keep slashes") {

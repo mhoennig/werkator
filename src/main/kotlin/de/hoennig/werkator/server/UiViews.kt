@@ -88,6 +88,22 @@ object UiFormats {
 
     private const val UTILIZATION_WARN = 0.80
     private const val UTILIZATION_CRIT = 0.90
+
+    /**
+     * `8.00 GiB (group quota mih09, hard limit 12.00 GiB)`, `70.99 GiB (volume, tighter than the
+     * quotas)`, or the plain total when no quota exists — `werkator.js` (`formatDiskTotal`) mirrors
+     * this exactly, since it renders the same field from the polled `GET /api/system`.
+     */
+    fun diskTotal(metrics: SystemMetrics): String {
+        val total = metrics.diskTotalGib ?: return "n/a"
+        val totalText = "${metric(total)} GiB"
+        val source = metrics.diskSource
+        if (source == null || source.kind == "volume") {
+            return if (metrics.quotasPresent) "$totalText (volume, tighter than the quotas)" else totalText
+        }
+        val hardLimit = metric(source.hardLimitGib)
+        return "$totalText (${source.kind} quota ${source.subject}, hard limit $hardLimit GiB)"
+    }
 }
 
 /** One row of the build tables; [latestGreenUrl] only on the build that permanent link resolves to. */
@@ -247,7 +263,7 @@ data class SystemMetricsView(
                     ),
                 cpuCount = "${metrics.cpuCount} cores",
                 ramTotal = metrics.ramTotalGib?.let { "${UiFormats.metric(it)} GiB" } ?: "n/a",
-                diskTotal = metrics.diskTotalGib?.let { "${UiFormats.metric(it)} GiB" } ?: "n/a",
+                diskTotal = UiFormats.diskTotal(metrics),
                 updated = metrics.timestamp?.let { UiFormats.timeOfDay(it) } ?: "n/a",
             )
     }

@@ -17,6 +17,8 @@ class SystemMetricsCollectorTest : FunSpec() {
     private fun collector(
         cpuCount: Int = 4,
         diskSpace: (Path) -> SystemMetricsCollector.DiskSpace = { GIB_100_DISK },
+        fileStoreName: (Path) -> String = { "/dev/volume" },
+        quotaOutput: () -> String? = { null },
         repoSizeBytes: (Path) -> Long = { HALF_GIB_BYTES },
     ) = SystemMetricsCollector(
         stateFile = { tempDir.resolve("system-metrics-state.json") },
@@ -26,6 +28,8 @@ class SystemMetricsCollectorTest : FunSpec() {
         procMeminfo = tempDir.resolve("meminfo"),
         cpuCount = cpuCount,
         diskSpace = diskSpace,
+        fileStoreName = fileStoreName,
+        quotaOutput = quotaOutput,
         repoSizeBytes = repoSizeBytes,
     )
 
@@ -200,6 +204,94 @@ class SystemMetricsCollectorTest : FunSpec() {
             snapshot.cpuCount shouldBe 4
             snapshot.cpuUsed shouldBe null
         }
+
+        test("a group quota on the repository's filesystem replaces the file-store disk numbers") {
+            writeStat(total = 1000, idle = 700)
+            writeMeminfo(totalKib = 33_554_432, availableKib = 25_165_824)
+            val collector =
+                collector(
+                    diskSpace = { SystemMetricsCollector.DiskSpace(totalBytes = 71L * GIB, usedBytes = 37L * GIB, freeBytes = 34L * GIB) },
+                    fileStoreName = { MIH09_FILESYSTEM },
+                    quotaOutput = { MIH09_QUOTA_OUTPUT },
+                )
+
+            collector.sample()
+
+            val snapshot = collector.snapshot()
+            snapshot.diskTotalGib shouldBe 8_388_608.0 * 1024 / GIB
+            snapshot.diskUsedGib.shouldNotBeNull().current shouldBe 1_088_116.0 * 1024 / GIB
+            snapshot.diskFreeGib.shouldNotBeNull().current shouldBe (8_388_608.0 - 1_088_116.0) * 1024 / GIB
+            snapshot.diskSource.shouldNotBeNull().let {
+                it.kind shouldBe "group"
+                it.subject shouldBe "mih09"
+                it.hardLimitGib shouldBe 12_582_912.0 * 1024 / GIB
+            }
+            snapshot.quotasPresent shouldBe true
+        }
+
+        test("without a quota the volume stays the disk source") {
+            writeStat(total = 1000, idle = 700)
+            writeMeminfo(totalKib = 33_554_432, availableKib = 25_165_824)
+            val collector = collector(quotaOutput = { null })
+
+            collector.sample()
+
+            val snapshot = collector.snapshot()
+            snapshot.diskTotalGib shouldBe 100.0
+            snapshot.diskSource.shouldNotBeNull().kind shouldBe "volume"
+            snapshot.quotasPresent shouldBe false
+        }
+
+        test("a failing quota command degrades to the volume, logged once, the sample still succeeds") {
+            writeStat(total = 1000, idle = 700)
+            writeMeminfo(totalKib = 33_554_432, availableKib = 25_165_824)
+            val collector = collector(quotaOutput = { error("quota: command not found") })
+
+            collector.sample()
+
+            val snapshot = collector.snapshot()
+            snapshot.diskTotalGib shouldBe 100.0
+            snapshot.diskSource.shouldNotBeNull().kind shouldBe "volume"
+        }
+
+        test("a changed disk source restarts the disk series and keeps the others") {
+            writeStat(total = 1000, idle = 700)
+            writeMeminfo(totalKib = 33_554_432, availableKib = 25_165_824)
+            // sample 1, on the legacy volume-only binary: disk used 37 GiB, poisoning any later max
+            collector(
+                diskSpace = { SystemMetricsCollector.DiskSpace(totalBytes = 71L * GIB, usedBytes = 37L * GIB, freeBytes = 34L * GIB) },
+            ).sample()
+
+            // sample 2, after the update: the first sample to find a binding group quota (~1 GiB used)
+            val quotaCollector = { output: String ->
+                collector(
+                    diskSpace = { SystemMetricsCollector.DiskSpace(totalBytes = 71L * GIB, usedBytes = 37L * GIB, freeBytes = 34L * GIB) },
+                    fileStoreName = { MIH09_FILESYSTEM },
+                    quotaOutput = { output },
+                )
+            }
+            val sample2 = quotaCollector(MIH09_QUOTA_OUTPUT)
+            sample2.sample()
+
+            val afterUpdate = sample2.snapshot()
+            afterUpdate.sampleCount shouldBe 2
+            val diskUsedAfterUpdate = afterUpdate.diskUsedGib.shouldNotBeNull()
+            // a fresh series of one sample: min/max are the quota's ~1 GiB, not the 37 GiB volume history
+            diskUsedAfterUpdate.max shouldBe diskUsedAfterUpdate.current
+            diskUsedAfterUpdate.min shouldBe diskUsedAfterUpdate.current
+            // ram, unaffected by the disk-source change, keeps aggregating across both samples
+            afterUpdate.ramUsedGib.shouldNotBeNull().min shouldBe 8.0
+
+            // sample 3, same (unchanged) quota source but higher usage: the series must now continue
+            val sample3 = quotaCollector(MIH09_QUOTA_OUTPUT_HIGHER_USAGE)
+            sample3.sample()
+
+            val afterRestart = sample3.snapshot()
+            afterRestart.sampleCount shouldBe 3
+            val diskUsedAfterRestart = afterRestart.diskUsedGib.shouldNotBeNull()
+            diskUsedAfterRestart.min shouldBe diskUsedAfterUpdate.current
+            diskUsedAfterRestart.max shouldBe (2_000_000.0 * 1024 / GIB)
+        }
     }
 
     companion object {
@@ -213,5 +305,19 @@ class SystemMetricsCollectorTest : FunSpec() {
                 usedBytes = 40L * GIB,
                 freeBytes = 55L * GIB,
             )
+
+        private const val MIH09_FILESYSTEM = "/dev/disk/by-id/wwn-0x0000000000000001-part2"
+
+        /** `quota -u -g --no-wrap --raw-grace` on mih09, 2026-09-03 (the PR#16 attachment). */
+        private val MIH09_QUOTA_OUTPUT =
+            """
+            Disk quotas for user mih09-werkator (uid 120974): none
+            Disk quotas for group mih09 (gid 102180):
+                 Filesystem  blocks   quota   limit   grace   files   quota   limit   grace
+            $MIH09_FILESYSTEM 1088116  8388608 12582912       0   14226  16777216 25165824       0
+            """.trimIndent()
+
+        /** Same group quota, but usage risen from 1088116 to 2000000 KiB — for the series-continuation test. */
+        private val MIH09_QUOTA_OUTPUT_HIGHER_USAGE = MIH09_QUOTA_OUTPUT.replace("1088116", "2000000")
     }
 }

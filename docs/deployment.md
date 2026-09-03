@@ -345,3 +345,5 @@ tools/remote --env-file .env.mih34 werkator instance-update
 ```
 
 The previous runtime stays as `.werkator/werkator.prev` for one deployment as the rollback asset.
+
+The `/system` page's disk metric is quota-aware (PR#16): on a Managed Webspace the binding limit is usually the package's group quota, not the free space of the shared host volume, so `diskTotalGib` there is the quota's soft limit — the info line names it (`group quota <package>, hard limit … GiB`) instead of showing the host's full disk size.

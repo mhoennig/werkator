@@ -55,6 +55,8 @@ Deviations and decisions:
 - The legacy `generation` field was not ported; it only guarded the legacy JS against monitor restarts.
 - The CPU count comes from `Runtime.availableProcessors()` instead of `nproc`.
 
+**Implementation note (PR#16, 2026-09-03):** the disk metric is now the tightest of the user quota, the group quota, and the volume, not the volume alone — `DiskQuota` parses `quota -u -g --no-wrap --raw-grace` and `SystemMetricsCollector.readDisk()` picks whichever candidate has the smallest headroom. On hosts without a binding quota (Docker hosts, developer machines) nothing changes; on a Hostsharing Managed Webspace the group quota is usually the real limit, so `diskTotalGib` there is the quota's soft limit instead of the host volume's size, and the info line names the source. A source change (volume → quota, or one quota subject to another) resets `diskUsedGib`/`diskFreeGib`'s min/max/avg so a stale ceiling from the previous source never survives.
+
 Manual smoke test (2026-07-07): scratch repository with a bare origin, server on port 18986, observed through a real browser tab (via a TCP proxy, so the tab outlived backend restarts).
 The first sample rendered RAM/disk/repo values immediately with CPU `n/a` and the totals line (`8 cores`, RAM/disk GiB, updated time).
 After the next 60s poll the open tab updated in place without reload: the updated time ticked, CPU used appeared (1.58 cores, idle 6.42 = 8 total), and min/max diverged.

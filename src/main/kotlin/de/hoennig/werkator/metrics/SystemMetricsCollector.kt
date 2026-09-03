@@ -19,10 +19,15 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
-/** The aggregation state persisted in the artifact root (the legacy `system_state.dat`, but as JSON). */
+/**
+ * The aggregation state persisted in the artifact root (the legacy `system_state.dat`, but as JSON).
+ * [diskSourceKey] defaults to `"volume"` — the only source before quota-awareness existed — so an
+ * older state file upgrades cleanly: it only triggers the disk-series reset when a quota now binds.
+ */
 data class PersistedMetricsState(
     val sampleCount: Long = 0,
     val series: Map<String, MetricSeries> = emptyMap(),
+    val diskSourceKey: String = "volume",
 )
 
 /**
@@ -42,6 +47,8 @@ class SystemMetricsCollector(
     private val procMeminfo: Path = Paths.get("/proc/meminfo"),
     private val cpuCount: Int = Runtime.getRuntime().availableProcessors(),
     private val diskSpace: (Path) -> DiskSpace = { dir -> fileStoreDiskSpace(dir) },
+    private val fileStoreName: (Path) -> String = { dir -> Files.getFileStore(dir).name() },
+    private val quotaOutput: () -> String? = { readQuotaOutput() },
     private val repoSizeBytes: (Path) -> Long = { dir -> directorySizeBytes(dir) },
 ) {
     /** Disk usage in bytes; used/free follow `df` semantics (free is what a user can still allocate). */
@@ -122,6 +129,13 @@ class SystemMetricsCollector(
         val cpu = readCpuLoad()
         val ram = readRam()
         val disk = readDisk()
+        val diskSourceKey = disk?.let { diskSourceKey(it.source) } ?: previousState.diskSourceKey
+        if (disk != null && diskSourceKey != previousState.diskSourceKey) {
+            // the previous binary/binding source measured a different budget (Scenario#16.05):
+            // continuing its min/max/avg would poison the new series with a stale ceiling
+            series.remove("diskUsedGib")
+            series.remove("diskFreeGib")
+        }
         val repoSizeGib = readRepoSizeThrottled()
         snapshot =
             SystemMetrics(
@@ -129,18 +143,24 @@ class SystemMetricsCollector(
                 sampleCount = sampleCount,
                 cpuCount = cpuCount,
                 ramTotalGib = ram?.totalGib,
-                diskTotalGib = disk?.totalBytes?.let { it / BYTES_PER_GIB },
+                diskTotalGib = disk?.space?.totalBytes?.let { it / BYTES_PER_GIB },
+                diskSource = disk?.source,
+                quotasPresent = disk?.quotasPresent ?: false,
                 cpuUsed = record("cpuUsed", cpu?.usedCores),
                 cpuIdle = record("cpuIdle", cpu?.idleCores),
                 ramUsedGib = record("ramUsedGib", ram?.usedGib),
                 ramFreeGib = record("ramFreeGib", ram?.freeGib),
-                diskUsedGib = record("diskUsedGib", disk?.usedBytes?.let { it / BYTES_PER_GIB }),
-                diskFreeGib = record("diskFreeGib", disk?.freeBytes?.let { it / BYTES_PER_GIB }),
+                diskUsedGib = record("diskUsedGib", disk?.space?.usedBytes?.let { it / BYTES_PER_GIB }),
+                diskFreeGib = record("diskFreeGib", disk?.space?.freeBytes?.let { it / BYTES_PER_GIB }),
                 repoSizeGib = record("repoSizeGib", repoSizeGib),
             )
-        state = PersistedMetricsState(sampleCount = sampleCount, series = series)
+        state = PersistedMetricsState(sampleCount = sampleCount, series = series, diskSourceKey = diskSourceKey)
         saveState(state!!)
     }
+
+    /** `"volume"`, or `"quota:<kind>:<subject>:<filesystem>"` — the reset trigger of Scenario#16.05. */
+    private fun diskSourceKey(source: DiskSource): String =
+        if (source.kind == "volume") "volume" else "quota:${source.kind}:${source.subject}:${source.filesystem}"
 
     private fun sampleSafely() {
         try {
@@ -157,6 +177,8 @@ class SystemMetricsCollector(
             cpuCount = cpuCount,
             ramTotalGib = null,
             diskTotalGib = null,
+            diskSource = null,
+            quotasPresent = false,
             cpuUsed = null,
             cpuIdle = null,
             ramUsedGib = null,
@@ -240,7 +262,27 @@ class SystemMetricsCollector(
             .removeSuffix(" kB")
             .toLong()
 
-    private fun readDisk(): DiskSpace? = readSource("disk") { diskSpace(repoDirs().first()) }
+    /** Disk reading plus whether a quota lost against the volume, for the info line (Scenario#16.06). */
+    private data class DiskReading(
+        val space: DiskSpace,
+        val source: DiskSource,
+        val quotasPresent: Boolean,
+    )
+
+    /**
+     * The tightest of the user quota, the group quota, and the volume itself (Scenario#16.02):
+     * a failing or absent `quota` binary just leaves the volume as the only candidate, logged
+     * once under its own "quota" source, separately from a failing file-store read.
+     */
+    private fun readDisk(): DiskReading? =
+        readSource("disk") {
+            val dir = repoDirs().first()
+            val volume = DiskCandidate(diskSpace(dir), DiskSource.volume())
+            val quotaLines = readSource("quota") { quotaOutput()?.let(DiskQuota::parse) ?: emptyList() } ?: emptyList()
+            val quotaCandidates = DiskQuota.candidatesFor(quotaLines, fileStoreName(dir))
+            val binding = DiskQuota.bindingDiskSpace(quotaCandidates + volume)
+            DiskReading(space = binding.space, source = binding.source, quotasPresent = quotaCandidates.isNotEmpty())
+        }
 
     /**
      * The repository size is expensive to determine (a full file walk), so unlike
@@ -323,6 +365,26 @@ class SystemMetricsCollector(
                 usedBytes = store.totalSpace - store.unallocatedSpace,
                 freeBytes = store.usableSpace,
             )
+        }
+
+        /**
+         * `quota -u -g --no-wrap --raw-grace`: `--no-wrap` keeps long device names on one line,
+         * `--raw-grace` prints the grace columns as numbers, so every filesystem line has the
+         * same nine fields ([DiskQuota] needs no column heuristics). The exit status is not read —
+         * `quota` also uses it to say "over quota" — only the parsed output counts; an absent
+         * binary throws (caught by the caller's `readSource`, logged once), a hung process is
+         * killed after 5s and treated the same way.
+         */
+        fun readQuotaOutput(): String {
+            val process =
+                ProcessBuilder("quota", "-u", "-g", "--no-wrap", "--raw-grace")
+                    .redirectErrorStream(true)
+                    .start()
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                error("quota command timed out")
+            }
+            return process.inputStream.bufferedReader().readText()
         }
 
         /** File-walk replacement for the legacy `du -sk`; unreadable subtrees are skipped, links are not followed. */

@@ -22,6 +22,10 @@ data class SystemMetrics(
     val cpuCount: Int,
     val ramTotalGib: Double?,
     val diskTotalGib: Double?,
+    /** What `diskTotalGib`/`diskUsedGib`/`diskFreeGib` describe: the volume, or a binding quota. */
+    val diskSource: DiskSource? = null,
+    /** True when a user or group quota existed but the volume was still the tighter budget. */
+    val quotasPresent: Boolean = false,
     val cpuUsed: MetricAggregate?,
     val cpuIdle: MetricAggregate?,
     val ramUsedGib: MetricAggregate?,
