@@ -55,11 +55,17 @@ class BuildsApiController(
 
     private fun BuildResult.isLatestGreen(): Boolean = repository.latestGreenFor(name)?.artifactKey == artifactKey
 
-    /** The currently executing builds — several are possible, up to `executor.maxConcurrent`. */
+    /**
+     * The currently executing builds of the served repository — several are possible,
+     * up to `executor.maxConcurrent`. The executor is instance-global and returns the
+     * builds of every registered repository, so this view filters: its [repository]
+     * holds only this repository's results, and a foreign build looked up in them
+     * would fall back to RUNNING and show a status nobody recorded.
+     */
     @GetMapping("/api/builds/current")
     fun current(): List<CurrentBuildDto> {
         val results = repository.history()
-        return buildExecutor.currentBuilds().map { build ->
+        return buildExecutor.currentBuilds().filter { it.repo === repo }.map { build ->
             CurrentBuildDto(
                 branch = build.branch,
                 name = build.name,
@@ -82,7 +88,7 @@ class BuildsApiController(
         @RequestParam(defaultValue = "0") offset: Long,
     ): ResponseEntity<Any> {
         val build =
-            buildExecutor.currentBuilds().firstOrNull { it.artifactKey == artifactKey }
+            buildExecutor.currentBuilds().firstOrNull { it.repo === repo && it.artifactKey == artifactKey }
                 ?: return notFound("no running build with artifact key '$artifactKey'")
         return ResponseEntity.ok(readLogTail(artifactKey, build.liveLogFile, offset))
     }

@@ -246,6 +246,7 @@ class UiControllerTest : FunSpec() {
         test("current view renders a card per running build with cancel button and started-at attribute") {
             val build =
                 RunningBuild(
+                    repo = repo,
                     branch = "main",
                     commit = successResult.commit,
                     artifactKey = "main-abc123-running",

@@ -506,7 +506,10 @@ class Watcher(
         }
         val keep = originBranches.map { ArtifactKeys.branchKey(it) }.toMutableSet()
         // never delete under a build that is still queued or executing
-        buildExecutor.currentBuilds().forEach { keep += ArtifactKeys.branchKey(it.branch) }
+        buildExecutor
+            .currentBuilds()
+            .filter { it.repo === repo }
+            .forEach { keep += ArtifactKeys.branchKey(it.branch) }
         repo.results
             .latestPerName()
             .filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }

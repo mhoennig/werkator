@@ -12,6 +12,7 @@ import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -68,6 +69,7 @@ class BuildsApiControllerTest : FunSpec() {
 
     private fun runningBuild(liveLogFile: Path) =
         RunningBuild(
+            repo = repo,
             branch = "main",
             commit = successResult.commit,
             artifactKey = "main-abc123-running",
@@ -131,6 +133,35 @@ class BuildsApiControllerTest : FunSpec() {
                 .andExpect(jsonPath("$[0].artifactKey").value(build.artifactKey))
                 .andExpect(jsonPath("$[0].status").value("running"))
                 .andExpect(jsonPath("$[0].logSize").value(5))
+        }
+
+        test("current answers only the served repository's builds") {
+            val liveLogFile = Files.writeString(tempDir.resolve("mine.log"), "12345")
+            val mine = runningBuild(liveLogFile)
+            val foreign =
+                runningBuild(liveLogFile).copy(
+                    repo = mockk<RepoContext>(),
+                    artifactKey = "other-repo-running",
+                )
+            every { buildExecutor.currentBuilds() } returns listOf(mine, foreign)
+            every { repository.history() } returns
+                listOf(successResult.copy(status = BuildStatus.RUNNING, artifactKey = mine.artifactKey))
+
+            mockMvc
+                .perform(get("/api/builds/current"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].artifactKey").value(mine.artifactKey))
+        }
+
+        test("current log of a build in another repository answers 404") {
+            val liveLogFile = Files.writeString(tempDir.resolve("foreign.log"), "hello world")
+            val foreign = runningBuild(liveLogFile).copy(repo = mockk<RepoContext>())
+            every { buildExecutor.currentBuilds() } returns listOf(foreign)
+
+            mockMvc
+                .perform(get("/api/builds/current/${foreign.artifactKey}/log"))
+                .andExpect(status().isNotFound)
         }
 
         test("current log answers the tail from the requested offset") {

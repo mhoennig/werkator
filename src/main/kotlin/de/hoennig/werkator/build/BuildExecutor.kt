@@ -97,6 +97,7 @@ class BuildExecutor(
         val stagingDir = Files.createTempDirectory("werkator-build-")
         val runningBuild =
             RunningBuild(
+                repo = repo,
                 branch = branch,
                 build = build,
                 commit = commit,

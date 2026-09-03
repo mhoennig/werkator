@@ -60,7 +60,7 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 - ~~Startup recovery per repo; auto-build slots stay in each repo's `.git/werkator/`.~~ — done: `start(repos)` recovers each in its own guard; slots unchanged.
 - ~~CLI commands gain an optional repo selector and default to the current working directory, so `werkator status` inside a repo behaves as today.~~ — done: `--repo <name>` (`RepoOption` mixin) on `build`, `retry`, `status`; default is the cwd when served, else the first registered repository.
 - Also done: the pre-rename state-dir migration runs per opened repository; the metrics page's repository size sums the registered repositories (the disk metric is the first one's file store).
-- Carried over to session D: `RunningBuild` still carries no repository (the "current builds" view and the worktree pruning cannot tell repositories apart); the controllers still serve `registry.current()` only; `docs/deployment.md` gets the registry setup with session E.
+- Carried over to session D: ~~`RunningBuild` still carries no repository (the "current builds" view and the worktree pruning cannot tell repositories apart)~~ — done 2026-09-03: `RunningBuild.repo` is the context (identity comparison), the current-builds view and API filter to the served repository, and the worktree pruning is protected by its own repository's running builds alone; the controllers still serve `registry.current()` only; `docs/deployment.md` gets the registry setup with session E.
 
 ### D — Server, API, and UI scoping
 

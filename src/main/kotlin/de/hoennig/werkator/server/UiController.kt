@@ -106,7 +106,7 @@ class UiController(
         val links = baseModel(model, view = "current", pageTitle = "Current Builds")
         val results = repository.history()
         val currentBuilds =
-            buildExecutor.currentBuilds().map { build ->
+            buildExecutor.currentBuilds().filter { it.repo === repo }.map { build ->
                 CurrentBuildView(
                     branch = build.branch,
                     name = build.name,

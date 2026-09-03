@@ -1,11 +1,19 @@
 package de.hoennig.werkator.build
 
 import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.repo.RepoContext
 import java.nio.file.Path
 import java.time.Instant
 
 /** Handle to a build accepted by the [BuildExecutor]; log paths become valid once the build runs. */
 data class RunningBuild(
+    /**
+     * The repository this build belongs to; the context object is the identity
+     * (ADR 0009), so it compares by reference. Without it neither the current-builds
+     * view nor the watcher's worktree pruning could tell two repositories apart —
+     * both would see every repository's running builds as their own.
+     */
+    val repo: RepoContext,
     /** The git branch being built. */
     val branch: String,
     /** The build definition (job) this build runs; its settings are resolved from config at run time. */
