@@ -68,7 +68,7 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 - ~~Latest/branches/history views group by repo or gain a repo column; one instance-wide metrics page; one control token.~~ — done 2026-09-03, decided against the column: the pages stay per repository and the navigation gains a **repository switcher** (a row's actions need the repository anyway, branches come from one origin, artifacts from one store — and with one repository a column is noise). Metrics page and control token stay instance-wide as planned.
 - Gitea status links use the repo-scoped URLs — the permanent artifact links do (`BranchPermalinks.permanentUrl` takes the prefix, because the key is a hash of the build name alone and two repositories both having `main` would otherwise share one URL); the commit-status target URLs posted by `GiteaStatusPublisher` are carried over to session E, where the instance actually serves two repositories.
 - Also done: `RunningBuild` carries its `RepoContext` (the carry-over from session C), so the current-builds views and the watcher's worktree pruning tell repositories apart, and `cancel` refuses a key that is not recorded in the named repository.
-- Carried over to session E: the commit-status URLs; `docs/deployment.md` gets the registry setup.
+- Carried over to session E: the commit-status URLs. ~~`docs/deployment.md` gets the registry setup~~ — done 2026-09-03: section "Serving Several Repositories" (clone, prepare, register, restart) with the name rules, the per-repository guard, and what the URLs look like with one repository and with several.
 
 ### E — Rollout on mih34: Werkbaum joins
 

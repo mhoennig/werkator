@@ -81,6 +81,50 @@ User services stop at logout unless lingering is enabled once per user:
 loginctl enable-linger "$USER"
 ```
 
+## Serving Several Repositories
+
+One instance serves a *set* of repositories (ADR 0009): one service, one port, one UI, one watcher loop, one control token.
+Adding a repository is editing a registry entry — never a data migration, because everything repository-specific already lives inside the repository (`.git/werkator/`: machine config with secrets, build results, auto-build slots, worktrees).
+
+1. **Clone it** on the host, next to the ones already served:
+
+   ```bash
+   git clone https://github.com/<owner>/<repo>.git ~/repos/<repo>
+   ```
+
+2. **Prepare it** like any watched repository — the machine config with the git credentials, and the sandbox policy if the host needs one:
+
+   ```bash
+   cd ~/repos/<repo> && java -jar ~/bin/werkator.jar init
+   # fill in git.account and git.token in .git/werkator/.werkator.yml
+   ```
+
+   Credentials shared by every repository of the same forge can live once in the instance file's `defaults` block instead (`docs/configuration.md`); they merge below each repository's own layers, so a repository may still override them.
+   The repository's own `.werkator.yml` — its builds — is committed and comes with the clone.
+
+3. **Register it** in `~/.werkator.yml` of the user running the service:
+
+   ```yaml
+   repositories:
+     - path: ~/repos/werkator
+     - path: ~/repos/<repo>
+       name: <short-name>      # optional; default is the directory basename
+   ```
+
+   The name is the route segment (`/repos/<name>/…`) and the UI's switcher entry, so it must be unique: a duplicate aborts the start naming this file, and so does an entry that is no git repository.
+   A repository whose configuration Werkator must not read (a version violation) is skipped with an error — the others keep building.
+
+4. **Restart** the service; startup recovery re-enqueues what was in flight:
+
+   ```bash
+   systemctl --user restart werkator-<repo-name>.service
+   ```
+
+The service unit keeps the name it was installed with — it is the instance's unit, not one repository's.
+With one registered repository every URL stays what it was; with several, the pages and the API carry the repository (`/repos/<name>/…`, `/api/repos/<name>/…`), the unscoped paths keep meaning the repository the instance was started in, and the navigation shows a switcher.
+The watcher polls every repository in its own guard: an unreachable origin is that repository's report in the health banner, and the others are polled regardless.
+`executor.maxConcurrent` is the global cap across all of them, and builds take slots in enqueue order (FIFO).
+
 ## Operating the Service
 
 ```bash
