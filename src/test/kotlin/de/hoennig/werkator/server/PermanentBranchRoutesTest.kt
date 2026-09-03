@@ -11,6 +11,7 @@ import de.hoennig.werkator.config.WerkatorConfig
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.metrics.SystemMetricsCollector
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -70,6 +71,9 @@ class PermanentBranchRoutesTest : FunSpec() {
     @MockkBean
     lateinit var repo: RepoContext
 
+    @MockkBean
+    lateinit var registry: RepoRegistry
+
     private val artifactDir: Path = Files.createTempDirectory("werkator-permanent-routes-test")
 
     private val greenBuild =
@@ -95,14 +99,22 @@ class PermanentBranchRoutesTest : FunSpec() {
                 branchListing,
                 branchPermalinks,
                 repo,
+                registry,
             )
+            every { repo.name } returns "test"
             every { repo.workingDir } returns Paths.get(".")
+            every { repo.results } returns repository
+            every { repo.artifactStore } returns artifactStore
+            every { registry.all() } returns listOf(repo)
+            every { registry.current() } returns repo
+            every { registry.byName(any()) } returns null
+            every { registry.byName("test") } returns repo
             every { configLoader.load(any()) } returns WerkatorConfig()
             every { configLoader.loadWithBranchLayer(any(), anyNullable()) } returns WerkatorConfig()
             every { gitService.showFileAtCommit(any(), any(), any()) } returns null
             every { controlTokens.token() } returns "test-token"
             every { branchListing.branches(any()) } returns emptyList()
-            every { branchPermalinks.latestGreenBuild("main") } returns greenBuild
+            every { branchPermalinks.latestGreenBuild(any(), "main") } returns greenBuild
             every { artifactStore.artifactDir("main-key") } returns artifactDir
         }
 

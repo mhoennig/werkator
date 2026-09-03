@@ -18,12 +18,14 @@ import de.hoennig.werkator.metrics.MetricAggregate
 import de.hoennig.werkator.metrics.SystemMetrics
 import de.hoennig.werkator.metrics.SystemMetricsCollector
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.mockk.clearMocks
 import io.mockk.every
+import io.mockk.mockk
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.not
 import org.springframework.beans.factory.annotation.Autowired
@@ -78,6 +80,9 @@ class UiControllerTest : FunSpec() {
     @MockkBean
     lateinit var repo: RepoContext
 
+    @MockkBean
+    lateinit var registry: RepoRegistry
+
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
     private val emptySystemMetrics =
@@ -119,8 +124,16 @@ class UiControllerTest : FunSpec() {
                 branchListing,
                 branchPermalinks,
                 repo,
+                registry,
             )
+            every { repo.name } returns "test"
             every { repo.workingDir } returns Paths.get(".")
+            every { repo.results } returns repository
+            every { repo.artifactStore } returns artifactStore
+            every { registry.all() } returns listOf(repo)
+            every { registry.current() } returns repo
+            every { registry.byName(any()) } returns null
+            every { registry.byName("test") } returns repo
             every { configLoader.load(any()) } returns
                 WerkatorConfig(
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),
@@ -142,6 +155,40 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("""data-api="/api/builds/latest"""")))
                 .andExpect(content().string(containsString("""id="reload-button"""")))
                 .andExpect(content().string(not(containsString("""href="/current""""))))
+        }
+
+        test("with one served repository the pages keep their existing URLs and show no switcher") {
+            every { repository.latestPerName() } returns listOf(successResult)
+
+            mockMvc
+                .perform(get("/"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("""href="/branches"""")))
+                // Thymeleaf drops an attribute whose value is empty, and werkator.js falls back to ""
+                .andExpect(content().string(containsString("""<meta name="werkator-repo-base">""")))
+                .andExpect(content().string(not(containsString("""class="repo-switch""""))))
+        }
+
+        test("with several served repositories every link names its repository and the switcher appears") {
+            val other = mockk<RepoContext>()
+            every { other.name } returns "other"
+            every { registry.all() } returns listOf(repo, other)
+            every { repository.latestPerName() } returns listOf(successResult)
+
+            mockMvc
+                .perform(get("/repos/test"))
+                .andExpect(status().isOk)
+                .andExpect(content().string(containsString("""href="/repos/test/branches"""")))
+                .andExpect(content().string(containsString("""data-api="/api/repos/test/builds/latest"""")))
+                .andExpect(content().string(containsString("""<meta name="werkator-repo-base" content="/repos/test">""")))
+                .andExpect(content().string(containsString("""class="repo-switch"""")))
+                .andExpect(content().string(containsString("""href="/repos/other"""")))
+        }
+
+        test("a page of a repository this instance does not serve answers 404") {
+            mockMvc
+                .perform(get("/repos/no-such-repo"))
+                .andExpect(status().isNotFound)
         }
 
         test("latest view renders rows with badge, Gitea links, artifact link, actions, and token") {
@@ -503,7 +550,7 @@ class UiControllerTest : FunSpec() {
             Files.writeString(artifactDir.resolve("build.stdout.log"), "out")
             Files.createDirectories(artifactDir.resolve("reports/tests/test"))
             Files.writeString(artifactDir.resolve("reports/tests/test/index.html"), "<html></html>")
-            every { branchPermalinks.latestGreenBuild("main") } returns successResult
+            every { branchPermalinks.latestGreenBuild(any(), "main") } returns successResult
             every { artifactStore.artifactDir("main-abc123-key") } returns artifactDir
 
             mockMvc
@@ -517,7 +564,7 @@ class UiControllerTest : FunSpec() {
         }
 
         test("permanent artifact index of a branch without a green build answers 404") {
-            every { branchPermalinks.latestGreenBuild("main") } throws
+            every { branchPermalinks.latestGreenBuild(any(), "main") } throws
                 ResponseStatusException(HttpStatus.NOT_FOUND, "branch 'main' has no successful build")
 
             mockMvc

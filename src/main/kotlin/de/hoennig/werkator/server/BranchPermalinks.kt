@@ -2,7 +2,7 @@ package de.hoennig.werkator.server
 
 import de.hoennig.werkator.build.ArtifactKeys
 import de.hoennig.werkator.build.BuildResult
-import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.repo.RepoContext
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
@@ -18,10 +18,12 @@ import org.springframework.web.server.ResponseStatusException
  * artifacts.
  */
 @Component
-class BranchPermalinks(
-    private val repository: BuildResultRepository,
-) {
-    fun latestGreenBuild(branchKey: String): BuildResult {
+class BranchPermalinks {
+    fun latestGreenBuild(
+        repo: RepoContext,
+        branchKey: String,
+    ): BuildResult {
+        val repository = repo.results
         val names =
             repository
                 .latestPerName()
@@ -41,7 +43,16 @@ class BranchPermalinks(
     }
 
     companion object {
-        /** The permanent artifact-index URL of the build name (branch or named slot), shown in the branches view. */
-        fun permanentUrl(name: String): String = "/branches/${ArtifactKeys.permanentBranchKey(name)}"
+        /**
+         * The permanent artifact-index URL of the build name (branch or named slot), shown
+         * in the branches view. [base] is the repository prefix (`/repos/<name>`, empty with
+         * one served repository): the key is a hash of the name alone, so two repositories
+         * both having `main` would otherwise share one permanent URL — and it would resolve
+         * against whichever repository the instance happens to serve unscoped.
+         */
+        fun permanentUrl(
+            name: String,
+            base: String = "",
+        ): String = "$base/branches/${ArtifactKeys.permanentBranchKey(name)}"
     }
 }

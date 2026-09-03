@@ -90,6 +90,7 @@ class BuildsApiControllerTest : FunSpec() {
             every { repo.results } returns repository
             every { repo.artifactStore } returns artifactStore
             // the unscoped routes mean the served repository; `/api/repos/test/…` names it
+            every { registry.all() } returns listOf(repo)
             every { registry.current() } returns repo
             every { registry.byName(any()) } returns null
             every { registry.byName("test") } returns repo

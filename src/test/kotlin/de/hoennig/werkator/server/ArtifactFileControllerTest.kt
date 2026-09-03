@@ -4,6 +4,8 @@ import com.ninjasquad.springmockk.MockkBean
 import de.hoennig.werkator.build.ArtifactStore
 import de.hoennig.werkator.build.BuildResult
 import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -32,6 +34,12 @@ class ArtifactFileControllerTest : FunSpec() {
     @MockkBean
     lateinit var branchPermalinks: BranchPermalinks
 
+    @MockkBean
+    lateinit var repo: RepoContext
+
+    @MockkBean
+    lateinit var registry: RepoRegistry
+
     private val artifactDir: Path = Files.createTempDirectory("werkator-artifact-serve-test")
 
     private val greenBuild =
@@ -46,12 +54,18 @@ class ArtifactFileControllerTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(artifactStore, branchPermalinks)
+            clearMocks(artifactStore, branchPermalinks, repo, registry)
+            every { repo.name } returns "test"
+            every { repo.artifactStore } returns artifactStore
+            every { registry.current() } returns repo
+            every { registry.all() } returns listOf(repo)
+            every { registry.byName(any()) } returns null
+            every { registry.byName("test") } returns repo
             every { artifactStore.artifactDir(any()) } returns null
             every { artifactStore.artifactDir("known-key") } returns artifactDir
-            every { branchPermalinks.latestGreenBuild(any()) } throws
+            every { branchPermalinks.latestGreenBuild(any(), any()) } throws
                 ResponseStatusException(HttpStatus.NOT_FOUND, "no recorded builds")
-            every { branchPermalinks.latestGreenBuild("main") } returns greenBuild
+            every { branchPermalinks.latestGreenBuild(any(), "main") } returns greenBuild
         }
 
         test("serves an html artifact with no-cache headers") {
@@ -188,7 +202,7 @@ class ArtifactFileControllerTest : FunSpec() {
         }
 
         test("permanent URL answers 404 when the green build's artifacts are gone") {
-            every { branchPermalinks.latestGreenBuild("main") } returns greenBuild.copy(artifactKey = "pruned-key")
+            every { branchPermalinks.latestGreenBuild(any(), "main") } returns greenBuild.copy(artifactKey = "pruned-key")
 
             mockMvc
                 .perform(get("/branches/main/build.log"))

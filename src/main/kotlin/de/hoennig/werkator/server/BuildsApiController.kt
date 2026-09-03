@@ -51,6 +51,9 @@ class BuildsApiController(
     private fun RepoContext.isLatestGreen(result: BuildResult): Boolean =
         results.latestGreenFor(result.name)?.artifactKey == result.artifactKey
 
+    /** The prefix the permanent links in the answers carry; empty with one served repository. */
+    private fun uiBase(repo: RepoContext): String = if (registry.all().size > 1) "/repos/${repo.name}" else ""
+
     /** An unknown repository name answers like every other miss of this API: 404 with `error`. */
     @ExceptionHandler(UnknownRepositoryException::class)
     fun unknownRepository(e: UnknownRepositoryException): ResponseEntity<Any> = notFound(e.message ?: "unknown repository")
@@ -60,21 +63,24 @@ class BuildsApiController(
         @PathVariable(name = "repo", required = false) repoName: String?,
     ): List<BuildResultDto> {
         val repo = repoOf(repoName)
-        return repo.results.latestPerName().map { BuildResultDto.from(it, repo.isLatestGreen(it)) }
+        return repo.results.latestPerName().map { BuildResultDto.from(it, repo.isLatestGreen(it), uiBase(repo)) }
     }
 
     /** The legacy branches view: every origin branch with its latest build or `unknown`. */
     @GetMapping("/api/branches", "/api/repos/{repo}/branches")
     fun branches(
         @PathVariable(name = "repo", required = false) repoName: String?,
-    ): List<BranchDto> = branchListing.branches(repoOf(repoName))
+    ): List<BranchDto> {
+        val repo = repoOf(repoName)
+        return branchListing.branches(repo, uiBase(repo))
+    }
 
     @GetMapping("/api/builds/history", "/api/repos/{repo}/builds/history")
     fun history(
         @PathVariable(name = "repo", required = false) repoName: String?,
     ): List<BuildResultDto> {
         val repo = repoOf(repoName)
-        return repo.results.history().map { BuildResultDto.from(it, repo.isLatestGreen(it)) }
+        return repo.results.history().map { BuildResultDto.from(it, repo.isLatestGreen(it), uiBase(repo)) }
     }
 
     /**
