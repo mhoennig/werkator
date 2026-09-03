@@ -5,7 +5,7 @@
 <main>
     <h1 th:replace="~{fragments :: header(${pageTitle})}"></h1>
     <div th:replace="~{fragments :: nav(${view})}"></div>
-    <div id="current-builds" data-api="/api/builds/current">
+    <div id="current-builds" th:attr="data-api=${apiBase} + '/builds/current'" data-api="/api/builds/current">
         <p id="no-current" class="empty-panel" th:style="${#lists.isEmpty(currentBuilds)} ? '' : 'display: none'">
             No build is currently running.
         </p>

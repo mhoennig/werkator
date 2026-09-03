@@ -9,12 +9,16 @@ import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.build.RunningBuild
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.context.annotation.Import
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -27,6 +31,7 @@ import java.time.Duration
 import java.time.Instant
 
 @WebMvcTest(BuildsApiController::class, properties = ["spring.main.web-application-type=servlet"])
+@Import(RepoLinks::class)
 class BuildsApiControllerTest : FunSpec() {
     private val tempDir: Path = Files.createTempDirectory("werkator-server-test")
 
@@ -54,6 +59,9 @@ class BuildsApiControllerTest : FunSpec() {
     @MockkBean
     lateinit var repo: RepoContext
 
+    @MockkBean
+    lateinit var registry: RepoRegistry
+
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
     private val successResult =
@@ -68,6 +76,7 @@ class BuildsApiControllerTest : FunSpec() {
 
     private fun runningBuild(liveLogFile: Path) =
         RunningBuild(
+            repo = repo,
             branch = "main",
             commit = successResult.commit,
             artifactKey = "main-abc123-running",
@@ -78,8 +87,16 @@ class BuildsApiControllerTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(repository, buildExecutor, artifactStore, controlTokens, gitService, branchListing, repo)
+            clearMocks(repository, buildExecutor, artifactStore, controlTokens, gitService, branchListing, repo, registry)
+            every { repo.name } returns "test"
             every { repo.workingDir } returns tempDir
+            every { repo.results } returns repository
+            every { repo.artifactStore } returns artifactStore
+            // the unscoped routes mean the served repository; `/api/repos/test/…` names it
+            every { registry.all() } returns listOf(repo)
+            every { registry.current() } returns repo
+            every { registry.byName(any()) } returns null
+            every { registry.byName("test") } returns repo
             every { controlTokens.matches(any()) } answers { firstArg<String?>() == "secret" }
             every { repository.latestGreenFor(any()) } returns null
         }
@@ -131,6 +148,35 @@ class BuildsApiControllerTest : FunSpec() {
                 .andExpect(jsonPath("$[0].artifactKey").value(build.artifactKey))
                 .andExpect(jsonPath("$[0].status").value("running"))
                 .andExpect(jsonPath("$[0].logSize").value(5))
+        }
+
+        test("current answers only the served repository's builds") {
+            val liveLogFile = Files.writeString(tempDir.resolve("mine.log"), "12345")
+            val mine = runningBuild(liveLogFile)
+            val foreign =
+                runningBuild(liveLogFile).copy(
+                    repo = mockk<RepoContext>(),
+                    artifactKey = "other-repo-running",
+                )
+            every { buildExecutor.currentBuilds() } returns listOf(mine, foreign)
+            every { repository.history() } returns
+                listOf(successResult.copy(status = BuildStatus.RUNNING, artifactKey = mine.artifactKey))
+
+            mockMvc
+                .perform(get("/api/builds/current"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].artifactKey").value(mine.artifactKey))
+        }
+
+        test("current log of a build in another repository answers 404") {
+            val liveLogFile = Files.writeString(tempDir.resolve("foreign.log"), "hello world")
+            val foreign = runningBuild(liveLogFile).copy(repo = mockk<RepoContext>())
+            every { buildExecutor.currentBuilds() } returns listOf(foreign)
+
+            mockMvc
+                .perform(get("/api/builds/current/${foreign.artifactKey}/log"))
+                .andExpect(status().isNotFound)
         }
 
         test("current log answers the tail from the requested offset") {
@@ -299,6 +345,8 @@ class BuildsApiControllerTest : FunSpec() {
         }
 
         test("cancel answers 202 for a cancellable build and 404 otherwise") {
+            every { repository.history() } returns
+                listOf(successResult.copy(artifactKey = "known-key"), successResult.copy(artifactKey = "unknown-key"))
             every { buildExecutor.cancel("known-key") } returns true
             every { buildExecutor.cancel("unknown-key") } returns false
 
@@ -309,6 +357,32 @@ class BuildsApiControllerTest : FunSpec() {
             mockMvc
                 .perform(post("/api/builds/unknown-key/cancel").header(BuildsApiController.TOKEN_HEADER, "secret"))
                 .andExpect(status().isNotFound)
+        }
+
+        test("cancel does not reach a build of another repository") {
+            // the key exists in the executor, but not in this repository's results
+            every { repository.history() } returns listOf(successResult)
+            every { buildExecutor.cancel(any()) } returns true
+
+            mockMvc
+                .perform(
+                    post("/api/repos/test/builds/other-repo-key/cancel")
+                        .header(BuildsApiController.TOKEN_HEADER, "secret"),
+                ).andExpect(status().isNotFound)
+            verify(exactly = 0) { buildExecutor.cancel(any()) }
+        }
+
+        test("the repository-scoped routes answer for the named repository and 404 for an unknown name") {
+            every { repository.latestPerName() } returns listOf(successResult)
+
+            mockMvc
+                .perform(get("/api/repos/test/builds/latest"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$[0].artifactKey").value("main-abc123-key"))
+            mockMvc
+                .perform(get("/api/repos/no-such-repo/builds/latest"))
+                .andExpect(status().isNotFound)
+                .andExpect(jsonPath("$.error").value("no repository named 'no-such-repo'"))
         }
 
         test("a token in the query string is not accepted — the header is the only way") {

@@ -1,16 +1,17 @@
 package de.hoennig.werkator.server
 
-import de.hoennig.werkator.build.ArtifactStore
 import de.hoennig.werkator.build.BuildExecutor
 import de.hoennig.werkator.build.BuildResult
-import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.config.BuildDefinition
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
+import de.hoennig.werkator.repo.RepoRegistry
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -32,34 +33,72 @@ import java.nio.file.StandardOpenOption
  */
 @RestController
 class BuildsApiController(
-    private val repository: BuildResultRepository,
     private val buildExecutor: BuildExecutor,
-    private val artifactStore: ArtifactStore,
     private val controlTokens: ControlTokenService,
     private val gitService: GitService,
     private val branchListing: BranchListing,
-    private val repo: RepoContext,
+    private val registry: RepoRegistry,
+    private val repoLinks: RepoLinks,
 ) {
-    private val workingDir: Path
-        get() = repo.workingDir
+    /**
+     * Every route exists twice: repository-scoped (`/api/repos/<name>/…`) and unscoped.
+     * The unscoped form means the served repository ([RepoRegistry.current]) and stays
+     * for good — bookmarks, the legacy UI, and the links already posted to Gitea were
+     * written without a repository segment, and a CI that breaks its own old links is
+     * a CI nobody trusts.
+     */
+    private fun repoOf(name: String?): RepoContext =
+        if (name == null) registry.current() else registry.byName(name) ?: throw UnknownRepositoryException(name)
 
-    @GetMapping("/api/builds/latest")
-    fun latest(): List<BuildResultDto> = repository.latestPerName().map { BuildResultDto.from(it, it.isLatestGreen()) }
+    private fun RepoContext.isLatestGreen(result: BuildResult): Boolean =
+        results.latestGreenFor(result.name)?.artifactKey == result.artifactKey
+
+    /** The prefix the permanent links in the answers carry; empty with one served repository. */
+    private fun uiBase(repo: RepoContext): String = repoLinks.base(repo)
+
+    /** An unknown repository name answers like every other miss of this API: 404 with `error`. */
+    @ExceptionHandler(UnknownRepositoryException::class)
+    fun unknownRepository(e: UnknownRepositoryException): ResponseEntity<Any> = notFound(e.message ?: "unknown repository")
+
+    @GetMapping("/api/builds/latest", "/api/repos/{repo}/builds/latest")
+    fun latest(
+        @PathVariable(name = "repo", required = false) repoName: String?,
+    ): List<BuildResultDto> {
+        val repo = repoOf(repoName)
+        return repo.results.latestPerName().map { BuildResultDto.from(it, repo.isLatestGreen(it), uiBase(repo)) }
+    }
 
     /** The legacy branches view: every origin branch with its latest build or `unknown`. */
-    @GetMapping("/api/branches")
-    fun branches(): List<BranchDto> = branchListing.branches(repo)
+    @GetMapping("/api/branches", "/api/repos/{repo}/branches")
+    fun branches(
+        @PathVariable(name = "repo", required = false) repoName: String?,
+    ): List<BranchDto> {
+        val repo = repoOf(repoName)
+        return branchListing.branches(repo, uiBase(repo))
+    }
 
-    @GetMapping("/api/builds/history")
-    fun history(): List<BuildResultDto> = repository.history().map { BuildResultDto.from(it, it.isLatestGreen()) }
+    @GetMapping("/api/builds/history", "/api/repos/{repo}/builds/history")
+    fun history(
+        @PathVariable(name = "repo", required = false) repoName: String?,
+    ): List<BuildResultDto> {
+        val repo = repoOf(repoName)
+        return repo.results.history().map { BuildResultDto.from(it, repo.isLatestGreen(it), uiBase(repo)) }
+    }
 
-    private fun BuildResult.isLatestGreen(): Boolean = repository.latestGreenFor(name)?.artifactKey == artifactKey
-
-    /** The currently executing builds — several are possible, up to `executor.maxConcurrent`. */
-    @GetMapping("/api/builds/current")
-    fun current(): List<CurrentBuildDto> {
-        val results = repository.history()
-        return buildExecutor.currentBuilds().map { build ->
+    /**
+     * The currently executing builds of the served repository — several are possible,
+     * up to `executor.maxConcurrent`. The executor is instance-global and returns the
+     * builds of every registered repository, so this view filters: its [repository]
+     * holds only this repository's results, and a foreign build looked up in them
+     * would fall back to RUNNING and show a status nobody recorded.
+     */
+    @GetMapping("/api/builds/current", "/api/repos/{repo}/builds/current")
+    fun current(
+        @PathVariable(name = "repo", required = false) repoName: String?,
+    ): List<CurrentBuildDto> {
+        val repo = repoOf(repoName)
+        val results = repo.results.history()
+        return buildExecutor.currentBuilds().filter { it.repo === repo }.map { build ->
             CurrentBuildDto(
                 branch = build.branch,
                 name = build.name,
@@ -76,13 +115,15 @@ class BuildsApiController(
     }
 
     /** Incremental live-log fetch of one running build; poll again with `offset = nextOffset`. */
-    @GetMapping("/api/builds/current/{artifactKey}/log")
+    @GetMapping("/api/builds/current/{artifactKey}/log", "/api/repos/{repo}/builds/current/{artifactKey}/log")
     fun currentLog(
+        @PathVariable(name = "repo", required = false) repoName: String?,
         @PathVariable artifactKey: String,
         @RequestParam(defaultValue = "0") offset: Long,
     ): ResponseEntity<Any> {
+        val repo = repoOf(repoName)
         val build =
-            buildExecutor.currentBuilds().firstOrNull { it.artifactKey == artifactKey }
+            buildExecutor.currentBuilds().firstOrNull { it.repo === repo && it.artifactKey == artifactKey }
                 ?: return notFound("no running build with artifact key '$artifactKey'")
         return ResponseEntity.ok(readLogTail(artifactKey, build.liveLogFile, offset))
     }
@@ -102,14 +143,17 @@ class BuildsApiController(
      * The name is a parameter, not a path variable, because branch names may contain
      * slashes (Tomcat rejects encoded slashes in the path by default).
      */
-    @PostMapping("/api/builds/restart")
+    @PostMapping("/api/builds/restart", "/api/repos/{repo}/builds/restart")
     fun restart(
+        @PathVariable(name = "repo", required = false) repoName: String?,
         @RequestParam branch: String,
         @RequestParam(defaultValue = "false") atOriginHead: Boolean,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
     ): ResponseEntity<Any> {
         rejectBadToken(headerToken)?.let { return it }
-        val latest = repository.latestFor(branch)
+        val repo = repoOf(repoName)
+        val workingDir = repo.workingDir
+        val latest = repo.results.latestFor(branch)
         // the name may be a pool like `main@pitest`; the branch to build is the recorded one
         val branchName = latest?.branch ?: branch
         val commit =
@@ -143,12 +187,20 @@ class BuildsApiController(
     }
 
     /** Cancels by artifact key because multiple builds can run concurrently. */
-    @PostMapping("/api/builds/{artifactKey}/cancel")
+    @PostMapping("/api/builds/{artifactKey}/cancel", "/api/repos/{repo}/builds/{artifactKey}/cancel")
     fun cancel(
+        @PathVariable(name = "repo", required = false) repoName: String?,
         @PathVariable artifactKey: String,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
     ): ResponseEntity<Any> {
         rejectBadToken(headerToken)?.let { return it }
+        val repo = repoOf(repoName)
+        // the executor cancels by key across all repositories; a route that names a
+        // repository must not reach into another one, and a queued or running build
+        // always has its PENDING/RUNNING result recorded in its own repository
+        if (repo.results.history().none { it.artifactKey == artifactKey }) {
+            return notFound("no queued or running build with artifact key '$artifactKey'")
+        }
         if (!buildExecutor.cancel(artifactKey)) {
             return notFound("no queued or running build with artifact key '$artifactKey'")
         }
@@ -156,16 +208,18 @@ class BuildsApiController(
     }
 
     /** Removes the stored result and its artifact directory, like the legacy `/control/delete`. */
-    @DeleteMapping("/api/builds/{artifactKey}")
+    @DeleteMapping("/api/builds/{artifactKey}", "/api/repos/{repo}/builds/{artifactKey}")
     fun delete(
+        @PathVariable(name = "repo", required = false) repoName: String?,
         @PathVariable artifactKey: String,
         @RequestHeader(name = TOKEN_HEADER, required = false) headerToken: String?,
     ): ResponseEntity<Any> {
         rejectBadToken(headerToken)?.let { return it }
-        if (!repository.delete(artifactKey)) {
+        val repo = repoOf(repoName)
+        if (!repo.results.delete(artifactKey)) {
             return notFound("no build with artifact key '$artifactKey'")
         }
-        artifactStore.prune(repository.history())
+        repo.artifactStore.prune(repo.results.history())
         return ResponseEntity.ok(mapOf("deleted" to artifactKey))
     }
 

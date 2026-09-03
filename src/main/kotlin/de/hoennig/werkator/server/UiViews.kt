@@ -252,3 +252,10 @@ data class SystemMetricsView(
             )
     }
 }
+
+/** One entry of the repository switcher in the navigation (ADR 0009). */
+data class RepoLinkView(
+    val name: String,
+    val url: String,
+    val current: Boolean,
+)

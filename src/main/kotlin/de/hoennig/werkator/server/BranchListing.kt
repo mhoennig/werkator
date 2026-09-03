@@ -17,7 +17,10 @@ import org.springframework.stereotype.Component
 class BranchListing(
     private val gitService: GitService,
 ) {
-    fun branches(repo: RepoContext): List<BranchDto> {
+    fun branches(
+        repo: RepoContext,
+        base: String = "",
+    ): List<BranchDto> {
         val repository = repo.results
         val heads = gitService.originBranchHeads(repo.workingDir)
         val namedResults = repository.latestPerName().filter { it.name != it.branch && it.branch in heads }
@@ -45,7 +48,7 @@ class BranchListing(
                 // the permanent link belongs to the build it resolves to, not to every build of the name
                 val isLatestGreen =
                     row.artifactKey.isNotEmpty() && row.artifactKey == repository.latestGreenFor(row.name)?.artifactKey
-                if (isLatestGreen) row.copy(latestGreenUrl = BranchPermalinks.permanentUrl(row.name)) else row
+                if (isLatestGreen) row.copy(latestGreenUrl = BranchPermalinks.permanentUrl(row.name, base)) else row
             }
     }
 

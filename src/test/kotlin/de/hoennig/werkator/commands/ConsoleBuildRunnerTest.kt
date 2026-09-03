@@ -34,6 +34,7 @@ class ConsoleBuildRunnerTest : FunSpec() {
 
     private fun runningBuild(stagingDir: Path) =
         RunningBuild(
+            repo = repo,
             branch = "main",
             commit = "0123456789abcdef",
             artifactKey = "main-key",

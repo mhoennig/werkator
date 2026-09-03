@@ -1,6 +1,7 @@
 package de.hoennig.werkator.server
 
-import de.hoennig.werkator.build.ArtifactStore
+import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
@@ -25,17 +26,22 @@ import kotlin.streams.asSequence
  */
 @RestController
 class ArtifactFileController(
-    private val artifactStore: ArtifactStore,
     private val branchPermalinks: BranchPermalinks,
+    private val registry: RepoRegistry,
 ) {
-    @GetMapping("/artifacts/{artifactKey}/{*path}")
+    /** Scoped and unscoped, like every other route (ADR 0009); unscoped means the served repository. */
+    private fun repoOf(name: String?): RepoContext =
+        if (name == null) registry.current() else registry.byName(name) ?: throw UnknownRepositoryException(name)
+
+    @GetMapping("/artifacts/{artifactKey}/{*path}", "/repos/{repo}/artifacts/{artifactKey}/{*path}")
     fun serve(
+        @PathVariable(name = "repo", required = false) repoName: String?,
         @PathVariable artifactKey: String,
         @PathVariable path: String,
         request: HttpServletRequest,
     ): ResponseEntity<Resource> {
         val artifactDir =
-            artifactStore.artifactDir(artifactKey)
+            repoOf(repoName).artifactStore.artifactDir(artifactKey)
                 ?: return ResponseEntity.notFound().build()
         val relativePath = path.removePrefix("/").removeSuffix("/")
         directoryResponse(artifactDir, relativePath, request, noStore = true)?.let { return it }
@@ -52,15 +58,17 @@ class ArtifactFileController(
      * slash, so relative links inside reports resolve correctly), and everything is
      * `no-store` because the content behind a URL changes with every new green build.
      */
-    @GetMapping("/branches/{branchKey}/{*path}")
+    @GetMapping("/branches/{branchKey}/{*path}", "/repos/{repo}/branches/{branchKey}/{*path}")
     fun serveLatestGreen(
+        @PathVariable(name = "repo", required = false) repoName: String?,
         @PathVariable branchKey: String,
         @PathVariable path: String,
         request: HttpServletRequest,
     ): ResponseEntity<Resource> {
-        val build = branchPermalinks.latestGreenBuild(branchKey)
+        val repo = repoOf(repoName)
+        val build = branchPermalinks.latestGreenBuild(repo, branchKey)
         val artifactDir =
-            artifactStore.artifactDir(build.artifactKey)
+            repo.artifactStore.artifactDir(build.artifactKey)
                 ?: throw ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "the artifacts of build '${build.artifactKey}' are not stored anymore",

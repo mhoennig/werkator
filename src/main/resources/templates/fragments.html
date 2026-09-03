@@ -7,11 +7,14 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/werkator.css">
     <meta name="werkator-gitea-repo-url" th:content="${giteaRepoUrl}">
+    <!-- Empty with one served repository, `/repos/<name>` with several: werkator.js
+         builds its action and artifact URLs from it, so a page stays in its repository. -->
+    <meta name="werkator-repo-base" th:content="${repoBase}">
 </head>
 <body>
 
 <h1 th:fragment="header(title)">
-    <a class="title-home" href="/" aria-label="Open latest builds"><img src="/favicon.svg" alt=""></a>
+    <a class="title-home" th:href="${homeUrl}" href="/" aria-label="Open latest builds"><img src="/favicon.svg" alt=""></a>
     <span class="title-text" th:text="${title}">Latest Builds</span>
     <span class="repo-name" th:unless="${#strings.isEmpty(repoName)}" th:text="${repoName}">owner/repo</span>
 </h1>
@@ -20,14 +23,22 @@
 <div class="view-row">
     <nav class="view-toggle">
         <span th:if="${view == 'latest'}">Latest</span>
-        <a th:unless="${view == 'latest'}" href="/">Latest</a>
+        <a th:unless="${view == 'latest'}" th:href="${homeUrl}" href="/">Latest</a>
         <span th:if="${view == 'branches'}">Branches</span>
-        <a th:unless="${view == 'branches'}" href="/branches">Branches</a>
+        <a th:unless="${view == 'branches'}" th:href="${repoBase} + '/branches'" href="/branches">Branches</a>
         <span th:if="${view == 'history'}">History</span>
-        <a th:unless="${view == 'history'}" href="/history">History</a>
+        <a th:unless="${view == 'history'}" th:href="${repoBase} + '/history'" href="/history">History</a>
         <span th:if="${view == 'current'}">Current</span>
         <span th:if="${view == 'system'}">System</span>
         <a th:unless="${view == 'system'}" href="/system">System</a>
+    </nav>
+    <!-- The repository switcher (ADR 0009): what makes several repositories one UI.
+         With a single served repository there is nothing to switch, and the block is absent. -->
+    <nav class="repo-switch" th:if="${multiRepo}">
+        <th:block th:each="r : ${repos}">
+            <span th:if="${r.current}" th:text="${r.name}" class="repo-current">werkator</span>
+            <a th:unless="${r.current}" th:href="${r.url}" th:text="${r.name}">other</a>
+        </th:block>
     </nav>
     <span class="view-row-actions">
         <span id="live-indicator" class="status status-unknown" title="live-update state">static</span>

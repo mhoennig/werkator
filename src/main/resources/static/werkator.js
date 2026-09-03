@@ -99,6 +99,17 @@ function metaContent(name) {
 
 const giteaRepoUrl = metaContent("werkator-gitea-repo-url");
 
+// Empty with one served repository, `/repos/<name>` with several (ADR 0009). Every
+// path this script builds itself is prefixed with it, so an action triggered on a
+// repository's page acts on that repository — the paths rendered into the DOM
+// (`data-api`, artifact links) already carry it.
+const repoBase = metaContent("werkator-repo-base") || "";
+
+/** The API of the repository this page belongs to; `/api` when only one is served. */
+function apiBase() {
+    return repoBase ? "/api" + repoBase : "/api";
+}
+
 // The control token is deliberately NOT embedded in the pages: reading them is
 // unauthenticated, so anyone could have read it out of the HTML. The operator
 // pastes it once per browser from `.git/werkator/control-token` on the server;
@@ -389,7 +400,7 @@ function renderBuildRow(build, allowRestart, restartAtOriginHead) {
     const inProgress = build.status === "running" || build.status === "pending";
     if (build.artifactKey) {
         const artifactLink = elem("a", "artifact-link", inProgress ? "⏳" : "📄");
-        artifactLink.href = "/builds/" + encodeURIComponent(build.artifactKey);
+        artifactLink.href = repoBase + "/builds/" + encodeURIComponent(build.artifactKey);
         artifactLink.title = inProgress ? "Open build log — no artifacts yet" : "Open artifacts";
         artifactsCell.appendChild(artifactLink);
     }
@@ -542,7 +553,7 @@ function initCurrentBuilds() {
             return;
         }
         const offset = logOffsets.get(build.artifactKey) || 0;
-        const url = `/api/builds/current/${encodeURIComponent(build.artifactKey)}/log?offset=${offset}`;
+        const url = `${apiBase()}/builds/current/${encodeURIComponent(build.artifactKey)}/log?offset=${offset}`;
         const tail = await fetchJson(url);
         logOffsets.set(build.artifactKey, tail.nextOffset);
         if (tail.content) {
@@ -690,11 +701,11 @@ document.addEventListener("click", async (event) => {
     try {
         if (action === "restart") {
             const atOriginHead = button.dataset.atOriginHead === "true" ? "&atOriginHead=true" : "";
-            await sendAction("/api/builds/restart?branch=" + encodeURIComponent(button.dataset.branch) + atOriginHead, "POST");
+            await sendAction(apiBase() + "/builds/restart?branch=" + encodeURIComponent(button.dataset.branch) + atOriginHead, "POST");
         } else if (action === "cancel") {
-            await sendAction(`/api/builds/${encodeURIComponent(button.dataset.artifactKey)}/cancel`, "POST");
+            await sendAction(`${apiBase()}/builds/${encodeURIComponent(button.dataset.artifactKey)}/cancel`, "POST");
         } else if (action === "delete") {
-            await sendAction("/api/builds/" + encodeURIComponent(button.dataset.artifactKey), "DELETE");
+            await sendAction(apiBase() + "/builds/" + encodeURIComponent(button.dataset.artifactKey), "DELETE");
         }
         if (refreshNow) {
             refreshNow();

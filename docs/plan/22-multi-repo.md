@@ -60,13 +60,15 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 - ~~Startup recovery per repo; auto-build slots stay in each repo's `.git/werkator/`.~~ — done: `start(repos)` recovers each in its own guard; slots unchanged.
 - ~~CLI commands gain an optional repo selector and default to the current working directory, so `werkator status` inside a repo behaves as today.~~ — done: `--repo <name>` (`RepoOption` mixin) on `build`, `retry`, `status`; default is the cwd when served, else the first registered repository.
 - Also done: the pre-rename state-dir migration runs per opened repository; the metrics page's repository size sums the registered repositories (the disk metric is the first one's file store).
-- Carried over to session D: `RunningBuild` still carries no repository (the "current builds" view and the worktree pruning cannot tell repositories apart); the controllers still serve `registry.current()` only; `docs/deployment.md` gets the registry setup with session E.
+- Carried over to session D: ~~`RunningBuild` still carries no repository (the "current builds" view and the worktree pruning cannot tell repositories apart)~~ — done 2026-09-03: `RunningBuild.repo` is the context (identity comparison), the current-builds view and API filter to the served repository, and the worktree pruning is protected by its own repository's running builds alone; the controllers still serve `registry.current()` only; `docs/deployment.md` gets the registry setup with session E.
 
 ### D — Server, API, and UI scoping
 
-- Routes gain the repo segment (`/api/repos/<name>/builds/…`, `/repos/<name>/builds/<key>`); with exactly one registered repo the today-routes keep working (redirect or alias) so bookmarks and posted Gitea links survive.
-- Latest/branches/history views group by repo or gain a repo column; one instance-wide metrics page; one control token.
-- Gitea status links use the repo-scoped URLs.
+- ~~Routes gain the repo segment (`/api/repos/<name>/builds/…`, `/repos/<name>/builds/<key>`); with exactly one registered repo the today-routes keep working (redirect or alias) so bookmarks and posted Gitea links survive.~~ — done 2026-09-03 (PR #13): every route of the builds API, the pages, and the artifact files is mapped twice; the unscoped form is not an alias with an expiry date but the permanent way to say "the served repository", and an unknown name is a 404 in each controller's own shape.
+- ~~Latest/branches/history views group by repo or gain a repo column; one instance-wide metrics page; one control token.~~ — done 2026-09-03, decided against the column: the pages stay per repository and the navigation gains a **repository switcher** (a row's actions need the repository anyway, branches come from one origin, artifacts from one store — and with one repository a column is noise). Metrics page and control token stay instance-wide as planned.
+- ~~Gitea status links use the repo-scoped URLs~~ — done 2026-09-03: the permanent artifact links take the prefix (`BranchPermalinks.permanentUrl`; the key is a hash of the build name alone, so two repositories both having `main` would share one URL), and the **commit status now carries a target URL at all** — `server.publicBaseUrl` was documented as "used for all links posted to Gitea" while the executor posted `targetUrl = null`. It is the build's artifact page, repository-scoped.
+- Also done: `RunningBuild` carries its `RepoContext` (the carry-over from session C), so the current-builds views and the watcher's worktree pruning tell repositories apart, and `cancel` refuses a key that is not recorded in the named repository.
+- ~~`docs/deployment.md` gets the registry setup~~ — done 2026-09-03: section "Serving Several Repositories" (clone, prepare, register, restart) with the name rules, the per-repository guard, and what the URLs look like with one repository and with several.
 
 ### E — Rollout on mih34: Werkbaum joins
 

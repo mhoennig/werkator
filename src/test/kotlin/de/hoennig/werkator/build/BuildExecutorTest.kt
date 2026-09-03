@@ -3,6 +3,8 @@ package de.hoennig.werkator.build
 import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.gitea.GiteaClient
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -53,6 +55,7 @@ class BuildExecutorTest : FunSpec() {
         val executor =
             BuildExecutor(
                 configLoader = ConfigLoader(),
+                repoLinks = RepoLinks(mockk<RepoRegistry>().also { every { it.all() } returns listOf(repo) }),
                 giteaClient = giteaClient,
                 buildRunner = buildRunner,
                 workspaces = workspaces,
@@ -136,6 +139,35 @@ class BuildExecutorTest : FunSpec() {
             verify { h.giteaClient.publishStatus("abc123", BuildStatus.RUNNING, any(), null, h.workingDir, any()) }
             verify { h.giteaClient.publishStatus("abc123", BuildStatus.SUCCESS, any(), null, h.workingDir, any()) }
             verify { h.artifactStore.persist(match { it.status == BuildStatus.SUCCESS }, build.stagingDir, h.workingDir) }
+        }
+
+        test("the commit status carries the artifact page when a public base URL is configured") {
+            val h =
+                Harness(
+                    """
+                    server:
+                      publicBaseUrl: https://ci.example.org/
+                    branches:
+                      default:
+                        buildCommand: "true"
+                    """.trimIndent(),
+                )
+
+            val build = h.executor.startBuild(h.repo, "main", "abc123")
+
+            awaitStatus(h, "main", BuildStatus.SUCCESS)
+            awaitIdle(h)
+            // one served repository: the installation's existing URLs, no repository segment
+            verify {
+                h.giteaClient.publishStatus(
+                    "abc123",
+                    BuildStatus.SUCCESS,
+                    any(),
+                    "https://ci.example.org/builds/" + build.artifactKey,
+                    h.workingDir,
+                    any(),
+                )
+            }
         }
 
         test("build commands run in the workspace prepared for the branch") {

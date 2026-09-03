@@ -27,6 +27,7 @@ data class BuildResultDto(
         fun from(
             result: BuildResult,
             isLatestGreen: Boolean = false,
+            base: String = "",
         ) = BuildResultDto(
             branch = result.branch,
             name = result.name,
@@ -36,7 +37,7 @@ data class BuildResultDto(
             runningSince = result.runningSince,
             durationSeconds = result.duration?.seconds,
             artifactKey = result.artifactKey,
-            latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(result.name) else null,
+            latestGreenUrl = if (isLatestGreen) BranchPermalinks.permanentUrl(result.name, base) else null,
         )
     }
 }

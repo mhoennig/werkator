@@ -7,11 +7,14 @@ import de.hoennig.werkator.build.ProcessBuildRunner
 import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.gitea.GiteaClient
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.mockk.every
 import io.mockk.mockk
 import org.springframework.context.ApplicationEventPublisher
 import java.nio.file.Files
@@ -42,6 +45,7 @@ class BuildExecutorArtifactIntegrationTest : FunSpec() {
             val executor =
                 BuildExecutor(
                     configLoader = ConfigLoader(),
+                    repoLinks = RepoLinks(mockk<RepoRegistry>().also { every { it.all() } returns listOf(repo) }),
                     giteaClient = mockk<GiteaClient>(relaxed = true),
                     buildRunner = ProcessBuildRunner(),
                     workspaces = BranchWorkspaces { _, _, _ -> workspace },

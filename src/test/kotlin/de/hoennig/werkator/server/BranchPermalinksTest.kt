@@ -4,6 +4,7 @@ import de.hoennig.werkator.build.ArtifactKeys
 import de.hoennig.werkator.build.BuildResult
 import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -17,7 +18,8 @@ import java.time.Instant
 
 class BranchPermalinksTest : FunSpec() {
     private val repository = mockk<BuildResultRepository>()
-    private val permalinks = BranchPermalinks(repository)
+    private val repo = mockk<RepoContext>().also { every { it.results } returns repository }
+    private val permalinks = BranchPermalinks()
 
     private fun result(
         branch: String,
@@ -36,20 +38,20 @@ class BranchPermalinksTest : FunSpec() {
             every { repository.latestPerName() } returns listOf(result("feature/x"), result("main"))
             every { repository.latestGreenFor("feature/x") } returns result("feature/x")
 
-            permalinks.latestGreenBuild("feature_x") shouldBe result("feature/x")
+            permalinks.latestGreenBuild(repo, "feature_x") shouldBe result("feature/x")
         }
 
         test("resolves the full branch key with hash suffix") {
             every { repository.latestPerName() } returns listOf(result("feature/x"))
             every { repository.latestGreenFor("feature/x") } returns result("feature/x")
 
-            permalinks.latestGreenBuild(ArtifactKeys.branchKey("feature/x")) shouldBe result("feature/x")
+            permalinks.latestGreenBuild(repo, ArtifactKeys.branchKey("feature/x")) shouldBe result("feature/x")
         }
 
         test("an unknown branch key answers 404") {
             every { repository.latestPerName() } returns listOf(result("main"))
 
-            val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild("gone") }
+            val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild(repo, "gone") }
 
             exception.statusCode shouldBe HttpStatus.NOT_FOUND
         }
@@ -58,7 +60,7 @@ class BranchPermalinksTest : FunSpec() {
             every { repository.latestPerName() } returns listOf(result("main", status = BuildStatus.FAILED))
             every { repository.latestGreenFor("main") } returns null
 
-            val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild("main") }
+            val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild(repo, "main") }
 
             exception.statusCode shouldBe HttpStatus.NOT_FOUND
         }
@@ -66,7 +68,7 @@ class BranchPermalinksTest : FunSpec() {
         test("a permanent key matching several branches answers 409 and names the candidates") {
             every { repository.latestPerName() } returns listOf(result("feature/x"), result("feature_x"))
 
-            val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild("feature_x") }
+            val exception = shouldThrow<ResponseStatusException> { permalinks.latestGreenBuild(repo, "feature_x") }
 
             exception.statusCode shouldBe HttpStatus.CONFLICT
             exception.reason.orEmpty() shouldContain "feature/x"
@@ -76,7 +78,7 @@ class BranchPermalinksTest : FunSpec() {
             every { repository.latestPerName() } returns listOf(result("feature/x"), result("feature_x"))
             every { repository.latestGreenFor("feature/x") } returns result("feature/x")
 
-            permalinks.latestGreenBuild(ArtifactKeys.branchKey("feature/x")) shouldBe result("feature/x")
+            permalinks.latestGreenBuild(repo, ArtifactKeys.branchKey("feature/x")) shouldBe result("feature/x")
         }
 
         test("permanentUrl uses the hash-free branch key") {
@@ -89,7 +91,7 @@ class BranchPermalinksTest : FunSpec() {
             every { repository.latestGreenFor("main@nightly") } returns nightly
 
             // sanitized like any branch key: the '@' becomes '_' in the URL
-            permalinks.latestGreenBuild("main_nightly") shouldBe nightly
+            permalinks.latestGreenBuild(repo, "main_nightly") shouldBe nightly
         }
     }
 }

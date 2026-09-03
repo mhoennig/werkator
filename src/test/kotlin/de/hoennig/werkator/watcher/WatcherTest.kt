@@ -94,7 +94,7 @@ class WatcherTest : FunSpec() {
                 val branch = secondArg<String>()
                 val commit = thirdArg<String>()
                 startedBuilds += branch to commit
-                runningBuild(branch, commit)
+                runningBuild(repo, branch, commit)
             }
             every { artifactStore.prune(any()) } returns emptyList()
         }
@@ -131,11 +131,13 @@ class WatcherTest : FunSpec() {
     }
 
     private fun runningBuild(
+        repo: RepoContext,
         branch: String,
         commit: String,
     ): RunningBuild {
         val stagingDir = Files.createTempDirectory("werkator-watcher-staging")
         return RunningBuild(
+            repo = repo,
             branch = branch,
             commit = commit,
             artifactKey = ArtifactKeys.buildKey(branch, Instant.now()),
@@ -272,7 +274,7 @@ class WatcherTest : FunSpec() {
         test("a poll cycle completes while a build is running and still enqueues other branches") {
             val harness = Harness()
             harness.seed("main", BuildStatus.RUNNING, commit = "commit-1")
-            every { harness.buildExecutor.currentBuilds() } returns listOf(runningBuild("main", "commit-1"))
+            every { harness.buildExecutor.currentBuilds() } returns listOf(runningBuild(harness.repo, "main", "commit-1"))
             every { harness.gitService.originBranches(any()) } returns listOf("main", "feature/other")
             every { harness.gitService.localBranches(any()) } returns listOf("main")
             every { harness.gitService.hasNewCommits("main", any()) } returns true
@@ -765,6 +767,28 @@ class WatcherTest : FunSpec() {
             harness.watcher.poll(harness.repo)
 
             Files.exists(busyWorktree).shouldBeTrue()
+        }
+
+        test("a running build of another repository does not keep this repository's worktree") {
+            val harness = Harness()
+            harness.seed("gone", BuildStatus.SUCCESS, commit = "commit-1")
+            val goneWorktree = harness.worktreeDir("gone")
+            val otherDir = Files.createTempDirectory("werkator-watcher-other-running")
+            val other =
+                RepoContext(
+                    "other",
+                    otherDir,
+                    FileBuildResultRepository(otherDir.resolve(".git/werkator/build-results.json")),
+                    harness.artifactStore,
+                )
+            // the other repository builds a branch of the same name — its build must not
+            // protect this repository's worktree, whose branch is gone from origin
+            every { harness.buildExecutor.currentBuilds() } returns listOf(runningBuild(other, "gone", "commit-other"))
+            every { harness.gitService.originBranches(any()) } returns emptyList()
+
+            harness.watcher.poll(harness.repo)
+
+            Files.exists(goneWorktree).shouldBeFalse()
         }
 
         test("one repository's unreachable origin neither stops nor silences the other") {
