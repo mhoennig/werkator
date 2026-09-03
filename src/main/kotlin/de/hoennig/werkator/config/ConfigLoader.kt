@@ -50,6 +50,35 @@ class ConfigLoader(
     /** Section-level warnings already reported, keyed by a fixed slug; the config is loaded on every poll cycle. */
     private val warnedSections = ConcurrentHashMap.newKeySet<String>()
 
+    /**
+     * Where the instance configuration lives (ADR 0009): the home directory of the user
+     * running Werkator, `WERKATOR_HOME` overriding it for tests and unusual layouts.
+     */
+    @Volatile
+    var homeDir: Path = Paths.get(System.getenv("WERKATOR_HOME")?.takeIf { it.isNotBlank() } ?: System.getProperty("user.home"))
+
+    /** The instance configuration file, whether or not it exists. */
+    fun instanceFile(): Path = homeDir.resolve(ConfigFiles.INSTANCE)
+
+    /**
+     * The instance configuration, or null without a home file — the single-repository
+     * case, in which the current directory is served exactly as before ADR 0009.
+     */
+    fun loadInstance(): InstanceConfig? {
+        val raw = loadInstanceRaw()
+        if (raw.isEmpty()) {
+            return null
+        }
+        return yaml.convertValue(raw, InstanceConfig::class.java)
+    }
+
+    private fun loadInstanceRaw(): Map<String, Any?> {
+        val file = instanceFile()
+        val raw = loadFile(file.toFile())
+        checkVersion(raw, file.toString(), ROLLBACK_HINT)
+        return raw
+    }
+
     fun load(workingDir: Path = Paths.get(".")): WerkatorConfig = toConfig(loadRaw(workingDir))
 
     /**
@@ -307,10 +336,78 @@ class ConfigLoader(
         checkTriggerBlocks(project, projectName, ROLLBACK_HINT)
         checkTriggerBlocks(applied, ConfigFiles.APPLIED, ROLLBACK_HINT)
         checkTriggerBlocks(repoInstall, repoInstallName, ROLLBACK_HINT)
-        // the applied instance fragment sits above the committed project config and
-        // below the hand-edited machine config, which always has the last word
-        return deepMerge(deepMerge(project, applied), repoInstall)
+        val instance = loadInstanceRaw()
+        if (instance.isEmpty()) {
+            // the applied instance fragment sits above the committed project config and
+            // below the hand-edited machine config, which always has the last word
+            return deepMerge(deepMerge(project, applied), repoInstall)
+        }
+        // with a home config (ADR 0009): its `defaults` sit below every repository layer,
+        // and the instance-level keys come from it alone — a repository file still
+        // carrying them is told so, never merged silently
+        val repoLayers =
+            deepMerge(
+                deepMerge(
+                    withoutInstanceKeys(project, workingDir.resolve(projectName)),
+                    withoutInstanceKeys(applied, workingDir.resolve(ConfigFiles.APPLIED)),
+                ),
+                withoutInstanceKeys(repoInstall, workingDir.resolve(repoInstallName)),
+            )
+
+        @Suppress("UNCHECKED_CAST")
+        val defaults = instance["defaults"] as? Map<String, Any?> ?: emptyMap()
+        return deepMerge(deepMerge(defaults, repoLayers), instanceKeysOf(instance))
     }
+
+    /**
+     * Drops the instance-level keys from one repository layer, saying so once per file
+     * with both file names: the setting the operator wrote there is not in effect, and
+     * the message must name where it is read from instead.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun withoutInstanceKeys(
+        layer: Map<String, Any?>,
+        file: Path,
+    ): Map<String, Any?> {
+        val instanceKeys = instanceKeysOf(layer)
+        if (instanceKeys.isEmpty()) {
+            return layer
+        }
+        if (warnedSections.add("instance-keys:$file")) {
+            log.warn(
+                "ignoring {} in {}: these are instance settings and come from {} now",
+                describeKeys(instanceKeys),
+                file,
+                instanceFile(),
+            )
+        }
+        val result = layer.toMutableMap()
+        for (key in INSTANCE_SECTIONS) {
+            result.remove(key)
+        }
+        val watcher = (layer["watcher"] as? Map<String, Any?>)?.minus(INSTANCE_WATCHER_KEYS)
+        if (watcher == null || watcher.isEmpty()) result.remove("watcher") else result["watcher"] = watcher
+        return result
+    }
+
+    /** The instance-level part of a raw configuration map: the sections and keys owned by the instance. */
+    @Suppress("UNCHECKED_CAST")
+    private fun instanceKeysOf(raw: Map<String, Any?>): Map<String, Any?> {
+        val result = mutableMapOf<String, Any?>()
+        for (key in INSTANCE_SECTIONS) {
+            raw[key]?.let { result[key] = it }
+        }
+        val watcher = (raw["watcher"] as? Map<String, Any?>)?.filterKeys { it in INSTANCE_WATCHER_KEYS }
+        if (!watcher.isNullOrEmpty()) {
+            result["watcher"] = watcher
+        }
+        return result
+    }
+
+    private fun describeKeys(instanceKeys: Map<String, Any?>): String =
+        instanceKeys.keys.joinToString(", ") { key ->
+            if (key == "watcher") INSTANCE_WATCHER_KEYS.joinToString(", ") { "watcher.$it" } else key
+        }
 
     /**
      * Validates and installs an instance fragment (`init --apply`, step 23): the file
@@ -466,6 +563,16 @@ class ConfigLoader(
 
         /** The keys that moved into [TRIGGER_KEYS]; still writing them flat is refused, not ignored. */
         private val FLAT_TRIGGER_KEYS = setOf("onPush", "atTimes", "branches", "activeWithin")
+
+        /**
+         * Top-level sections owned by the instance once a home config exists (ADR 0009):
+         * the one server and the one global concurrency cap. Read from the home file,
+         * ignored with a warning in a repository's files.
+         */
+        private val INSTANCE_SECTIONS = setOf("server", "executor")
+
+        /** The `watcher` keys owned by the instance: one loop, one delay; the gates stay per repository. */
+        private val INSTANCE_WATCHER_KEYS = setOf("pollInterval")
 
         private const val LEGACY_BRANCHES_WARNING = "legacy-branches-ignored"
 

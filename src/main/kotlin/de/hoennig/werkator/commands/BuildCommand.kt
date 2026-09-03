@@ -3,9 +3,11 @@ package de.hoennig.werkator.commands
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
 import picocli.CommandLine.ExitCode
+import picocli.CommandLine.Mixin
 import picocli.CommandLine.Parameters
 import java.nio.file.Path
 import java.util.concurrent.Callable
@@ -24,9 +26,11 @@ import java.util.concurrent.Callable
 class BuildCommand(
     private val gitService: GitService,
     private val consoleBuildRunner: ConsoleBuildRunner,
-    /** The repository to build: the current working directory (a repo selector comes with the registry). */
-    var repo: RepoContext,
+    private val registry: RepoRegistry,
 ) : Callable<Int> {
+    @Mixin
+    var repoOption = RepoOption()
+
     @Parameters(
         index = "0",
         arity = "0..1",
@@ -35,6 +39,8 @@ class BuildCommand(
     )
     var branchFragment: String? = null
 
+    private lateinit var repo: RepoContext
+
     private val workingDir: Path
         get() = repo.workingDir
 
@@ -42,6 +48,7 @@ class BuildCommand(
         val branch: String
         val commit: String
         try {
+            repo = repoOption.select(registry)
             fetchBestEffort()
             branch = resolveBranch() ?: return ExitCode.USAGE
             commit = commitToBuild(branch) ?: return ExitCode.USAGE

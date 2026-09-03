@@ -1,11 +1,12 @@
 package de.hoennig.werkator.commands
 
 import de.hoennig.werkator.build.BuildResult
-import de.hoennig.werkator.build.BuildResultRepository
+import de.hoennig.werkator.repo.RepoRegistry
 import de.hoennig.werkator.server.UiFormats
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
 import picocli.CommandLine.ExitCode
+import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 import java.util.concurrent.Callable
 
@@ -20,12 +21,22 @@ import java.util.concurrent.Callable
     mixinStandardHelpOptions = true,
 )
 class StatusCommand(
-    private val repository: BuildResultRepository,
+    private val registry: RepoRegistry,
 ) : Callable<Int> {
     @Option(names = ["--history"], description = ["Print all recorded builds, not only the latest per branch"])
     var history: Boolean = false
 
+    @Mixin
+    var repoOption = RepoOption()
+
     override fun call(): Int {
+        val repository =
+            try {
+                repoOption.select(registry).results
+            } catch (e: IllegalArgumentException) {
+                System.err.println("error: ${e.message}")
+                return ExitCode.USAGE
+            }
         val results = if (history) repository.history() else repository.latestPerName()
         if (results.isEmpty()) {
             println("(no builds recorded)")

@@ -767,19 +767,62 @@ class WatcherTest : FunSpec() {
             Files.exists(busyWorktree).shouldBeTrue()
         }
 
+        test("one repository's unreachable origin neither stops nor silences the other") {
+            val harness = Harness()
+            val otherDir = Files.createTempDirectory("werkator-watcher-other")
+            val other =
+                RepoContext(
+                    "other",
+                    otherDir,
+                    FileBuildResultRepository(otherDir.resolve(".git/werkator/build-results.json")),
+                    harness.artifactStore,
+                )
+            every { harness.gitService.fetchOrigin(harness.workingDir) } throws RuntimeException("origin unreachable")
+            every { harness.gitService.originBranches(otherDir) } returns listOf("main")
+            every { harness.gitService.originBranchHeads(otherDir) } returns mapOf("main" to "commit-other")
+            every { harness.gitService.localBranches(otherDir) } returns listOf("main")
+            every { harness.gitService.hasNewCommits("main", otherDir) } returns true
+            every { harness.gitService.originHeadCommit("main", otherDir) } returns "commit-other"
+
+            harness.watcher.pollAll(listOf(harness.repo, other))
+
+            verify { harness.buildExecutor.startBuild(other, "main", "commit-other", BuildDefinition.DEFAULT) }
+            verify(exactly = 0) { harness.buildExecutor.startBuild(harness.repo, any(), any(), any()) }
+            val state = harness.watcher.state()
+            state.lastFetchError shouldBe "test: origin unreachable"
+            state.lastPollError shouldBe null
+            state.repositories.map { it.name } shouldBe listOf("test", "other")
+            state.repositories[0].lastFetchError shouldBe "origin unreachable"
+            state.repositories[1].lastFetchError shouldBe null
+        }
+
+        test("a repository whose poll crashes reports it by name and the cycle goes on") {
+            val harness = Harness()
+            val otherDir = Files.createTempDirectory("werkator-watcher-other")
+            val other = RepoContext("other", otherDir, harness.repository, harness.artifactStore)
+            every { harness.gitService.originBranches(otherDir) } throws IllegalStateException("corrupt refs")
+
+            harness.watcher.pollAll(listOf(harness.repo, other))
+
+            val state = harness.watcher.state()
+            state.lastPollError shouldBe "other: corrupt refs"
+            state.repositories[1].lastPollError shouldBe "corrupt refs"
+            state.repositories[0].lastPollError shouldBe null
+        }
+
         test("start runs recovery plus an immediate first poll; stop halts the loop") {
             val harness = Harness()
             val fetches = CountDownLatch(2)
             every { harness.gitService.fetchOrigin(any()) } answers { fetches.countDown() }
 
-            harness.watcher.start(harness.repo)
+            harness.watcher.start(listOf(harness.repo))
 
             fetches.await(5, TimeUnit.SECONDS).shouldBeTrue()
             harness.watcher
                 .state()
                 .running
                 .shouldBeTrue()
-            shouldThrow<IllegalStateException> { harness.watcher.start(harness.repo) }
+            shouldThrow<IllegalStateException> { harness.watcher.start(listOf(harness.repo)) }
 
             harness.watcher.stop()
 

@@ -4,9 +4,11 @@ import de.hoennig.werkator.build.BuildResult
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import org.springframework.stereotype.Component
 import picocli.CommandLine.Command
 import picocli.CommandLine.ExitCode
+import picocli.CommandLine.Mixin
 import java.nio.file.Path
 import java.util.concurrent.Callable
 
@@ -25,15 +27,20 @@ import java.util.concurrent.Callable
 class RetryCommand(
     private val gitService: GitService,
     private val consoleBuildRunner: ConsoleBuildRunner,
-    /** The repository to retry in: the current working directory (a repo selector comes with the registry). */
-    var repo: RepoContext,
+    private val registry: RepoRegistry,
 ) : Callable<Int> {
+    @Mixin
+    var repoOption = RepoOption()
+
+    private lateinit var repo: RepoContext
+
     private val workingDir: Path
         get() = repo.workingDir
 
     override fun call(): Int {
         val failed: List<BuildResult>
         try {
+            repo = repoOption.select(registry)
             fetchBestEffort()
             failed = repo.results.latestPerName().filter { it.status == BuildStatus.FAILED }
         } catch (e: Exception) {

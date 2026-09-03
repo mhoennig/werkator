@@ -26,10 +26,12 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 /**
- * Replaces the legacy blocking main loop: a non-blocking fixed-delay poll cycle that
- * fetches origin, enqueues due branches via the async [BuildExecutor], and prunes
- * retention — it never waits for a build and never builds in the primary checkout
- * (whose branch refs it does fast-forward, see [fastForwardLocalRefs]).
+ * Replaces the legacy blocking main loop: a non-blocking fixed-delay poll cycle that,
+ * for every served repository, fetches origin, enqueues due branches via the async
+ * [BuildExecutor], and prunes retention — it never waits for a build and never builds
+ * in the primary checkout (whose branch refs it does fast-forward, see
+ * [fastForwardLocalRefs]). One repository's failure never reaches another: each is
+ * polled in its own guard and reports on its own in [WatcherState.repositories].
  * The loop only runs after an explicit [start] (server/watch mode, step 07);
  * nothing is scheduled during CLI commands or tests.
  */
@@ -78,22 +80,33 @@ class Watcher(
     }
 
     /**
-     * Runs the startup recovery and schedules the poll loop with the fixed delay
-     * `watcher.pollInterval`; the first poll runs immediately.
+     * Runs the startup recovery of every repository and schedules the poll loop with the
+     * fixed delay `watcher.pollInterval` — one loop, one delay: the instance's setting,
+     * which every repository's effective config carries; the first poll runs immediately.
      */
     @Synchronized
-    fun start(repo: RepoContext) {
+    fun start(repos: List<RepoContext>) {
         check(scheduler == null) { "watcher is already running" }
-        recoverOnStartup(repo)
-        val interval = DurationParser.parse(configLoader.load(repo.workingDir).watcher.pollInterval)
+        require(repos.isNotEmpty()) { "no repository to watch" }
+        repos.forEach { recoverSafely(it) }
+        val interval = DurationParser.parse(configLoader.load(repos.first().workingDir).watcher.pollInterval)
         scheduler =
             Executors
                 .newSingleThreadScheduledExecutor { runnable ->
                     Thread(runnable, "werkator-watcher").apply { isDaemon = true }
                 }.also {
-                    it.scheduleWithFixedDelay({ pollSafely(repo) }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
+                    it.scheduleWithFixedDelay({ pollAll(repos) }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
                 }
         state = state.copy(running = true)
+    }
+
+    /** A repository whose recovery crashes is still polled; the others' recovery is never skipped. */
+    private fun recoverSafely(repo: RepoContext) {
+        try {
+            recoverOnStartup(repo)
+        } catch (e: Exception) {
+            log.error("[{}] startup recovery failed", repo.name, e)
+        }
     }
 
     @Synchronized
@@ -144,31 +157,73 @@ class Watcher(
         }
     }
 
+    /** One poll cycle over a single repository; see [pollAll]. */
+    fun poll(repo: RepoContext) = pollAll(listOf(repo))
+
     /**
-     * One poll cycle, never blocking on a build: fetch origin (on failure: log once per
-     * message, expose in [state], retry next cycle), enqueue due branches — changed local branches
-     * first, then recent new origin branches, then due auto-build slots — then
-     * fast-forward the local branch refs, and finally prune results, artifacts, and
-     * worktrees of branches gone from origin.
+     * One poll cycle over all served repositories, never blocking on a build. Each
+     * repository is polled in its own guard — a crash or an unreachable origin is that
+     * repository's report, and the next one is polled regardless — and the cycle's
+     * [state] aggregates the reports: the top-level fields read as before with one
+     * repository, and name the repository in front of every message with several.
      */
-    fun poll(repo: RepoContext) {
+    fun pollAll(repos: List<RepoContext>) {
         val startedAt = clock.instant()
+        val reports = repos.map { pollSafely(it, startedAt) }
+        val several = repos.size > 1
+
+        fun named(
+            report: RepoWatcherState,
+            message: String,
+        ): String = if (several) "${report.name}: $message" else message
+        state =
+            state.copy(
+                lastPollAt = startedAt,
+                lastFetchError = reports.mapNotNull { report -> report.lastFetchError?.let { named(report, it) } }.joinOrNull(),
+                lastPollError = reports.mapNotNull { report -> report.lastPollError?.let { named(report, it) } }.joinOrNull(),
+                queuedBranches = reports.flatMap { it.queuedBranches },
+                repositories = reports,
+            )
+    }
+
+    private fun List<String>.joinOrNull(): String? = takeIf { it.isNotEmpty() }?.joinToString("; ")
+
+    private fun pollSafely(
+        repo: RepoContext,
+        startedAt: Instant,
+    ): RepoWatcherState =
+        try {
+            pollRepo(repo, startedAt)
+        } catch (e: Exception) {
+            log.error("[{}] poll cycle failed", repo.name, e)
+            RepoWatcherState(repo.name, lastPollAt = startedAt, lastPollError = e.message ?: e.javaClass.simpleName)
+        }
+
+    /**
+     * One repository's poll: fetch origin (on failure: log once per message, report it,
+     * retry next cycle), enqueue due branches — changed local branches first, then recent
+     * new origin branches, then due auto-build slots — then fast-forward the local branch
+     * refs, and finally prune results, artifacts, and worktrees of branches gone from origin.
+     */
+    private fun pollRepo(
+        repo: RepoContext,
+        startedAt: Instant,
+    ): RepoWatcherState {
         val workingDir = repo.workingDir
         val watch = watchOf(repo)
         try {
             gitService.fetchOrigin(workingDir)
             if (watch.loggedFetchError != null) {
-                log.info("fetching origin succeeded again")
+                log.info("[{}] fetching origin succeeded again", repo.name)
                 watch.loggedFetchError = null
             }
         } catch (e: Exception) {
             val failure = e.message ?: e.javaClass.simpleName
             if (watch.loggedFetchError != failure) {
-                log.warn("fetching origin failed; retrying every cycle until it succeeds: {}", failure)
+                log.warn("[{}] fetching origin failed; retrying every cycle until it succeeds: {}", repo.name, failure)
                 watch.loggedFetchError = failure
             }
-            state = state.copy(lastPollAt = startedAt, lastFetchError = failure)
-            return
+            return RepoWatcherState(repo.name, lastPollAt = startedAt, lastFetchError = failure)
         }
         val config = configLoader.load(workingDir)
         val originBranches = gitService.originBranches(workingDir)
@@ -177,26 +232,15 @@ class Watcher(
             fastForwardLocalRefs(workingDir)
         }
         prune(repo, config, originBranches)
-        state =
-            state.copy(
-                lastPollAt = startedAt,
-                lastFetchError = null,
-                lastPollError = null,
-                queuedBranches =
-                    repo.results
-                        .latestPerName()
-                        .filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }
-                        .map { it.name },
-            )
-    }
-
-    private fun pollSafely(repo: RepoContext) {
-        try {
-            poll(repo)
-        } catch (e: Exception) {
-            log.error("poll cycle failed", e)
-            state = state.copy(lastPollAt = clock.instant(), lastPollError = e.message ?: e.javaClass.simpleName)
-        }
+        return RepoWatcherState(
+            repo.name,
+            lastPollAt = startedAt,
+            queuedBranches =
+                repo.results
+                    .latestPerName()
+                    .filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }
+                    .map { it.name },
+        )
     }
 
     /**
@@ -343,7 +387,7 @@ class Watcher(
             log.info("not enqueueing branch {}: no pull request has head commit {}", branch, commit)
             return false
         }
-        log.info("enqueueing build {} of branch {} at commit {}", build, branch, commit)
+        log.info("[{}] enqueueing build {} of branch {} at commit {}", repo.name, build, branch, commit)
         buildExecutor.startBuild(repo, branch, commit, build)
         return true
     }

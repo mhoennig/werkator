@@ -110,6 +110,95 @@ class ConfigLoaderTest : FunSpec() {
                 "./gradlew fromBranch"
         }
 
+        test("without a home config the instance is null and the repository layers are read as before") {
+            val home = Files.createTempDirectory("werkator-home")
+            val loader = ConfigLoader().apply { homeDir = home }
+
+            loader.loadInstance() shouldBe null
+            loader.instanceFile() shouldBe home.resolve(".werkator.yml")
+        }
+
+        test("the home config carries the registry, and its defaults sit below every repository layer") {
+            val home = Files.createTempDirectory("werkator-home")
+            home.resolve(".werkator.yml").toFile().writeText(
+                """
+                repositories:
+                  - path: ~/repos/werkator
+                  - path: /srv/werkbaum
+                    name: baum
+                defaults:
+                  git:
+                    account: shared-bot
+                    token: shared-secret
+                  gitea:
+                    baseUrl: https://git.example.org
+                """.trimIndent(),
+            )
+            val loader = ConfigLoader().apply { homeDir = home }
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText("gitea:\n  owner: my-org\n")
+            Files.createDirectories(dir.resolve(".git/werkator"))
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText("git:\n  token: own-secret\n")
+
+            val instance = loader.loadInstance().shouldNotBeNull()
+            instance.repositories.map { it.path to it.name } shouldBe listOf("~/repos/werkator" to "", "/srv/werkbaum" to "baum")
+
+            val config = loader.load(dir)
+            // the repository's own layers win over the defaults, untouched keys fall through
+            config.git.account shouldBe "shared-bot"
+            config.git.token shouldBe "own-secret"
+            config.gitea.baseUrl shouldBe "https://git.example.org"
+            config.gitea.owner shouldBe "my-org"
+        }
+
+        test("with a home config the instance keys come from it alone, and a repository's copies are ignored") {
+            val home = Files.createTempDirectory("werkator-home")
+            home.resolve(".werkator.yml").toFile().writeText(
+                """
+                server:
+                  port: 18088
+                executor:
+                  maxConcurrent: 3
+                watcher:
+                  pollInterval: 1m
+                """.trimIndent(),
+            )
+            val loader = ConfigLoader().apply { homeDir = home }
+            val dir = Files.createTempDirectory("werkator-test")
+            dir.resolve(".werkator.yml").toFile().writeText(
+                """
+                server:
+                  port: 1000
+                  bindAddress: 0.0.0.0
+                watcher:
+                  pollInterval: 5s
+                  pullRequestGate: false
+                """.trimIndent(),
+            )
+            Files.createDirectories(dir.resolve(".git/werkator"))
+            dir.resolve(".git/werkator/.werkator.yml").toFile().writeText("executor:\n  maxConcurrent: 9\n")
+
+            val config = loader.load(dir)
+
+            // the whole server section is the instance's, not merged key by key
+            config.server.port shouldBe 18088
+            config.server.bindAddress shouldBe "127.0.0.1"
+            config.executor.maxConcurrent shouldBe 3
+            config.watcher.pollInterval shouldBe "1m"
+            // the per-repository watcher gates stay the repository's
+            config.watcher.pullRequestGate.shouldBeFalse()
+        }
+
+        test("the home config is version-checked like every other file") {
+            val home = Files.createTempDirectory("werkator-home")
+            home.resolve(".werkator.yml").toFile().writeText("werkator:\n  version:\n    since: \"9.9\"\n")
+            val loader = loaderRunning("1.0.0").apply { homeDir = home }
+
+            val error = shouldThrow<ConfigVersionException> { loader.loadInstance() }
+
+            error.message shouldContain home.resolve(".werkator.yml").toString()
+        }
+
         test("the applied instance fragment layers above the project config and below the machine config") {
             val dir = Files.createTempDirectory("werkator-test")
             dir.resolve(".werkator.yml").toFile().writeText("server:\n  port: 1000\n  publicBaseUrl: \"https://project/\"\n")

@@ -3,6 +3,8 @@ package de.hoennig.werkator.commands
 import de.hoennig.werkator.build.BuildResult
 import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
+import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -16,6 +18,30 @@ import java.time.Instant
 
 class StatusCommandTest : FunSpec() {
     private val repository = mockk<BuildResultRepository>()
+    private val other = mockk<BuildResultRepository>()
+    private val registry =
+        mockk<RepoRegistry>().also {
+            val current =
+                RepoContext(
+                    "current",
+                    java.nio.file.Paths
+                        .get("."),
+                    repository,
+                    mockk(),
+                )
+            val second =
+                RepoContext(
+                    "second",
+                    java.nio.file.Paths
+                        .get("second"),
+                    other,
+                    mockk(),
+                )
+            every { it.current() } returns current
+            every { it.all() } returns listOf(current, second)
+            every { it.byName("second") } returns second
+            every { it.byName("nope") } returns null
+        }
 
     private fun result(
         branch: String,
@@ -32,7 +58,21 @@ class StatusCommandTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(repository)
+            clearMocks(repository, other)
+        }
+
+        test("--repo selects a registered repository; an unknown name is a usage error naming the registered ones") {
+            every { other.latestPerName() } returns listOf(result("main", BuildStatus.SUCCESS))
+
+            var exitCode = -1
+            val console = captureConsole { exitCode = StatusCommand(registry).apply { repoOption.name = "second" }.call() }
+            exitCode shouldBe 0
+            console.stdout shouldContain "main"
+            verify(exactly = 0) { repository.latestPerName() }
+
+            val failed = captureConsole { exitCode = StatusCommand(registry).apply { repoOption.name = "nope" }.call() }
+            exitCode shouldBe 2
+            failed.stderr shouldContain "current, second"
         }
 
         test("prints the latest build per branch as a table with short commits and legacy duration format") {
@@ -43,7 +83,7 @@ class StatusCommandTest : FunSpec() {
                 )
 
             var exitCode = -1
-            val console = captureConsole { exitCode = StatusCommand(repository).call() }
+            val console = captureConsole { exitCode = StatusCommand(registry).call() }
 
             exitCode shouldBe 0
             console.stdout shouldContain "BRANCH"
@@ -64,7 +104,7 @@ class StatusCommandTest : FunSpec() {
                     result("main", BuildStatus.FAILED),
                 )
 
-            val command = StatusCommand(repository).apply { history = true }
+            val command = StatusCommand(registry).apply { history = true }
             var exitCode = -1
             val console = captureConsole { exitCode = command.call() }
 
@@ -78,7 +118,7 @@ class StatusCommandTest : FunSpec() {
             every { repository.latestPerName() } returns emptyList()
 
             var exitCode = -1
-            val console = captureConsole { exitCode = StatusCommand(repository).call() }
+            val console = captureConsole { exitCode = StatusCommand(registry).call() }
 
             exitCode shouldBe 0
             console.stdout shouldContain "(no builds recorded)"

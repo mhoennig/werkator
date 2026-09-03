@@ -55,10 +55,12 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 ### C — The registry and N repositories
 
-- Load the registry, build one `RepoContext` per entry; fail the start loudly on duplicate names or unreadable repos (config-version violations abort only that repo's registration, like branch-config violations fail only that branch).
-- Watcher multiplexing: one poll cycle iterates the contexts (fetch, enqueue, prune per repo) with per-repo error isolation — one unreachable origin must not starve the others; `WatcherState` gains the repo dimension for the health banner.
-- Startup recovery per repo; auto-build slots stay in each repo's `.git/werkator/`.
-- CLI commands gain an optional repo selector and default to the current working directory, so `werkator status` inside a repo behaves as today.
+- ~~Load the registry, build one `RepoContext` per entry; fail the start loudly on duplicate names or unreadable repos (config-version violations abort only that repo's registration, like branch-config violations fail only that branch).~~ — done 2026-09-02: `InstanceConfig` binds `~/.werkator.yml` (`ConfigLoader.homeDir`, `WERKATOR_HOME` overrides); `RepoRegistry` opens the contexts. The instance keys and the `defaults` block are applied inside `ConfigLoader.loadRaw`, so every `load(dir)` consumer sees them without knowing the file — the repository's copies of instance keys are dropped with one warning naming both files.
+- ~~Watcher multiplexing: one poll cycle iterates the contexts (fetch, enqueue, prune per repo) with per-repo error isolation — one unreachable origin must not starve the others; `WatcherState` gains the repo dimension for the health banner.~~ — done 2026-09-02: `pollAll(repos)`, one guard per repository, `WatcherState.repositories`; the top-level fields aggregate (unchanged with one repository, name-prefixed with several). Isolation proven by test (one unreachable origin, the other still enqueues).
+- ~~Startup recovery per repo; auto-build slots stay in each repo's `.git/werkator/`.~~ — done: `start(repos)` recovers each in its own guard; slots unchanged.
+- ~~CLI commands gain an optional repo selector and default to the current working directory, so `werkator status` inside a repo behaves as today.~~ — done: `--repo <name>` (`RepoOption` mixin) on `build`, `retry`, `status`; default is the cwd when served, else the first registered repository.
+- Also done: the pre-rename state-dir migration runs per opened repository; the metrics page's repository size sums the registered repositories (the disk metric is the first one's file store).
+- Carried over to session D: `RunningBuild` still carries no repository (the "current builds" view and the worktree pruning cannot tell repositories apart); the controllers still serve `registry.current()` only; `docs/deployment.md` gets the registry setup with session E.
 
 ### D — Server, API, and UI scoping
 
@@ -74,7 +76,7 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 ## Open Questions
 
-- Fairness across repos when the global concurrency cap is contended (round-robin per repo vs. FIFO) — decide in session C with the real queue behavior at hand.
+- ~~Fairness across repos when the global concurrency cap is contended (round-robin per repo vs. FIFO) — decide in session C with the real queue behavior at hand.~~ — decided 2026-09-02: FIFO. The executor's slot semaphore is already fair, so builds take slots in enqueue order across repositories; the watcher enqueues in registry order within one cycle, which is a fixed and inspectable bias rather than a scheduler. Round-robin per repository only when a real queue shows starvation.
 - Whether buildenv rootfs trees should be shared across repos (today each repo unpacks its own under `.git/werkator/buildenv/`) — the natural answer is Werkdock's image store (step 21 session C), not instance-level state; until then duplicate unpacked rootfs trees are the accepted cost.
 - ~~Whether `artifactKey` needs a repo prefix or stays globally unique by construction (random suffix) — decide in session B when the routes are designed.~~ — decided 2026-09-02: no prefix. The key is derived from pool name and start time, and both the results file and the artifact store are per repository, so it only ever has to be unique within one; the repo dimension enters through the route segment in session D, never through the key. A prefix would also change every existing artifact directory name.
 
@@ -82,6 +84,6 @@ The pinning model is untouched: pinned keys still come from each repo's machine 
 
 - Session A: ADR 0009 written (done 2026-09-01); the registry and key ownership land in `docs/configuration.md` together with the implementing sessions, since that reference describes implemented configuration only.
 - ~~Session B: full suite green with `RepoContext` threaded through; no route or behavior change observable.~~ — done 2026-09-02.
-- Session C: an instance with two registered repos builds pushes in both, with per-repo error isolation proven by a test (one broken origin, the other keeps building).
+- ~~Session C: an instance with two registered repos builds pushes in both, with per-repo error isolation proven by a test (one broken origin, the other keeps building).~~ — done 2026-09-02 (`WatcherTest`: "one repository's unreachable origin neither stops nor silences the other").
 - Session D: both repos browsable in one UI; single-repo installations keep their existing URLs.
 - Session E: mih34 builds Werkator and Werkbaum from one service; `docs/deployment.md` describes the registry setup.

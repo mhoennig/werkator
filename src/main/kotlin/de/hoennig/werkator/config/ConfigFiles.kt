@@ -20,6 +20,14 @@ object ConfigFiles {
     const val REPO_INSTALL = ".git/werkator/$COMMITTED"
 
     /**
+     * The instance configuration (ADR 0009), relative to the home directory of the user
+     * running Werkator. Deliberately the same file name: only the location carries the
+     * meaning — home is the instance, the repository root is the project, `.git` is the
+     * machine.
+     */
+    const val INSTANCE = COMMITTED
+
+    /**
      * The applied instance fragment (`init --apply`, step 23): a config-schema YAML
      * fragment installed verbatim as its own layer — above the committed project
      * config, below the hand-edited machine config. Kept separate so applying never
