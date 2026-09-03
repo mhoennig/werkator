@@ -34,7 +34,7 @@ So that a deployment's restart window reads "please retry" instead of a bare err
 ##### Verified by
 
 - [SystemdServiceFilesTest — "the htaccess maps a refused connection to the static maintenance page"](../../src/test/kotlin/de/hoennig/werkator/commands/SystemdServiceFilesTest.kt)
-- Manual, pending: an `instance-update` deploy on `mih09` watched live during the restart window, to confirm Apache actually reaches 502 there rather than timing out first (see Open Questions).
+- Manual on `mih09` (2026-09-03): with the service stopped, `https://werkator.javagil.de/` answered **HTTP 503 with the maintenance page in 0.14 s** — Apache reaches the error path immediately, it does not wait for a timeout. With the service running, the same URL is 200 as before, and `/werkator-maintenance.html` is directly reachable (the `RewriteCond` keeps it out of the proxy).
 
 #### Scenario#17.02: The maintenance page itself is never proxied
 
@@ -71,11 +71,16 @@ No config key was added: like the `.htaccess` itself, the maintenance page is ge
 
 ## Open Questions
 
-- **Does Apache actually reach 502, or does the client just time out first?** Depends on Apache's `ProxyTimeout`/connect-timeout configuration on the managed webspace, which this PR does not change or configure — where Apache's own request timeout fires before the backend's refused-connection error would, the client still sees a hang, not the maintenance page, for that fraction of the restart window. Not addressed here; a follow-up could set an explicit short `ProxyTimeout` if this turns out to matter in practice.
+- **Does Apache actually reach the error path, or does the client just time out first?** Answered by the live test above: on `mih09` a refused connection surfaces as **503 within 0.14 s**, not a hang — a connection *refused* is immediate, unlike a connection that is accepted and then stalls. The `ErrorDocument` covers 502/503/504 so the exact code Apache picks does not matter.
 
 ## Additional Changes
 
 - None beyond the feature itself.
+
+## Follow-up work discovered while deploying this
+
+- `tools/remote instance-start` places the `.htaccess` (and now the maintenance page) into `doms/<domain>/subs/www/`, but the live `mih09` instance serves from `doms/<domain>/htdocs-ssl/` — a pre-existing path mismatch, unrelated to this PR. Both files were therefore copied into `htdocs-ssl/` by hand for this deployment; `instance-start` still needs fixing separately.
+- `InitCommand.loadedServerConfig()` swallows every config-loading exception and falls back to a blank `ServerConfig`, so any unrelated config error makes `init --systemd` silently skip both files as if no `publicBaseUrl` were set. Noticed while smoke-testing this change; worth a warning on that path.
 
 ## Prerequisite PRs
 
