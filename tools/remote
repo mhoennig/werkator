@@ -19,6 +19,8 @@
 #   tools/remote [--env-file FILE] werkator instance-update       redeploy bundle + werkdock, restart the service
 #   tools/remote [--env-file FILE] werkator instance-start        apply fragment, Apache proxy, systemd unit
 #   tools/remote [--env-file FILE] werkator repo-init             clone the watched repo, init --apply, rootfs
+#   tools/remote [--env-file FILE] werkator repo-add URL [NAME]   clone and init ANOTHER repository for the
+#                                   registry, then print the entry to add to ~/.werkator.yml
 #   tools/remote [--env-file FILE] werkator control-token
 #   tools/remote [--env-file FILE] port-forward start             background tunnel to the Werkator UI
 #   tools/remote [--env-file FILE] port-forward stop
@@ -273,6 +275,53 @@ repo_init() {
     echo "          then tools/remote werkator instance-start"
 }
 
+# Prepare a SECOND (third, …) repository for the registry of an installed
+# instance (ADR 0009): clone it next to the others and run `init` in it, so it
+# has its own machine config. The registry entry itself is only PRINTED, never
+# written: `~/.werkator.yml` is the instance's own file — it carries the port,
+# the global concurrency and possibly shared credentials, and a script that
+# edits it in place would rewrite the operator's own configuration behind their
+# back. Cloning and initialising is mechanical, registering is a decision.
+repo_add() {
+    local url="${1:-}"
+    [ -n "$url" ] || die "usage: tools/remote [--env-file FILE] werkator repo-add <clone-url> [name]"
+    local name="${2:-$(basename "$url" .git)}"
+    case "$name" in
+        */*|"") die "the repository name is one path segment (it becomes the route segment /repos/<name>)" ;;
+    esac
+
+    ensure_ssh
+    ssh "$HOST" "test -x '$WERKATOR_BIN'" || die "no instance on $HOST — run instance-install first"
+
+    echo "==> Cloning $url as '$name'"
+    if ssh "$HOST" "test -d '$TARGET_DIR/$name/.git'"; then
+        echo "    (already cloned, skipping)"
+    else
+        ssh "$HOST" "git clone '$url' '$TARGET_DIR/$name'"
+    fi
+
+    echo "==> Running werkator init in $name"
+    ssh "$HOST" "cd '$TARGET_DIR/$name' && '$WERKATOR_BIN' init"
+
+    echo "==> Checking the registry"
+    if ssh "$HOST" "grep -q -- '$TARGET_DIR/$name' ~/.werkator.yml 2>/dev/null"; then
+        echo "    (~/.werkator.yml already names this path)"
+    else
+        echo "    not registered yet — add this entry to ~/.werkator.yml on $HOST:"
+        echo
+        echo "        repositories:"
+        echo "          - path: $TARGET_DIR/$name"
+        echo "            name: $name"
+        echo
+    fi
+
+    echo "==> Repository prepared."
+    echo "    Repo: $TARGET_DIR/$name"
+    echo "    Next: fill git.account/git.token in $TARGET_DIR/$name/.git/werkator/.werkator.yml if the origin is private"
+    echo "          (or once for all repositories in the 'defaults' block of ~/.werkator.yml),"
+    echo "          then restart the service — the registry is read at start."
+}
+
 # Start the server as a systemd user unit behind the managed Apache. All
 # configuration comes from the instance fragment (server.port, publicBaseUrl,
 # systemd limits); init generates the units AND the .htaccess — this script
@@ -383,6 +432,9 @@ case "$REPO" in
                 ;;
             repo-init)
                 repo_init
+                ;;
+            repo-add)
+                repo_add "${3:-}" "${4:-}"
                 ;;
             control-token)
                 control_token

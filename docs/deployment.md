@@ -114,6 +114,16 @@ Adding a repository is editing a registry entry — never a data migration, beca
    The name is the route segment (`/repos/<name>/…`) and the UI's switcher entry, so it must be unique: a duplicate aborts the start naming this file, and so does an entry that is no git repository.
    A repository whose configuration Werkator must not read (a version violation) is skipped with an error — the others keep building.
 
+   Steps 1 and 2 are mechanical and can be done from the workstation:
+
+   ```bash
+   tools/remote --env-file .env.<instance> werkator repo-add https://github.com/<owner>/<repo>.git [<name>]
+   ```
+
+   It clones the repository next to the ones already served, runs `init` in it, and **prints** the registry entry.
+   It does not write `~/.werkator.yml`: that file is the instance's own — port, global concurrency, possibly shared credentials — and a script editing it in place would rewrite the operator's configuration behind their back.
+   Cloning and initialising is mechanical; registering is a decision.
+
 4. **Restart** the service; startup recovery re-enqueues what was in flight:
 
    ```bash
