@@ -52,5 +52,8 @@ The cause is not a bug in the watcher — it reads the branch layer, and no fall
 `withBranchLayer` does `deepMerge(loadRaw(workingDir), stripPinned(branchLayer))`, so a definition present in the project layer and absent on the branch survives the merge.
 `AGENTS.md` and the architecture skill describe the branch layer as winning "including the whole `builds` section", which reads as replacement.
 
-The mismatch resolves itself for this branch on merge — main then no longer carries the definition — so it does not block this PR.
+The mismatch resolves itself on merge, but one commit later than one would guess, and the watcher log shows exactly where:
+at the merge commit `ac53b5f` both `default` and `werkdock` were still enqueued, at the next commit only `default`.
+The project layer is the `.werkator.yml` in the *watched clone's working tree*, so the definition survives until that tree has advanced past its removal — the merge itself still gets one last stray build.
+It does not block this PR.
 It is a decision, not an oversight to fix in passing: either `builds` is replaced as a whole (then a branch can retire a build, and a branch that only adds one must repeat the others), or the merge stays and the two documents are corrected to say that removal is not expressible on a branch.
