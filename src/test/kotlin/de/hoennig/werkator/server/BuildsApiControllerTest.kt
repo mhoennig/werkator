@@ -8,6 +8,7 @@ import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.build.RunningBuild
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
 import io.mockk.every
@@ -50,6 +51,9 @@ class BuildsApiControllerTest : FunSpec() {
     @MockkBean
     lateinit var branchListing: BranchListing
 
+    @MockkBean
+    lateinit var repo: RepoContext
+
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
     private val successResult =
@@ -74,7 +78,8 @@ class BuildsApiControllerTest : FunSpec() {
 
     init {
         beforeEach {
-            clearMocks(repository, buildExecutor, artifactStore, controlTokens, gitService, branchListing)
+            clearMocks(repository, buildExecutor, artifactStore, controlTokens, gitService, branchListing, repo)
+            every { repo.workingDir } returns tempDir
             every { controlTokens.matches(any()) } answers { firstArg<String?>() == "secret" }
             every { repository.latestGreenFor(any()) } returns null
         }
@@ -152,7 +157,7 @@ class BuildsApiControllerTest : FunSpec() {
         test("restart enqueues the branch's last recorded commit, also for branch names with slashes") {
             val liveLogFile = tempDir.resolve("restart.log")
             every { repository.latestFor("feature/topic") } returns successResult.copy(branch = "feature/topic", name = "feature/topic")
-            every { buildExecutor.startBuild("feature/topic", successResult.commit) } returns
+            every { buildExecutor.startBuild(repo, "feature/topic", successResult.commit) } returns
                 runningBuild(liveLogFile).copy(branch = "feature/topic", name = "feature/topic")
 
             mockMvc
@@ -164,14 +169,14 @@ class BuildsApiControllerTest : FunSpec() {
                 .andExpect(jsonPath("$.status").value("pending"))
                 .andExpect(jsonPath("$.artifactKey").value("main-abc123-running"))
 
-            verify { buildExecutor.startBuild("feature/topic", successResult.commit) }
+            verify { buildExecutor.startBuild(repo, "feature/topic", successResult.commit) }
         }
 
         test("restart of a named build re-runs its build definition on its real branch") {
             val liveLogFile = tempDir.resolve("named-restart.log")
             every { repository.latestFor("main@pitest") } returns
                 successResult.copy(build = "pitest", name = "main@pitest")
-            every { buildExecutor.startBuild("main", successResult.commit, build = "pitest") } returns
+            every { buildExecutor.startBuild(repo, "main", successResult.commit, build = "pitest") } returns
                 runningBuild(liveLogFile).copy(build = "pitest", name = "main@pitest")
 
             mockMvc
@@ -183,14 +188,14 @@ class BuildsApiControllerTest : FunSpec() {
                 .andExpect(jsonPath("$.name").value("main@pitest"))
 
             // the re-run resolves its settings from the current config by the build name
-            verify { buildExecutor.startBuild("main", successResult.commit, build = "pitest") }
+            verify { buildExecutor.startBuild(repo, "main", successResult.commit, build = "pitest") }
         }
 
         test("restart with atOriginHead builds the branch as it is now, not the recorded commit") {
             val liveLogFile = tempDir.resolve("head-restart.log")
             every { repository.latestFor("main") } returns successResult
             every { gitService.originHeadCommit("main", any()) } returns "newhead1"
-            every { buildExecutor.startBuild("main", "newhead1") } returns runningBuild(liveLogFile)
+            every { buildExecutor.startBuild(repo, "main", "newhead1") } returns runningBuild(liveLogFile)
 
             mockMvc
                 .perform(
@@ -201,15 +206,15 @@ class BuildsApiControllerTest : FunSpec() {
                 ).andExpect(status().isAccepted)
 
             // the recorded commit is deliberately not used: a branches row stands for a branch
-            verify { buildExecutor.startBuild("main", "newhead1") }
-            verify(exactly = 0) { buildExecutor.startBuild("main", successResult.commit) }
+            verify { buildExecutor.startBuild(repo, "main", "newhead1") }
+            verify(exactly = 0) { buildExecutor.startBuild(repo, "main", successResult.commit) }
         }
 
         test("restart with atOriginHead keeps the recorded build definition and its real branch") {
             val liveLogFile = tempDir.resolve("head-named.log")
             every { repository.latestFor("main@pitest") } returns successResult.copy(build = "pitest", name = "main@pitest")
             every { gitService.originHeadCommit("main", any()) } returns "newhead2"
-            every { buildExecutor.startBuild("main", "newhead2", build = "pitest") } returns
+            every { buildExecutor.startBuild(repo, "main", "newhead2", build = "pitest") } returns
                 runningBuild(liveLogFile).copy(build = "pitest", name = "main@pitest")
 
             mockMvc
@@ -220,7 +225,7 @@ class BuildsApiControllerTest : FunSpec() {
                         .header(BuildsApiController.TOKEN_HEADER, "secret"),
                 ).andExpect(status().isAccepted)
 
-            verify { buildExecutor.startBuild("main", "newhead2", build = "pitest") }
+            verify { buildExecutor.startBuild(repo, "main", "newhead2", build = "pitest") }
         }
 
         test("restart with atOriginHead of a branch gone from origin is refused by name") {
@@ -242,7 +247,7 @@ class BuildsApiControllerTest : FunSpec() {
             val liveLogFile = tempDir.resolve("first-build.log")
             every { repository.latestFor("fresh") } returns null
             every { gitService.originHeadCommit("fresh", any()) } returns successResult.commit
-            every { buildExecutor.startBuild("fresh", successResult.commit) } returns
+            every { buildExecutor.startBuild(repo, "fresh", successResult.commit) } returns
                 runningBuild(liveLogFile).copy(branch = "fresh", name = "fresh")
 
             mockMvc
@@ -250,7 +255,7 @@ class BuildsApiControllerTest : FunSpec() {
                 .andExpect(status().isAccepted)
                 .andExpect(jsonPath("$.status").value("pending"))
 
-            verify { buildExecutor.startBuild("fresh", successResult.commit) }
+            verify { buildExecutor.startBuild(repo, "fresh", successResult.commit) }
         }
 
         test("restart of a branch without recorded builds and without origin counterpart answers 404") {
@@ -290,7 +295,7 @@ class BuildsApiControllerTest : FunSpec() {
                         .header(BuildsApiController.TOKEN_HEADER, "wrong"),
                 ).andExpect(status().isForbidden)
 
-            verify(exactly = 0) { buildExecutor.startBuild(any(), any(), any()) }
+            verify(exactly = 0) { buildExecutor.startBuild(any(), any(), any(), any()) }
         }
 
         test("cancel answers 202 for a cancellable build and 404 otherwise") {
@@ -317,7 +322,7 @@ class BuildsApiControllerTest : FunSpec() {
                 .perform(delete("/api/builds/some-key").param("token", "secret"))
                 .andExpect(status().isForbidden)
 
-            verify(exactly = 0) { buildExecutor.startBuild(any(), any(), any()) }
+            verify(exactly = 0) { buildExecutor.startBuild(any(), any(), any(), any()) }
             verify(exactly = 0) { buildExecutor.cancel(any()) }
             verify(exactly = 0) { repository.delete(any()) }
         }

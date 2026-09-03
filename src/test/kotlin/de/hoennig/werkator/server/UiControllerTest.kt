@@ -17,6 +17,7 @@ import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.metrics.MetricAggregate
 import de.hoennig.werkator.metrics.SystemMetrics
 import de.hoennig.werkator.metrics.SystemMetricsCollector
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -36,6 +37,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.web.server.ResponseStatusException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
 
@@ -72,6 +74,9 @@ class UiControllerTest : FunSpec() {
 
     @MockkBean
     lateinit var branchPermalinks: BranchPermalinks
+
+    @MockkBean
+    lateinit var repo: RepoContext
 
     private val startedAt = Instant.parse("2026-07-07T10:00:00Z")
 
@@ -113,7 +118,9 @@ class UiControllerTest : FunSpec() {
                 metricsCollector,
                 branchListing,
                 branchPermalinks,
+                repo,
             )
+            every { repo.workingDir } returns Paths.get(".")
             every { configLoader.load(any()) } returns
                 WerkatorConfig(
                     server = ServerConfig(impressumUrl = "https://example.org/imprint"),
@@ -289,6 +296,30 @@ class UiControllerTest : FunSpec() {
                 .andExpect(
                     content().string(containsString("""/artifacts/main-abc123-key/reports/tests/test/index.html" target="_blank"""")),
                 ).andExpect(content().string(not(containsString("reports/tests/test/packages/index.html"))))
+        }
+
+        test("artifact index lists plain files outside reports/ and keeps logs and report files out of that list") {
+            val artifactDir = Files.createDirectories(tempDir.resolve("files-view-key"))
+            Files.writeString(artifactDir.resolve("build.stdout.log"), "out")
+            Files.createDirectories(artifactDir.resolve("werkdock/dist"))
+            Files.writeString(artifactDir.resolve("werkdock/dist/werkdock"), "elf")
+            Files.createDirectories(artifactDir.resolve("reports/tests"))
+            Files.writeString(artifactDir.resolve("reports/tests/index.html"), "<html></html>")
+            every { repository.history() } returns listOf(successResult)
+            every { artifactStore.artifactDir("files-view-key") } returns artifactDir
+
+            val page =
+                mockMvc
+                    .perform(get("/builds/files-view-key"))
+                    .andExpect(status().isOk)
+                    .andExpect(
+                        content().string(containsString("""/artifacts/files-view-key/werkdock/dist/werkdock" target="_blank"""")),
+                    ).andReturn()
+                    .response.contentAsString
+            // stored at its own path, not below reports/; the log stays in the
+            // logs section and is not repeated in the files list
+            page shouldNotContain "reports/werkdock"
+            (page.split("/artifacts/files-view-key/build.stdout.log").size - 1) shouldBe 1
         }
 
         test("the artifact page shows the command of the build's own definition, not the plain branch command") {

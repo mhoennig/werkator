@@ -25,10 +25,15 @@
 #   - Only the final `tar --zstd` writes to stdout; every build step is
 #     redirected to stderr, so the archive coming out of `docker run` is pure.
 #
-# Usage: build-bwrap-rootfs.sh [--release trixie] [--mirror URL] [--out path]
-#   --release  Debian release/architecture tail, default "trixie"
-#   --mirror   apt mirror for debootstrap, default http://deb.debian.org/debian
-#   --out      output archive path, default ./werkator-buildenv-<release>.tar.zst
+# Usage: build-bwrap-rootfs.sh [--release trixie] [--mirror URL] [--out path] [--pkgs-extra "PKG..."]
+#   --release     Debian release/architecture tail, default "trixie"
+#   --mirror      apt mirror for debootstrap, default http://deb.debian.org/debian
+#   --out         output archive path, default ./werkator-buildenv-<release>.tar.zst
+#   --pkgs-extra  additional apt packages on top of the base list, e.g.
+#                 "golang-go nodejs npm" for Go and Node builds. Name the
+#                 archive after its content (--out): the bwrap runtime keys the
+#                 unpacked environment by the archive SOURCE PATH, so a changed
+#                 content needs a changed name to take effect.
 #
 
 set -euo pipefail
@@ -45,11 +50,13 @@ usage() {
 
 release="trixie"
 out=""
+pkgs_extra=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --release) release="${2:?missing value for --release}"; shift 2 ;;
         --mirror)  mirror="${2:?missing value for --mirror}"; shift 2 ;;
         --out)     out="${2:?missing value for --out}"; shift 2 ;;
+        --pkgs-extra) pkgs_extra="${2:?missing value for --pkgs-extra}"; shift 2 ;;
         -*) die "unknown option: $1" ;;
         *) usage ;;
     esac
@@ -62,8 +69,11 @@ command -v docker >/dev/null 2>&1 || die "docker is required to build the rootfs
 # Rootfs content: Werkator's own build needs a JDK 21 toolchain (Gradle
 # toolchain resolution), git, ca-certificates for HTTPS, locales for git, and
 # curl/unzip/xz-utils/zstd for the Gradle wrapper and general build hygiene.
+# The headless JDK on purpose: it skips the X11/fontconfig library stack
+# (~200 MB) and still supports headless AWT, which is all a CI build needs.
 # Keep this list additive — project-specific tooling goes on top of this base.
-PKGS="openjdk-21-jdk git ca-certificates locales procps file curl unzip xz-utils zstd"
+PKGS="openjdk-21-jdk-headless git ca-certificates locales procps file curl unzip xz-utils zstd"
+[ -z "$pkgs_extra" ] || PKGS="$PKGS $pkgs_extra"
 
 # The chroot step runs inside the freshly debootstrapped rootfs; passed into
 # the container as base64 so no nested heredoc corrupts the piped script.
@@ -76,6 +86,12 @@ apt-get clean
 rm -f /etc/localtime
 locale-gen en_US.UTF-8 de_DE.UTF-8 >/dev/null 2>&1 || true
 update-locale LANG=en_US.UTF-8 >/dev/null 2>&1 || true
+# Trim what a build environment never reads: translated message catalogs
+# except en/de (the generated locales in /usr/lib/locale stay untouched),
+# man pages, package docs, and the apt package lists (apt still works after
+# an apt-get update, should anyone ever need it inside the sandbox).
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name "en*" ! -name "de*" -exec rm -rf {} +
+rm -rf /usr/share/man/* /usr/share/doc/* /var/lib/apt/lists/* /var/cache/apt
 ' | base64 -w0)"
 
 # The outer script runs inside the Debian container as root. Build noise goes
@@ -98,7 +114,7 @@ chmod +x /b/rootfs/inner.sh
 chroot /b/rootfs /bin/bash /inner.sh
 umount /b/rootfs/proc; umount /b/rootfs/sys; umount /b/rootfs/dev
 exec 1>&3
-tar --zstd --exclude=proc --exclude=sys --exclude=dev -C /b/rootfs -cf - .
+tar --zstd --anchored --exclude=./proc --exclude=./sys --exclude=./dev -C /b/rootfs -cf - .
 ' | base64 -w0)"
 
 echo "building ${release} rootfs (downloads packages, takes a while; log below)..."

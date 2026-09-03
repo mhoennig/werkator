@@ -4,6 +4,7 @@ import de.hoennig.werkator.build.BuildResult
 import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -22,8 +23,9 @@ class RetryCommandTest : FunSpec() {
     private val repository = mockk<BuildResultRepository>()
     private val consoleBuildRunner = mockk<ConsoleBuildRunner>()
     private val dir: Path = Paths.get(".")
+    private val repo = RepoContext("test", dir, repository, mockk())
 
-    private fun command() = RetryCommand(gitService, repository, consoleBuildRunner).apply { workingDir = dir }
+    private fun command() = RetryCommand(gitService, consoleBuildRunner, repo)
 
     private fun result(
         branch: String,
@@ -52,21 +54,21 @@ class RetryCommandTest : FunSpec() {
                 )
             every { gitService.originHeadCommit("main", dir) } returns "head-main"
             every { gitService.originHeadCommit("feature/y", dir) } returns "head-y"
-            every { consoleBuildRunner.buildAndStream(any(), any(), dir, any()) } returns BuildStatus.SUCCESS
+            every { consoleBuildRunner.buildAndStream(repo, any(), any(), any()) } returns BuildStatus.SUCCESS
 
             var exitCode = -1
             captureConsole { exitCode = command().call() }
 
             exitCode shouldBe 0
-            verify { consoleBuildRunner.buildAndStream("main", "head-main", dir, "default") }
-            verify { consoleBuildRunner.buildAndStream("feature/y", "head-y", dir, "default") }
-            verify(exactly = 0) { consoleBuildRunner.buildAndStream("feature/ok", any(), dir, any()) }
+            verify { consoleBuildRunner.buildAndStream(repo, "main", "head-main", "default") }
+            verify { consoleBuildRunner.buildAndStream(repo, "feature/y", "head-y", "default") }
+            verify(exactly = 0) { consoleBuildRunner.buildAndStream(repo, "feature/ok", any(), any()) }
         }
 
         test("exits with code 1 when a retried build fails again") {
             every { repository.latestPerName() } returns listOf(result("main", BuildStatus.FAILED))
             every { gitService.originHeadCommit("main", dir) } returns "head-main"
-            every { consoleBuildRunner.buildAndStream("main", "head-main", dir) } returns BuildStatus.FAILED
+            every { consoleBuildRunner.buildAndStream(repo, "main", "head-main") } returns BuildStatus.FAILED
 
             var exitCode = -1
             captureConsole { exitCode = command().call() }

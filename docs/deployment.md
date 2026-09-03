@@ -261,3 +261,33 @@ All nginx and certificate failures are non-fatal warnings — the plain HTTP ser
 The nginx container cannot reach `localhost` of the host, so the proxy upstream defaults to `serverName`; set `server.nginx.upstreamHost` if the host is reachable under a different name from inside containers.
 With the managed nginx, set `server.bindAddress: 0.0.0.0` explicitly (or an address reachable from the Docker network) — the default `127.0.0.1` makes Werkator unreachable for the proxy container.
 See [configuration.md](configuration.md) for all `server.nginx.*` keys.
+
+## Hostsharing Managed Webspace
+
+The third deployment variant (plan step 21, verified live on a real webspace): no root, no Docker daemon, no own reverse proxy.
+Werkator runs as a systemd *user* service on the assigned localhost port ("eigener Serverdienst"), the platform's managed Apache terminates TLS and proxies via `.htaccess`, and builds run in the bubblewrap sandbox executed by the [werkdock](../werkdock/README.md) CLI (ADR 0008, step 21 session C).
+
+Werkator is never built on the webspace: the runtime bundle and the werkdock binary are built locally and uploaded (ADR 0006).
+All steps are driven by `tools/remote`; commands name their role — `instance-*` manages the installed Werkator, `repo-*` the repository it watches.
+Each instance is a pair of files (step 23): a transport env file selected with `--env-file` (default `.env`), and a YAML fragment in the configuration schema, named by its `WERKATOR_INIT_CONFIG` key and installed remotely via `werkator init --apply` — e.g. `.env.mih34` + `.env.mih34.yml`, both gitignored.
+The fragment carries the Werkator configuration (`server.port`, `publicBaseUrl`, systemd limits, `builds.default.bwrap.*`); the env file only says where and how to reach the host.
+
+```bash
+tools/remote --env-file .env.mih34 werkator check-prerequisites  # uploads werkdock, runs its doctor
+tools/remote --env-file .env.mih34 werkator instance-install     # upload + unpack the runtime bundle and werkdock
+tools/remote --env-file .env.mih34 werkator repo-init            # clone the watched repo, rootfs archive, init --apply
+tools/remote --env-file .env.mih34 werkator instance-start       # init --apply --systemd, place .htaccess, enable the unit
+tools/remote --env-file .env.mih34 port-forward start            # browser tunnel while no public domain is set up
+```
+
+Layout on the host: the watched repository at `$WERKATOR_PATH/werkator/`, the unpacked runtime at `$WERKATOR_PATH/.werkator/werkator/`, the werkdock binary at `$WERKATOR_PATH/.werkator/bin/werkdock`.
+The rootfs archive is loaded once per source into werkdock's image store (`~/.werkdock`), shared by every repository of the user.
+Fill `git.account`/`git.token` in the machine config when the origin is private, and make the user's services survive logout with `loginctl enable-linger`.
+
+Updates are one command, refused while a build runs (`FORCE=1` overrides):
+
+```bash
+tools/remote --env-file .env.mih34 werkator instance-update
+```
+
+The previous runtime stays as `.werkator/werkator.prev` for one deployment as the rollback asset.

@@ -9,6 +9,7 @@ import de.hoennig.werkator.config.ConfigFiles
 import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.metrics.SystemMetricsCollector
+import de.hoennig.werkator.repo.RepoContext
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
@@ -22,7 +23,6 @@ import org.springframework.web.servlet.view.RedirectView
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import kotlin.io.path.name
 import kotlin.streams.asSequence
 
@@ -43,8 +43,10 @@ class UiController(
     private val branchListing: BranchListing,
     private val branchPermalinks: BranchPermalinks,
     private val buildProperties: ObjectProvider<BuildProperties>,
+    private val repo: RepoContext,
 ) {
-    var workingDir: Path = Paths.get(".")
+    private val workingDir: Path
+        get() = repo.workingDir
 
     /**
      * Permanent redirects for the legacy script's static page names, so bookmarks
@@ -71,7 +73,7 @@ class UiController(
     @GetMapping("/branches")
     fun branches(model: Model): String {
         val links = baseModel(model, view = "branches", pageTitle = "Branches")
-        model.addAttribute("rows", branchListing.branches(workingDir).map { BuildRowView.from(it, links) })
+        model.addAttribute("rows", branchListing.branches(repo).map { BuildRowView.from(it, links) })
         model.addAttribute("apiPath", "/api/branches")
         model.addAttribute("allowRestart", true)
         // a row here stands for a branch, not for a past run
@@ -203,8 +205,26 @@ class UiController(
                 ?: emptyList<LogFileView>(),
         )
         model.addAttribute("reportIndexes", artifactDir?.let { reportIndexes(it) } ?: emptyList<String>())
+        model.addAttribute("fileArtifacts", artifactDir?.let { fileArtifacts(it) } ?: emptyList<String>())
         return "artifact"
     }
+
+    /**
+     * Plain artifact files outside `reports/` — build outputs like binaries or
+     * jars, archived at their workspace-relative paths. The top-level log files
+     * have their own section. Capped so a huge output tree cannot flood the page.
+     */
+    private fun fileArtifacts(artifactDir: Path): List<String> =
+        Files.walk(artifactDir).use { paths ->
+            paths
+                .asSequence()
+                .filter { Files.isRegularFile(it) }
+                .map { artifactDir.relativize(it).toString() }
+                .filterNot { it.startsWith("reports/") || (!it.contains('/') && it.endsWith(".log")) }
+                .sorted()
+                .take(MAX_FILE_ARTIFACTS)
+                .toList()
+        }
 
     /** Adds the attributes every page needs and returns the Gitea link helper for row building. */
     private fun baseModel(
@@ -366,6 +386,8 @@ class UiController(
         }
 
     companion object {
+        private const val MAX_FILE_ARTIFACTS = 200
+
         private val FAILURES_COUNTER = Regex("""id="failures">\s*<div class="counter">(\d+)""")
 
         /**

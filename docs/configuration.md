@@ -7,10 +7,17 @@ Werkator is configured via YAML files. Settings are merged from several sources 
 | Layer                    | Path                       | Committed to Git | Purpose                                      |
 |--------------------------|----------------------------|------------------|----------------------------------------------|
 | Project config           | `.werkator.yml`            | Yes              | Shared team settings                         |
+| Applied instance fragment | `.git/werkator/.werkator.applied.yml` | No   | Instance parameters installed by `init --apply` |
 | Repo installation config | `.git/werkator/.werkator.yml` | No               | Machine- or user-specific overrides, secrets |
 | Branch config            | `.werkator.yml` committed on a branch | Yes  | That branch's build settings and build definitions |
 
-The repo install config (`.git/werkator/.werkator.yml`) wins on any key present in both files. Typically used to set `git.token` and `git.account` without committing them.
+The repo install config (`.git/werkator/.werkator.yml`) wins on any key present in several files; the applied fragment wins over the project config. Typically the repo install config sets `git.token` and `git.account` without committing them.
+
+### The applied instance fragment (`init --apply`)
+
+`werkator init --apply FILE` installs a YAML fragment in this very schema as its own layer (step 23) — the file a deployment wrapper hands over instead of patching configs.
+The fragment is validated strictly before installing: an unknown key is refused loudly, never ignored, because a typo would otherwise install a value that silently does nothing.
+It is then copied verbatim (comments included) to `.git/werkator/.werkator.applied.yml`; re-applying replaces the file, so nothing accumulates or duplicates, and the hand-edited repo install config — which always wins — is never rewritten.
 
 ### Which Werkator a file is written for
 
@@ -91,7 +98,7 @@ single branch may decide it:
 - the repository-side settings: the whole `gitea`, `executor`, and `watcher` sections;
 - the trust gate: `requirePullRequest`, and the Gitea status context: `statusContext`;
 - the container sandbox policy: `docker.enabled`/`docker.network` and
-  `bwrap.enabled`/`bwrap.rootfs` — host-pinned as
+  `bwrap.enabled`/`bwrap.rootfs`/`bwrap.werkdock` — host-pinned as
   long as only the host's configuration sets them, master-pinned once the committed
   configuration does.
 
@@ -201,7 +208,9 @@ builds:
     cleanCommand: rm -rf build
     # shell command for each build
     buildCommand: ./gradlew --console=plain --no-daemon test
-    # directories copied as build artifacts
+    # directories copied as build artifacts; each is archived at its own
+    # workspace-relative path, except build/reports, which archives as reports/
+    # and is browsed by the artifact page's report index
     artifactDirs:
       - build/reports
       - build/doc
@@ -351,7 +360,7 @@ Both parts combine as an intersection.
 
 Settings: `buildCommand`, `cleanCommand`, `artifactDirs`, `stdoutLog`/`stderrLog`, `requirePullRequest`, `statusContext`, and `docker` and `bwrap` with all their keys.
 A definition carries the complete description of its build; unset keys fall back to `builds.default` and then to Werkator's own defaults.
-`requirePullRequest`, `statusContext`, `docker.enabled`, `docker.network`, `bwrap.enabled`, and `bwrap.rootfs` are pinned (master-pinned, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci)): they are read from the repo install/project config even when a branch sets them in its own committed config.
+`requirePullRequest`, `statusContext`, `docker.enabled`, `docker.network`, `bwrap.enabled`, `bwrap.rootfs`, and `bwrap.werkdock` are pinned (master-pinned, see [the branch layer](#the-branch-layer-a-branch-describes-its-own-ci)): they are read from the repo install/project config even when a branch sets them in its own committed config.
 Inheritance from `builds.default` covers the settings only — the `trigger` block says when and where *this* build runs and is never inherited.
 Definitions are part of the branch layer: a branch may add its own and override those from the project config, for its own builds only.
 Because the inheritance is applied after all layers are merged, a build a branch invents still inherits the host's `builds.default` — its sandbox policy included, which is what keeps the pinning effective for a build the host has never heard of.
@@ -409,16 +418,17 @@ All Werkator containers carry `org.hoennig.werkator` labels; stale build contain
 
 ### Notes on `builds.<name>.bwrap`
 
-With `bwrap.enabled`, Werkator shells out to the `bwrap` CLI (bubblewrap) instead of native execution.
-This is the third runtime, for hosts without root and without a Docker daemon (e.g. Hostsharing managed webspaces); see `docs/plan/17-bwrap-build-runtime.md` and ADR 0007.
-`bwrap` must be on the `PATH`.
+With `bwrap.enabled`, Werkator runs the build in a bubblewrap sandbox instead of native execution.
+This is the third runtime, for hosts without root and without a Docker daemon (e.g. Hostsharing managed webspaces); see `docs/plan/17-bwrap-build-runtime.md` and ADR 0008.
+Since step 21 session C the sandbox is executed by the `werkdock` CLI (`bwrap.werkdock`, default: resolved via `PATH`) — Werkator no longer invokes `bwrap` itself; `bwrap` must be installed for werkdock.
+`werkdock doctor` checks the host's capability (it replaced the retired `tools/werkator-build-prerequisites.sh` in step 23).
 
 `bwrap.rootfs` names the prepared root filesystem archive — a Debian-base rootfs with the build tools (JDK, git, locales, project-specific tooling) built elsewhere, since `debootstrap` is unavailable on the target.
-It is a local path or an `http(s)` URL; a URL is downloaded once.
-Build the archive with `tools/build-bwrap-rootfs.sh` on any machine with Docker; verify the host's user-namespace capability first with `tools/werkator-build-prerequisites.sh`.
-The archive is unpacked on demand (`tar --no-same-owner`) into `.git/werkator/buildenv/<envKey>/rootfs`, shared across all branch worktrees like the Docker Gradle cache volume; `<envKey>` derives from a hash of the source, so a changed `rootfs` unpacks a fresh environment and stale ones can be pruned.
-Per-branch Gradle caches persist in `.git/werkator/buildenv/home`, bound as `/root`.
-`bwrap.env` adds environment variables inside the sandbox.
+It is a local path or an `http(s)` URL; a URL is downloaded once into `.git/werkator/buildenv/`.
+Build the archive with `tools/build-bwrap-rootfs.sh` on any machine with Docker.
+The archive is loaded once per source as the werkdock image `werkator-buildenv-<hash>` into werkdock's store (`$WERKDOCK_HOME`, default `~/.werkdock`) — shared by every repository of this OS user; the hash derives from the source string, so a changed `rootfs` loads a fresh image and stale ones can be removed from the store.
+Per-repo Gradle caches persist in `.git/werkator/buildenv/home`, bound as `/root`.
+`bwrap.env` adds environment variables inside the sandbox; the environment is otherwise cleared (docker semantics) — the server's environment does not leak in.
 Files created inside the sandbox are owned by the host user, because uid 0 maps back to the unprivileged webspace user.
 
 `docker` and `bwrap` are mutually exclusive per branch: enabling both is rejected at start, not silently picked.

@@ -90,9 +90,11 @@ class FileArtifactStoreTest : FunSpec() {
             Files.readString(artifactDir.resolve("build.stdout.log")) shouldBe "out"
             Files.readString(artifactDir.resolve("build.stderr.log")) shouldBe "err"
             Files.readString(artifactDir.resolve("build.log")) shouldBe "live"
-            // legacy layout: build/reports archives as reports/, other dirs below reports/<dir>
+            // build/reports archives as reports/ (the artifact page's browsable
+            // anchor), every other dir at its own workspace-relative path
             Files.exists(artifactDir.resolve("reports/tests/index.html")) shouldBe true
-            Files.exists(artifactDir.resolve("reports/build/doc/readme.txt")) shouldBe true
+            Files.exists(artifactDir.resolve("build/doc/readme.txt")) shouldBe true
+            Files.exists(artifactDir.resolve("reports/build")) shouldBe false
             Files.exists(staging) shouldBe false
         }
 
@@ -104,8 +106,8 @@ class FileArtifactStoreTest : FunSpec() {
             h.store.persist(build, stagingDir(), workspace)
 
             val artifactDir = h.branchesDir().resolve(build.artifactKey)
-            Files.exists(artifactDir.resolve("reports/build/doc/readme.txt")) shouldBe true
-            Files.exists(artifactDir.resolve("reports/tests")) shouldBe false
+            Files.exists(artifactDir.resolve("build/doc/readme.txt")) shouldBe true
+            Files.exists(artifactDir.resolve("reports")) shouldBe false
         }
 
         test("persist without a workspace stores only the logs") {

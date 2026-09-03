@@ -1,9 +1,7 @@
 package de.hoennig.werkator.watcher
 
 import de.hoennig.werkator.build.ArtifactKeys
-import de.hoennig.werkator.build.ArtifactStore
 import de.hoennig.werkator.build.BuildExecutor
-import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.build.GitWorktreeWorkspaces
 import de.hoennig.werkator.config.BuildDefinition
@@ -12,11 +10,11 @@ import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.config.DurationParser
 import de.hoennig.werkator.config.WerkatorConfig
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -39,8 +37,6 @@ import java.util.concurrent.TimeUnit
 class Watcher(
     private val gitService: GitService,
     private val buildExecutor: BuildExecutor,
-    private val repository: BuildResultRepository,
-    private val artifactStore: ArtifactStore,
     private val configLoader: ConfigLoader,
     private val clock: Clock,
 ) {
@@ -51,39 +47,51 @@ class Watcher(
     @Volatile
     private var state = WatcherState()
 
-    /** The branches.*.autoBuild deprecation is logged once per watcher instance, not once per poll. */
-    @Volatile
-    private var warnedDeprecatedAutoBuild = false
-
-    /**
-     * The fetch failure last written to the log, so a lasting outage does not repeat the
-     * same warning on every poll — one wrong token produced 297 identical lines before
-     * this. Null while the last fetch succeeded, which is also what makes the recovery
-     * loggable.
-     */
-    @Volatile
-    private var loggedFetchError: String? = null
-
-    /** Build definitions per branch, cached by the branch's head commit — see [definitionsFor]. */
-    private val branchDefinitions = ConcurrentHashMap<String, CachedDefinitions>()
+    /** What the watcher remembers about a repository between polls, keyed by the context (identity). */
+    private val watched = ConcurrentHashMap<RepoContext, RepoWatch>()
 
     fun state(): WatcherState = state
+
+    private fun watchOf(repo: RepoContext): RepoWatch = watched.computeIfAbsent(repo) { RepoWatch() }
+
+    /**
+     * The per-repository poll memory: what was logged already, and the cached branch
+     * definitions. Kept apart from the shared [WatcherState] so that the next session
+     * can iterate contexts without one repository's outage silencing another's.
+     */
+    private class RepoWatch {
+        /** The branches.*.autoBuild deprecation is logged once per repository, not once per poll. */
+        @Volatile
+        var warnedDeprecatedAutoBuild = false
+
+        /**
+         * The fetch failure last written to the log, so a lasting outage does not repeat the
+         * same warning on every poll — one wrong token produced 297 identical lines before
+         * this. Null while the last fetch succeeded, which is also what makes the recovery
+         * loggable.
+         */
+        @Volatile
+        var loggedFetchError: String? = null
+
+        /** Build definitions per branch, cached by the branch's head commit — see [definitionsFor]. */
+        val branchDefinitions = ConcurrentHashMap<String, CachedDefinitions>()
+    }
 
     /**
      * Runs the startup recovery and schedules the poll loop with the fixed delay
      * `watcher.pollInterval`; the first poll runs immediately.
      */
     @Synchronized
-    fun start(workingDir: Path = Paths.get(".")) {
+    fun start(repo: RepoContext) {
         check(scheduler == null) { "watcher is already running" }
-        recoverOnStartup(workingDir)
-        val interval = DurationParser.parse(configLoader.load(workingDir).watcher.pollInterval)
+        recoverOnStartup(repo)
+        val interval = DurationParser.parse(configLoader.load(repo.workingDir).watcher.pollInterval)
         scheduler =
             Executors
                 .newSingleThreadScheduledExecutor { runnable ->
                     Thread(runnable, "werkator-watcher").apply { isDaemon = true }
                 }.also {
-                    it.scheduleWithFixedDelay({ pollSafely(workingDir) }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
+                    it.scheduleWithFixedDelay({ pollSafely(repo) }, 0, interval.toMillis(), TimeUnit.MILLISECONDS)
                 }
         state = state.copy(running = true)
     }
@@ -100,7 +108,9 @@ class Watcher(
      * superseded PENDING builds as INTERRUPTED, then re-enqueue every branch whose
      * latest build never finished and which still exists on origin.
      */
-    fun recoverOnStartup(workingDir: Path = Paths.get(".")) {
+    fun recoverOnStartup(repo: RepoContext) {
+        val workingDir = repo.workingDir
+        val repository = repo.results
         try {
             gitService.fetchOrigin(workingDir)
         } catch (e: Exception) {
@@ -130,7 +140,7 @@ class Watcher(
             }
             log.info("restarting unfinished build {} of branch {}", result.build, result.branch)
             // the re-run resolves its settings from the current config by the recorded build name
-            buildExecutor.startBuild(result.branch, commit, workingDir, result.build)
+            buildExecutor.startBuild(repo, result.branch, commit, result.build)
         }
     }
 
@@ -141,46 +151,48 @@ class Watcher(
      * fast-forward the local branch refs, and finally prune results, artifacts, and
      * worktrees of branches gone from origin.
      */
-    fun poll(workingDir: Path = Paths.get(".")) {
+    fun poll(repo: RepoContext) {
         val startedAt = clock.instant()
+        val workingDir = repo.workingDir
+        val watch = watchOf(repo)
         try {
             gitService.fetchOrigin(workingDir)
-            if (loggedFetchError != null) {
+            if (watch.loggedFetchError != null) {
                 log.info("fetching origin succeeded again")
-                loggedFetchError = null
+                watch.loggedFetchError = null
             }
         } catch (e: Exception) {
             val failure = e.message ?: e.javaClass.simpleName
-            if (loggedFetchError != failure) {
+            if (watch.loggedFetchError != failure) {
                 log.warn("fetching origin failed; retrying every cycle until it succeeds: {}", failure)
-                loggedFetchError = failure
+                watch.loggedFetchError = failure
             }
             state = state.copy(lastPollAt = startedAt, lastFetchError = failure)
             return
         }
         val config = configLoader.load(workingDir)
         val originBranches = gitService.originBranches(workingDir)
-        enqueueDueBranches(config, originBranches.toSet(), workingDir)
+        enqueueDueBranches(repo, config, originBranches.toSet())
         if (config.watcher.fastForwardLocalRefs) {
             fastForwardLocalRefs(workingDir)
         }
-        prune(config, originBranches, workingDir)
+        prune(repo, config, originBranches)
         state =
             state.copy(
                 lastPollAt = startedAt,
                 lastFetchError = null,
                 lastPollError = null,
                 queuedBranches =
-                    repository
+                    repo.results
                         .latestPerName()
                         .filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }
                         .map { it.name },
             )
     }
 
-    private fun pollSafely(workingDir: Path) {
+    private fun pollSafely(repo: RepoContext) {
         try {
-            poll(workingDir)
+            poll(repo)
         } catch (e: Exception) {
             log.error("poll cycle failed", e)
             state = state.copy(lastPollAt = clock.instant(), lastPollError = e.message ?: e.javaClass.simpleName)
@@ -208,16 +220,17 @@ class Watcher(
     }
 
     private fun enqueueDueBranches(
+        repo: RepoContext,
         config: WerkatorConfig,
         originBranches: Set<String>,
-        workingDir: Path,
     ) {
+        val workingDir = repo.workingDir
         // one ls-remote per poll cycle at most, and only when a due branch requires a pull request
         val pullRequestHeads = lazy { gitService.pullRequestHeads(workingDir) }
         // one for-each-ref per cycle at most, and only when a definition filters by activeWithin
         val headCommitTimes = lazy { gitService.originBranchCommitTimes(workingDir) }
         val heads = gitService.originBranchHeads(workingDir)
-        branchDefinitions.keys.retainAll(originBranches)
+        watchOf(repo).branchDefinitions.keys.retainAll(originBranches)
         val changedLocal =
             gitService
                 .localBranches(workingDir)
@@ -226,15 +239,15 @@ class Watcher(
             gitService.newOriginBranches(DurationParser.parse(config.watcher.newBranchMaxAge), workingDir)
         val changed = (changedLocal + newOrigin).distinct()
         for (branch in changed) {
-            val onPush = definitionsFor(branch, heads[branch], workingDir, config).filterValues { it.trigger.onPush }
+            val onPush = definitionsFor(repo, branch, heads[branch], config).filterValues { it.trigger.onPush }
             for ((buildName, definition) in onPush) {
                 if (selects(definition, branch, headCommitTimes)) {
-                    startBuildIfDue(branch, allowSameCommit = false, config, pullRequestHeads, workingDir, buildName)
+                    startBuildIfDue(repo, branch, allowSameCommit = false, config, pullRequestHeads, buildName)
                 }
             }
         }
-        enqueueScheduledBuilds(config, originBranches, heads, pullRequestHeads, headCommitTimes, workingDir)
-        enqueueDeprecatedAutoBuilds(config, originBranches, pullRequestHeads, workingDir)
+        enqueueScheduledBuilds(repo, config, originBranches, heads, pullRequestHeads, headCommitTimes)
+        enqueueDeprecatedAutoBuilds(repo, config, originBranches, pullRequestHeads)
     }
 
     /**
@@ -252,11 +265,13 @@ class Watcher(
      * instead of failing the poll cycle.
      */
     private fun definitionsFor(
+        repo: RepoContext,
         branch: String,
         headCommit: String?,
-        workingDir: Path,
         primary: WerkatorConfig,
     ): Map<String, BuildDefinition> {
+        val workingDir = repo.workingDir
+        val branchDefinitions = watchOf(repo).branchDefinitions
         val commit = headCommit ?: return primary.effectiveBuildDefinitions()
         branchDefinitions[branch]?.takeIf { it.commit == commit && it.primary == primary }?.let { return it.definitions }
         val definitions =
@@ -305,14 +320,15 @@ class Watcher(
      * without pull-request refs.
      */
     private fun startBuildIfDue(
+        repo: RepoContext,
         branch: String,
         allowSameCommit: Boolean,
         config: WerkatorConfig,
         pullRequestHeads: Lazy<Set<String>>,
-        workingDir: Path,
         build: String = BuildDefinition.DEFAULT,
     ): Boolean {
-        val latest = repository.latestFor(BuildDefinition.poolName(branch, build))
+        val workingDir = repo.workingDir
+        val latest = repo.results.latestFor(BuildDefinition.poolName(branch, build))
         if (latest?.status == BuildStatus.PENDING || latest?.status == BuildStatus.RUNNING) {
             return false
         }
@@ -328,7 +344,7 @@ class Watcher(
             return false
         }
         log.info("enqueueing build {} of branch {} at commit {}", build, branch, commit)
-        buildExecutor.startBuild(branch, commit, workingDir, build)
+        buildExecutor.startBuild(repo, branch, commit, build)
         return true
     }
 
@@ -338,20 +354,20 @@ class Watcher(
      * the point of a scheduled build.
      */
     private fun enqueueScheduledBuilds(
+        repo: RepoContext,
         config: WerkatorConfig,
         originBranches: Set<String>,
         heads: Map<String, String>,
         pullRequestHeads: Lazy<Set<String>>,
         headCommitTimes: Lazy<Map<String, Instant>>,
-        workingDir: Path,
     ) {
-        val autoBuildState = lazy { FileAutoBuildState(workingDir.resolve(AUTO_BUILDS_FILE)) }
+        val autoBuildState = lazy { FileAutoBuildState(repo.workingDir.resolve(AUTO_BUILDS_FILE)) }
         val now = clock.instant()
         val today = LocalDate.ofInstant(now, ZoneOffset.UTC)
         val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
         for (branch in originBranches) {
             val scheduled =
-                definitionsFor(branch, heads[branch], workingDir, config).filterValues {
+                definitionsFor(repo, branch, heads[branch], config).filterValues {
                     it.trigger.atTimes.isNotEmpty()
                 }
             for ((buildName, definition) in scheduled) {
@@ -363,7 +379,7 @@ class Watcher(
                 if (autoBuildState.value.isTriggered(pool, today, slot)) {
                     continue
                 }
-                if (startBuildIfDue(branch, allowSameCommit = true, config, pullRequestHeads, workingDir, buildName)) {
+                if (startBuildIfDue(repo, branch, allowSameCommit = true, config, pullRequestHeads, buildName)) {
                     autoBuildState.value.markTriggered(pool, today, slot)
                 }
             }
@@ -376,10 +392,10 @@ class Watcher(
      * `builds` entry with `atTimes` and a single-branch selector would do.
      */
     private fun enqueueDeprecatedAutoBuilds(
+        repo: RepoContext,
         config: WerkatorConfig,
         originBranches: Set<String>,
         pullRequestHeads: Lazy<Set<String>>,
-        workingDir: Path,
     ) {
         val autoBuildBranches =
             config.branches.filter { (branch, branchConfig) ->
@@ -388,14 +404,15 @@ class Watcher(
         if (autoBuildBranches.isEmpty()) {
             return
         }
-        if (!warnedDeprecatedAutoBuild) {
-            warnedDeprecatedAutoBuild = true
+        val watch = watchOf(repo)
+        if (!watch.warnedDeprecatedAutoBuild) {
+            watch.warnedDeprecatedAutoBuild = true
             log.warn(
                 "branches.*.autoBuild is deprecated; define a build with atTimes in the builds section instead (branches: {})",
                 autoBuildBranches.keys.joinToString(", "),
             )
         }
-        val autoBuildState = FileAutoBuildState(workingDir.resolve(AUTO_BUILDS_FILE))
+        val autoBuildState = FileAutoBuildState(repo.workingDir.resolve(AUTO_BUILDS_FILE))
         val now = clock.instant()
         val today = LocalDate.ofInstant(now, ZoneOffset.UTC)
         val timeOfDay = LocalTime.ofInstant(now, ZoneOffset.UTC)
@@ -408,7 +425,7 @@ class Watcher(
                 log.warn("skipping auto build of branch {}: branch is not on origin", branch)
                 continue
             }
-            if (startBuildIfDue(branch, allowSameCommit = true, config, pullRequestHeads, workingDir)) {
+            if (startBuildIfDue(repo, branch, allowSameCommit = true, config, pullRequestHeads)) {
                 autoBuildState.markTriggered(branch, today, slot)
             }
         }
@@ -416,28 +433,29 @@ class Watcher(
 
     /** Results first, then artifacts of dropped results, then worktrees of branches gone from origin. */
     private fun prune(
+        repo: RepoContext,
         config: WerkatorConfig,
         originBranches: List<String>,
-        workingDir: Path,
     ) {
         val retentionCutoff =
             config.artifacts.retentionMaxAge
                 .takeIf { it.isNotBlank() }
                 ?.let { clock.instant().minus(DurationParser.parse(it)) }
-        repository.prune(
+        repo.results.prune(
             originBranches,
             config.artifacts.retentionPerBranch,
             config.artifacts.keepLatestGreen,
             retentionCutoff,
         )
-        artifactStore.prune(repository.history())
-        pruneWorktrees(originBranches, workingDir)
+        repo.artifactStore.prune(repo.results.history())
+        pruneWorktrees(repo, originBranches)
     }
 
     private fun pruneWorktrees(
+        repo: RepoContext,
         originBranches: List<String>,
-        workingDir: Path,
     ) {
+        val workingDir = repo.workingDir
         val worktreesDir = workingDir.resolve(GitWorktreeWorkspaces.WORKTREES_DIR)
         if (!Files.isDirectory(worktreesDir)) {
             return
@@ -445,7 +463,7 @@ class Watcher(
         val keep = originBranches.map { ArtifactKeys.branchKey(it) }.toMutableSet()
         // never delete under a build that is still queued or executing
         buildExecutor.currentBuilds().forEach { keep += ArtifactKeys.branchKey(it.branch) }
-        repository
+        repo.results
             .latestPerName()
             .filter { it.status == BuildStatus.PENDING || it.status == BuildStatus.RUNNING }
             .forEach { keep += ArtifactKeys.branchKey(it.branch) }

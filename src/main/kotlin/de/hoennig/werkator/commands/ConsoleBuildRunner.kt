@@ -1,12 +1,11 @@
 package de.hoennig.werkator.commands
 
-import de.hoennig.werkator.build.ArtifactStore
 import de.hoennig.werkator.build.BuildExecutor
 import de.hoennig.werkator.build.BuildResult
-import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.build.RunningBuild
 import de.hoennig.werkator.config.BuildDefinition
+import de.hoennig.werkator.repo.RepoContext
 import de.hoennig.werkator.server.UiFormats
 import org.springframework.stereotype.Component
 import java.io.IOException
@@ -14,7 +13,6 @@ import java.nio.channels.Channels
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.time.Duration
 
@@ -26,31 +24,29 @@ import java.time.Duration
 @Component
 class ConsoleBuildRunner(
     private val buildExecutor: BuildExecutor,
-    private val repository: BuildResultRepository,
-    private val artifactStore: ArtifactStore,
 ) {
     var pollIntervalMillis = 200L
 
     var persistTimeoutMillis = 30_000L
 
-    /** Builds [branch] at [commit], blocking until the build finished; returns the final status. */
+    /** Builds [branch] of [repo] at [commit], blocking until the build finished; returns the final status. */
     fun buildAndStream(
+        repo: RepoContext,
         branch: String,
         commit: String,
-        workingDir: Path = Paths.get("."),
         buildDefinition: String = BuildDefinition.DEFAULT,
     ): BuildStatus {
-        val build = buildExecutor.startBuild(branch, commit, workingDir, buildDefinition)
+        val build = buildExecutor.startBuild(repo, branch, commit, buildDefinition)
         var printed = 0L
         var result: BuildResult? = null
         while (result?.status?.isTerminal != true) {
             printed += printNewLogBytes(build.liveLogFile, printed)
-            result = repository.history().firstOrNull { it.artifactKey == build.artifactKey }
+            result = repo.results.history().firstOrNull { it.artifactKey == build.artifactKey }
             if (result?.status?.isTerminal != true) {
                 Thread.sleep(pollIntervalMillis)
             }
         }
-        drainAfterBuild(build, printed)
+        drainAfterBuild(repo, build, printed)
         val after = result.duration?.let { " after ${UiFormats.duration(it)}" } ?: ""
         println("build of branch $branch: ${result.status.name.lowercase()}$after")
         return result.status
@@ -64,6 +60,7 @@ class ConsoleBuildRunner(
      * stored copy (which is byte-identical, so the offset carries over).
      */
     private fun drainAfterBuild(
+        repo: RepoContext,
         build: RunningBuild,
         alreadyPrinted: Long,
     ) {
@@ -79,7 +76,7 @@ class ConsoleBuildRunner(
             }
             Thread.sleep(pollIntervalMillis)
         }
-        artifactStore.artifactDir(build.artifactKey)?.let { artifactDir ->
+        repo.artifactStore.artifactDir(build.artifactKey)?.let { artifactDir ->
             printNewLogBytes(artifactDir.resolve(BuildExecutor.LIVE_LOG_FILE), printed)
         }
     }

@@ -35,4 +35,5 @@ replay_pid*
 # Other
 /.local/
 /.env
+/.env.*
 

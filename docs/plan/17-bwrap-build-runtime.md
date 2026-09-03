@@ -168,7 +168,7 @@ Two claims could **not** be verified from a Hostsharing primary source; check th
 
 ## ADR
 
-Write ADR 0007: bubblewrap user-namespace sandbox as the third build runtime (options considered: bwrap (chosen), proot/fakechroot (slow, fragile), plain native with hand-installed toolchains (no isolation, host pollution)).
+Write ADR 0008 (step text originally said 0007, but 0007 was taken by build definitions): bubblewrap user-namespace sandbox as the third build runtime (options considered: bwrap (chosen), proot/fakechroot (slow, fragile), plain native with hand-installed toolchains (no isolation, host pollution)).
 
 ## Tests
 
@@ -182,4 +182,4 @@ Write ADR 0007: bubblewrap user-namespace sandbox as the third build runtime (op
 - `./gradlew ktlintFormat` then `./gradlew build` is green — also on a machine without Docker (Testcontainers smoke test skipped, not failed).
 - On a Managed Webspace: Werkator (from the runtime bundle) builds a real branch of a repo inside the bwrap sandbox; git commands work in the worktree; `.git/werkator/` is not readable from the build; a write to `/usr` fails.
 - On the same webspace: the UI answers over HTTPS under the domain through the Apache `.htaccess` proxy, the service survives a logout and a reboot (systemd lingering), and Gitea statuses carry `publicBaseUrl` links that resolve.
-- Docs updated: `docs/configuration.md` (bwrap section), architecture skill (third runtime), ADR 0007, and `docs/deployment.md` gains "Hostsharing Managed Webspace" as a third deployment variant — written only once the setup above is verified on a real webspace, not from this plan.
+- Docs updated: `docs/configuration.md` (bwrap section), architecture skill (third runtime), ADR 0008, and `docs/deployment.md` gains "Hostsharing Managed Webspace" as a third deployment variant — written only once the setup above is verified on a real webspace, not from this plan.

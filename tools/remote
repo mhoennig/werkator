@@ -5,58 +5,75 @@
 # the second the command. All connection and deployment values come from the
 # `.env` file in the repository root — never as command line parameters.
 #
-# Usage:
-#   tools/remote werkator check-prerequisites
-#   tools/remote werkator install
-#   tools/remote werkator build            # WERKATOR_BRANCH to override, default main
-#   tools/remote werkator start
-#   tools/remote port-forward start        # background tunnel to the Werkator UI
-#   tools/remote port-forward stop
-#   tools/remote werkator control-token
+# Commands name their role (step 21 session D): `instance-*` manages the
+# BUILDER — the installed Werkator instance and its werkdock sandbox tool —
+# while `repo-*` acts on the BUILT, the repository the instance watches.
+# Werkator is never built on the target: the instance is installed from the
+# locally built runtime bundle (ADR 0006), and builds of the watched
+# repository are the running instance's job (or `bin/werkator build` on the
+# host — the werkator CLI, not this script).
 #
-# Required in .env:
+# Usage (step 23: `--env-file` selects the target instance, default `.env`):
+#   tools/remote [--env-file FILE] werkator check-prerequisites   werkdock doctor on the host
+#   tools/remote [--env-file FILE] werkator instance-install      first-time: upload + unpack bundle and werkdock
+#   tools/remote [--env-file FILE] werkator instance-update       redeploy bundle + werkdock, restart the service
+#   tools/remote [--env-file FILE] werkator instance-start        apply fragment, Apache proxy, systemd unit
+#   tools/remote [--env-file FILE] werkator repo-init             clone the watched repo, init --apply, rootfs
+#   tools/remote [--env-file FILE] werkator control-token
+#   tools/remote [--env-file FILE] port-forward start             background tunnel to the Werkator UI
+#   tools/remote [--env-file FILE] port-forward stop
+#
+# The env file carries TRANSPORT values only; everything that is Werkator
+# configuration travels as a YAML fragment in the config schema, named by
+# WERKATOR_INIT_CONFIG and installed remotely via `werkator init --apply`
+# (docs/plan/23-init-owns-the-files.md). Pair the files per instance, e.g.
+# `.env.mih34` + `.env.mih34.yml` (both gitignored).
+#
+# Required in the env file:
 #   WERKATOR_REMOTE   user@host to operate on, e.g. mih34-werkator@mih34.hostsharing.net
 #   WERKATOR_PATH     target directory on that host, e.g. /home/storage/mih34/users/werkator
 #
-# Required for `start`:
-#   WERKATOR_PORT     the localhost port assigned by Hostsharing (eigener Serverdienst)
-#   WERKATOR_DOMAIN   the domain served by the managed Apache, e.g. ci.example.de
+# Required for `instance-start`:
+#   WERKATOR_DOMAIN        the domain served by the managed Apache (docroot location for the
+#                          generated .htaccess); the port lives in the fragment (server.port)
 #
 # Required for `port-forward`:
-#   WERKATOR_LOCAL_PORT   the local port the browser uses
-# Optional in .env:
-#   WERKATOR_BRANCH      branch for `build` (default: main)
-#   WERKATOR_MEMORY_MAX  systemd MemoryMax for the unit, e.g. 1G (start)
-#   WERKATOR_TASKS_MAX   systemd TasksMax for the unit, e.g. 512 (start)
-#   WERKATOR_ROOTFS      rootfs archive path
-#                       (default: <repo>/build/werkator-buildenv-trixie.tar.zst)
+#   WERKATOR_LOCAL_PORT    the local port the browser uses
+# Optional in the env file:
+#   WERKATOR_INIT_CONFIG   the init fragment to apply (repo-init, instance-start)
+#   WERKATOR_REPO_URL      https clone URL of the watched repository
+#                          (default: https://github.com/mhoennig/werkator.git)
+#   WERKATOR_ROOTFS        rootfs archive path for repo-init
+#                          (default: <repo>/build/werkator-buildenv-trixie-java-go-node.tar.zst)
 #
 # Install layout on the host:
-#   $WERKATOR_PATH/werkator/    the repository clone
-#   $WERKATOR_PATH/.werkator/   runtime bundle + rootfs archive
-#
-# `install` performs, in order:
-#   1. check-prerequisites  (bwrap capability + disk/quota, aborts on FAIL)
-#   2. ensure SSH access    (ssh-copy-id on first use; asks for the password)
-#   3. upload artifacts     (runtime bundle, built locally if missing, + rootfs)
-#   4. clone the repository (needs the host SSH key registered at GitHub once —
-#      the script prints the key and waits)
-#   5. `werkator init` + machine-local bwrap configuration
+#   $WERKATOR_PATH/werkator/            the watched repository (clone)
+#   $WERKATOR_PATH/.werkator/werkator/  the unpacked runtime bundle
+#   $WERKATOR_PATH/.werkator/bin/       the werkdock binary
+#   $WERKATOR_PATH/.werkator/*.tar.*    uploaded bundle and rootfs archives
 #
 
 set -euo pipefail
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+
+ENV_FILE=""
+if [ "${1:-}" = "--env-file" ]; then
+    ENV_FILE="${2:?missing value for --env-file}"
+    shift 2
+fi
 
 REPO="${1:-}"
 COMMAND="${2:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PREREQ_SCRIPT="$REPO_ROOT/tools/werkator-build-prerequisites.sh"
 RUNTIME_BUNDLE="$REPO_ROOT/build/distributions/werkator-runtime-linux-x64.tar.gz"
+WERKDOCK_BINARY="$REPO_ROOT/werkdock/dist/werkdock"
 PID_FILE="/tmp/werkator-port-forward-$(id -u).pid"
 LOG_FILE="/tmp/werkator-port-forward-$(id -u).log"
 
 usage() {
-    sed -n '3,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    awk 'NR > 2 && !/^#/ { exit } NR > 2 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
     exit 2
 }
 
@@ -64,7 +81,7 @@ require_env() {
     local missing=0
     for name in "$@"; do
         if [ -z "${!name:-}" ]; then
-            echo "ERROR: $name is not set — define it in $REPO_ROOT/.env" >&2
+            echo "ERROR: $name is not set — define it in $ENV_FILE" >&2
             missing=1
         fi
     done
@@ -73,16 +90,21 @@ require_env() {
 
 [ -n "$REPO" ] && [ -n "$COMMAND" ] || usage
 
-# Load the connection and deployment values; explicit environment wins, the
-# .env in the repository root fills the rest.
+# Load the transport values; explicit environment wins, the selected env file
+# (default: the .env in the repository root) fills the rest.
+ENV_FILE="${ENV_FILE:-$REPO_ROOT/.env}"
 set -a
-[ -f "$REPO_ROOT/.env" ] && source "$REPO_ROOT/.env"
+[ -f "$ENV_FILE" ] && source "$ENV_FILE"
 set +a
 
 require_env WERKATOR_REMOTE WERKATOR_PATH
 HOST="$WERKATOR_REMOTE"
 TARGET_DIR="$WERKATOR_PATH"
-ROOTFS="${WERKATOR_ROOTFS:-$REPO_ROOT/build/werkator-buildenv-trixie.tar.zst}"
+ROOTFS="${WERKATOR_ROOTFS:-$REPO_ROOT/build/werkator-buildenv-trixie-java-go-node.tar.zst}"
+REPO_URL="${WERKATOR_REPO_URL:-https://github.com/mhoennig/werkator.git}"
+MACHINE_CONFIG="$TARGET_DIR/werkator/.git/werkator/.werkator.yml"
+WERKATOR_BIN="$TARGET_DIR/.werkator/werkator/bin/werkator"
+UNIT="werkator-werkator.service"
 
 ssh_present() {
     ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" true 2>/dev/null
@@ -94,165 +116,197 @@ ensure_ssh() {
     else
         echo "==> No key-based SSH access yet; running ssh-copy-id (password prompt expected)"
         ssh-copy-id "$HOST"
-        ssh_present || { echo "ERROR: SSH access still not working after ssh-copy-id" >&2; exit 1; }
+        ssh_present || die "SSH access still not working after ssh-copy-id"
     fi
 }
 
-# Run the prerequisites script remotely by piping it over stdin; TARGET_DIR and
-# ROOTFS_ARCHIVE are passed as arguments to `bash -s --`.
+# Werkdock owns the host checks (`werkdock doctor` ports the old prerequisites
+# script); the binary is uploaded first, so the check works pre-install.
 check_prerequisites() {
-    echo "==> Checking prerequisites on $HOST (target dir: $TARGET_DIR)"
-    local rootfs_remote="$TARGET_DIR/.werkator/$(basename "$ROOTFS")"
-    if ! ssh "$HOST" "WERKATOR_SSH_TARGET='$HOST' bash -s -- '$TARGET_DIR' '$rootfs_remote'" < "$PREREQ_SCRIPT"; then
-        echo "ERROR: prerequisites failed on $HOST — install aborted" >&2
-        exit 1
+    ensure_werkdock_binary
+    echo "==> Uploading werkdock and running its doctor on $HOST (target dir: $TARGET_DIR)"
+    ssh "$HOST" "mkdir -p '$TARGET_DIR/.werkator/bin'"
+    scp -q "$WERKDOCK_BINARY" "$HOST:$TARGET_DIR/.werkator/bin/werkdock.new"
+    ssh "$HOST" "mv '$TARGET_DIR/.werkator/bin/werkdock.new' '$TARGET_DIR/.werkator/bin/werkdock' && chmod 755 '$TARGET_DIR/.werkator/bin/werkdock'"
+    if ! ssh "$HOST" "'$TARGET_DIR/.werkator/bin/werkdock' doctor '$TARGET_DIR'"; then
+        die "werkdock doctor failed on $HOST — install aborted"
     fi
 }
 
-ensure_local_artifacts() {
+ensure_werkdock_binary() {
+    if [ ! -f "$WERKDOCK_BINARY" ]; then
+        echo "==> werkdock binary not found; building it locally (go build)"
+        (cd "$REPO_ROOT/werkdock" && CGO_ENABLED=0 go build -o dist/werkdock .)
+    fi
+    [ -f "$WERKDOCK_BINARY" ] || die "werkdock binary missing: $WERKDOCK_BINARY"
+}
+
+# Uploads the init fragment named by WERKATOR_INIT_CONFIG and echoes its remote
+# path; empty when no fragment is configured.
+upload_fragment() {
+    [ -n "${WERKATOR_INIT_CONFIG:-}" ] || { echo ""; return 0; }
+    [ -f "$WERKATOR_INIT_CONFIG" ] || die "init fragment missing: $WERKATOR_INIT_CONFIG"
+    local remote="$TARGET_DIR/.werkator/$(basename "$WERKATOR_INIT_CONFIG")"
+    scp -q "$WERKATOR_INIT_CONFIG" "$HOST:$remote"
+    echo "$remote"
+}
+
+# The instance artifacts are built locally (ADR 0006): the runtime bundle via
+# Gradle, the werkdock binary via the Go toolchain. Both are rebuilt when
+# missing, never on the target.
+ensure_instance_artifacts() {
     if [ ! -f "$RUNTIME_BUNDLE" ]; then
         echo "==> Runtime bundle not found; building it locally (./gradlew runtimeBundle)"
         (cd "$REPO_ROOT" && ./gradlew runtimeBundle --console=plain -q)
     fi
-    [ -f "$RUNTIME_BUNDLE" ] || { echo "ERROR: runtime bundle missing: $RUNTIME_BUNDLE" >&2; exit 1; }
-    [ -f "$ROOTFS" ] || {
-        echo "ERROR: rootfs archive missing: $ROOTFS" >&2
-        echo "       build it with tools/build-bwrap-rootfs.sh or set WERKATOR_ROOTFS" >&2
-        exit 1
-    }
+    [ -f "$RUNTIME_BUNDLE" ] || die "runtime bundle missing: $RUNTIME_BUNDLE"
+    ensure_werkdock_binary
 }
 
-ensure_github_access() {
-    # `ssh -T git@github.com` exits 1 even on success ("does not provide shell
-    # access") — neutralize remotely, then match on the greeting text.
-    if ssh "$HOST" 'ssh -o BatchMode=yes -o ConnectTimeout=10 -T git@github.com 2>&1 || true' | grep -q "successfully authenticated"; then
-        echo "==> GitHub SSH access from $HOST: ok"
-        return 0
-    fi
-    echo
-    echo "==> The host cannot reach GitHub via SSH yet."
-    echo "    Add THIS public key to GitHub (Settings > SSH and GPG keys > New SSH key):"
-    ssh "$HOST" 'cat ~/.ssh/id_*.pub 2>/dev/null' || {
-        echo "ERROR: no public key on the host; create one with ssh-keygen -t ed25519" >&2
-        exit 1
-    }
-    read -r -p "    Press Enter once the key is registered at GitHub... "
-    ssh "$HOST" 'ssh -o BatchMode=yes -T git@github.com 2>&1 || true' | grep -q "successfully authenticated" || {
-        echo "ERROR: GitHub authentication from $HOST still failing" >&2
-        exit 1
-    }
-    echo "==> GitHub SSH access from $HOST: ok"
+# Uploads and unpacks the instance artifacts. The previous runtime stays as
+# werkator.prev for one deployment as the rollback asset.
+deploy_instance() {
+    echo "==> Uploading runtime bundle and werkdock binary"
+    ssh "$HOST" "mkdir -p '$TARGET_DIR/.werkator/bin'"
+    scp -q "$RUNTIME_BUNDLE" "$HOST:$TARGET_DIR/.werkator/"
+    scp -q "$WERKDOCK_BINARY" "$HOST:$TARGET_DIR/.werkator/bin/werkdock.new"
+    echo "==> Unpacking"
+    ssh "$HOST" "set -e
+        cd '$TARGET_DIR/.werkator'
+        mv bin/werkdock.new bin/werkdock && chmod 755 bin/werkdock
+        rm -rf werkator.prev
+        [ ! -d werkator ] || mv werkator werkator.prev
+        tar xzf '$(basename "$RUNTIME_BUNDLE")'
+        './werkator/bin/werkator' --version
+        './bin/werkdock' version"
 }
 
-install() {
+instance_install() {
     ensure_ssh
     check_prerequisites
-    ensure_local_artifacts
+    ensure_instance_artifacts
+    deploy_instance
+    echo
+    echo "==> Instance installed."
+    echo "    Runtime:  $WERKATOR_BIN"
+    echo "    werkdock: $TARGET_DIR/.werkator/bin/werkdock"
+    echo "    Next:     tools/remote werkator repo-init, then instance-start"
+}
 
-    echo "==> Uploading runtime bundle and rootfs archive"
-    ssh "$HOST" "mkdir -p '$TARGET_DIR/.werkator'"
-    scp -q "$RUNTIME_BUNDLE" "$HOST:$TARGET_DIR/.werkator/"
-    scp -q "$ROOTFS" "$HOST:$TARGET_DIR/.werkator/"
+# Refuse to swap the runtime under a running build; FORCE=1 overrides.
+require_idle() {
+    local port
+    port="$(ssh "$HOST" "cd '$TARGET_DIR/werkator' 2>/dev/null && '$WERKATOR_BIN' config:print 2>/dev/null" | awk '/^server:/{f=1;next} f && /^  port:/{print $2; exit}' | tr -d '"' || true)"
+    [ -n "$port" ] || return 0
+    local current
+    current="$(ssh "$HOST" "curl -s --max-time 5 http://127.0.0.1:$port/api/builds/current" || true)"
+    if [ -n "$current" ] && [ "$current" != "[]" ]; then
+        [ "${FORCE:-}" = "1" ] || die "a build is running on $HOST — retry when idle, or FORCE=1 to override"
+        echo "==> WARNING: deploying although a build is running (FORCE=1)"
+    fi
+}
 
-    echo "==> Unpacking runtime bundle"
-    ssh "$HOST" "tar xzf '$TARGET_DIR/.werkator/$(basename "$RUNTIME_BUNDLE")' -C '$TARGET_DIR/.werkator'"
-    ssh "$HOST" "'$TARGET_DIR/.werkator/werkator/bin/werkator' --version"
+instance_update() {
+    ensure_ssh
+    ensure_instance_artifacts
+    require_idle
+    local was_active=0
+    if ssh "$HOST" "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user is-active --quiet '$UNIT'"; then
+        was_active=1
+    fi
+    if [ "$was_active" = "1" ]; then
+        echo "==> Stopping $UNIT"
+        ssh "$HOST" "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user stop '$UNIT'"
+    fi
+    deploy_instance
+    if [ "$was_active" = "1" ]; then
+        echo "==> Starting $UNIT"
+        ssh "$HOST" "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user start '$UNIT' && sleep 3 && systemctl --user is-active '$UNIT'"
+    else
+        echo "==> Service was not running; not started (use instance-start for the first start)"
+    fi
+    echo "==> Instance updated."
+}
 
-    ensure_github_access
+# Sets up the WATCHED repository: an anonymous https clone (a private origin
+# gets its credentials via git.account/git.token in the machine config that
+# `werkator init` creates), the werkator init with the instance fragment
+# applied, and the rootfs archive for the sandbox builds. All configuration
+# writing is init's — this script transports and invokes (step 23).
+repo_init() {
+    ensure_ssh
+    [ -f "$ROOTFS" ] || die "rootfs archive missing: $ROOTFS — build it with tools/build-bwrap-rootfs.sh or set WERKATOR_ROOTFS"
+    ssh "$HOST" "test -x '$WERKATOR_BIN'" || die "no instance on $HOST — run instance-install first"
 
-    echo "==> Cloning the repository"
+    echo "==> Cloning the watched repository"
     if ssh "$HOST" "test -d '$TARGET_DIR/werkator/.git'"; then
         echo "    (already cloned, skipping)"
     else
-        ssh "$HOST" "git clone git@github.com:mhoennig/werkator.git '$TARGET_DIR/werkator'"
+        ssh "$HOST" "git clone '$REPO_URL' '$TARGET_DIR/werkator'"
     fi
 
-    echo "==> Running werkator init"
-    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' init"
+    echo "==> Uploading the rootfs archive (skipped when unchanged)"
+    local rootfs_remote="$TARGET_DIR/.werkator/$(basename "$ROOTFS")"
+    local local_sha remote_sha
+    local_sha="$(sha256sum "$ROOTFS" | cut -d' ' -f1)"
+    remote_sha="$(ssh "$HOST" "sha256sum '$rootfs_remote' 2>/dev/null | cut -d' ' -f1" || true)"
+    if [ "$local_sha" = "$remote_sha" ]; then
+        echo "    (already on the host, skipping)"
+    else
+        scp -q "$ROOTFS" "$HOST:$rootfs_remote"
+        remote_sha="$(ssh "$HOST" "sha256sum '$rootfs_remote' | cut -d' ' -f1")"
+        [ "$local_sha" = "$remote_sha" ] || die "rootfs upload checksum mismatch"
+    fi
 
-    echo "==> Writing machine-local bwrap configuration"
-    ssh "$HOST" "grep -q '^  bwrap:' '$TARGET_DIR/werkator/.git/werkator/.werkator.yml' 2>/dev/null" || ssh "$HOST" "cat >> '$TARGET_DIR/werkator/.git/werkator/.werkator.yml' <<'CFG'
-
-# Build in the bubblewrap sandbox instead of natively (Step 17 / ADR 0007).
-# Both keys are pinned: read from this machine config even if a branch sets
-# its own values in a committed .werkator.yml.
-builds:
-  default:
-    bwrap:
-      enabled: true
-      rootfs: $TARGET_DIR/.werkator/$(basename "$ROOTFS")
-CFG"
+    echo "==> Running werkator init${WERKATOR_INIT_CONFIG:+ --apply $(basename "${WERKATOR_INIT_CONFIG}")}"
+    local fragment_remote
+    fragment_remote="$(upload_fragment)"
+    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$WERKATOR_BIN' init ${fragment_remote:+--apply '$fragment_remote'}"
 
     echo "==> Verifying the effective configuration"
-    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' config:print 2>/dev/null | grep -A3 'bwrap:' | head -4"
+    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$WERKATOR_BIN' config:print 2>/dev/null | grep -A4 'bwrap:' | head -5"
 
     echo
-    echo "==> Install complete."
-    echo "    Repo:     $TARGET_DIR/werkator"
-    echo "    Runtime:  $TARGET_DIR/.werkator/werkator/bin/werkator"
-    echo "    Next:     tools/remote werkator build"
+    echo "==> Repository ready."
+    echo "    Repo: $TARGET_DIR/werkator"
+    echo "    Next: fill git.account/git.token in $MACHINE_CONFIG if the origin is private,"
+    echo "          then tools/remote werkator instance-start"
 }
 
-build() {
+# Start the server as a systemd user unit behind the managed Apache. All
+# configuration comes from the instance fragment (server.port, publicBaseUrl,
+# systemd limits); init generates the units AND the .htaccess — this script
+# only places and activates them (step 23).
+instance_start() {
     ensure_ssh
-    local branch="${WERKATOR_BRANCH:-main}"
-    echo "==> Running one initial build of branch '$branch' on $HOST (in the bwrap sandbox)"
-    ssh -t "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' build '$branch'"
-}
+    require_env WERKATOR_DOMAIN
 
-# Start the server as a systemd user unit behind the managed Apache.
-# WERKATOR_MEMORY_MAX / WERKATOR_TASKS_MAX (optional) are written into the
-# machine config so `init --systemd` bakes them into the unit.
-start() {
-    ensure_ssh
-    require_env WERKATOR_PORT WERKATOR_DOMAIN
-    local machine="$TARGET_DIR/werkator/.git/werkator/.werkator.yml"
-    local unit="werkator-$(basename "$TARGET_DIR/werkator").service"
+    echo "==> Applying the instance fragment and generating the host integration (init --systemd)"
+    local fragment_remote
+    fragment_remote="$(upload_fragment)"
+    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$WERKATOR_BIN' init ${fragment_remote:+--apply '$fragment_remote'} --systemd"
+
+    local htaccess_src="$TARGET_DIR/werkator/.git/werkator/werkator.htaccess"
     local htaccess="$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www/.htaccess"
-
-    echo "==> Writing server settings to the machine config"
-    if ssh "$HOST" "grep -q '^server:' '$machine' 2>/dev/null"; then
-        # re-run: update port and publicBaseUrl in place (systemd limits stay as written)
-        ssh "$HOST" "sed -i 's/^  port: .*/  port: $WERKATOR_PORT/; s|^  publicBaseUrl: .*|  publicBaseUrl: \"https://$WERKATOR_DOMAIN/\"|' '$machine'"
+    if ssh "$HOST" "test -f '$htaccess_src'"; then
+        echo "==> Placing the generated Apache reverse proxy at $htaccess"
+        ssh "$HOST" "mkdir -p '$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www' && cp '$htaccess_src' '$htaccess'"
     else
-        ssh "$HOST" "cat >> '$machine' <<'CFG'
-
-# Web access: the managed Apache terminates TLS and proxies to the localhost
-# port assigned by Hostsharing (eigener Serverdienst); TLS is the domain's
-# Let's Encrypt certificate, so Werkator itself stays on 127.0.0.1.
-server:
-  port: $WERKATOR_PORT
-  bindAddress: 127.0.0.1
-  publicBaseUrl: \"https://$WERKATOR_DOMAIN/\"
-  nginx:
-    enabled: false
-  systemd:
-    memoryMax: \"${WERKATOR_MEMORY_MAX:-}\"
-    tasksMax: \"${WERKATOR_TASKS_MAX:-}\"
-CFG"
+        echo "==> No werkator.htaccess generated (no server.publicBaseUrl configured) — skipping the Apache proxy"
     fi
-
-    echo "==> Writing the Apache reverse proxy to $htaccess"
-    ssh "$HOST" "mkdir -p '$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www' && cat > '$htaccess' <<'HT'
-DirectoryIndex disabled
-RewriteEngine On
-RewriteBase /
-RewriteRule .* http://127.0.0.1:$WERKATOR_PORT%{REQUEST_URI} [proxy]
-HT"
-
-    echo "==> Generating the systemd user unit (init --systemd)"
-    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$TARGET_DIR/.werkator/werkator/bin/werkator' init --systemd"
 
     echo "==> Linking the units into ~/.config/systemd/user and enabling the service"
     ssh "$HOST" "mkdir -p ~/.config/systemd/user && \
-      ln -sf '$TARGET_DIR/werkator/.git/werkator/$unit' ~/.config/systemd/user/ && \
+      ln -sf '$TARGET_DIR/werkator/.git/werkator/$UNIT' ~/.config/systemd/user/ && \
       ln -sf '$TARGET_DIR/werkator/.git/werkator/werkator-docker-prune.service' ~/.config/systemd/user/ && \
       ln -sf '$TARGET_DIR/werkator/.git/werkator/werkator-docker-prune.timer' ~/.config/systemd/user/ && \
-      systemctl --user daemon-reload && systemctl --user restart '$unit' && systemctl --user status '$unit' --no-pager -l | head -12"
+      XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user daemon-reload && \
+      XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user restart '$UNIT' && \
+      XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user status '$UNIT' --no-pager -l | head -12"
 
     echo
     echo "==> Server started. Verify: https://$WERKATOR_DOMAIN/"
-    echo "    Logs: ssh $HOST -- systemctl --user status '$unit'"
+    echo "    Logs: ssh $HOST -- systemctl --user status '$UNIT'"
 }
 
 # Background SSH tunnel to the Werkator server, so the browser reaches the UI
@@ -260,9 +314,11 @@ HT"
 # `start` runs ssh -N -L detached with a pid file; `stop` kills it.
 port_forward() {
     require_env WERKATOR_LOCAL_PORT
+    # the effective port, wherever it is configured (machine config or applied
+    # fragment) — config:print is the single answer, not this script's parser
     local remote_port
-    remote_port="$(ssh "$HOST" "awk '/^server:/{f=1;next} f && /^  port:/{print \$2; exit}' '$TARGET_DIR/werkator/.git/werkator/.werkator.yml'")"
-    [ -n "$remote_port" ] || { echo "ERROR: no server.port in the machine config — run 'tools/remote werkator start' first" >&2; exit 1; }
+    remote_port="$(ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$WERKATOR_BIN' config:print 2>/dev/null" | awk '/^server:/{f=1;next} f && /^  port:/{print $2; exit}' | tr -d '"')"
+    [ -n "$remote_port" ] || die "no server.port configured — run 'tools/remote werkator instance-start' first"
 
     case "$COMMAND" in
         start)
@@ -299,14 +355,11 @@ port_forward() {
     esac
 }
 
-# Print the control token guarding the mutating build endpoints. If the server
-# has not created it yet (it does so on first use), generate one in place — the
-# server reads the file lazily, so a pre-created token is equivalent.
+# Print the control token guarding the mutating build endpoints — the werkator
+# CLI owns creation and format (step 23), this script only invokes it.
 control_token() {
     ensure_ssh
-    local token_file="$TARGET_DIR/werkator/.git/werkator/control-token"
-    ssh "$HOST" "if [ -f '$token_file' ]; then cat '$token_file'; else \
-        umask 077 && head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \\n' > '$token_file' && cat '$token_file'; fi"
+    ssh "$HOST" "cd '$TARGET_DIR/werkator' && '$WERKATOR_BIN' control-token"
 }
 
 case "$REPO" in
@@ -319,17 +372,29 @@ case "$REPO" in
                 ensure_ssh
                 check_prerequisites
                 ;;
-            install)
-                install
+            instance-install)
+                instance_install
                 ;;
-            build)
-                build
+            instance-update)
+                instance_update
                 ;;
-            start)
-                start
+            instance-start)
+                instance_start
+                ;;
+            repo-init)
+                repo_init
                 ;;
             control-token)
                 control_token
+                ;;
+            install)
+                die "'install' was the self-build prototype; use instance-install + repo-init (step 21 session D)"
+                ;;
+            build)
+                die "'build' (the self-build) is retired; the instance builds pushes itself, or run '$WERKATOR_BIN build <branch>' on the host"
+                ;;
+            start)
+                die "'start' is now 'instance-start' — commands name their role (builder vs built)"
                 ;;
             *)
                 echo "ERROR: unknown command: $COMMAND" >&2

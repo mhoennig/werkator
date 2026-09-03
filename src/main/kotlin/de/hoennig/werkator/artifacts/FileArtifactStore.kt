@@ -151,12 +151,18 @@ class FileArtifactStore(
         }
     }
 
-    /** Legacy `archived_artefact_dir_path`: `build/reports` archives as `reports/`, everything else below `reports/<dir>`. */
+    /**
+     * `build/reports` archives as `reports/` — the browsable-reports anchor of the
+     * artifact page and the legacy `archived_artefact_dir_path` layout. Every other
+     * directory archives at its own workspace-relative path: it is not a report,
+     * and hiding e.g. a built binary below `reports/` made it both mislabeled and
+     * invisible (the report index only scans for HTML pages).
+     */
     private fun archivedPath(artifactDir: String): String =
         if (artifactDir == "build/reports") {
             "reports"
         } else {
-            "reports/$artifactDir"
+            artifactDir
         }
 
     /**

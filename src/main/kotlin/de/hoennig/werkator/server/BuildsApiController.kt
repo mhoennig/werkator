@@ -7,6 +7,7 @@ import de.hoennig.werkator.build.BuildResultRepository
 import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.config.BuildDefinition
 import de.hoennig.werkator.git.GitService
+import de.hoennig.werkator.repo.RepoContext
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -20,7 +21,6 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 
 /**
@@ -38,15 +38,17 @@ class BuildsApiController(
     private val controlTokens: ControlTokenService,
     private val gitService: GitService,
     private val branchListing: BranchListing,
+    private val repo: RepoContext,
 ) {
-    var workingDir: Path = Paths.get(".")
+    private val workingDir: Path
+        get() = repo.workingDir
 
     @GetMapping("/api/builds/latest")
     fun latest(): List<BuildResultDto> = repository.latestPerName().map { BuildResultDto.from(it, it.isLatestGreen()) }
 
     /** The legacy branches view: every origin branch with its latest build or `unknown`. */
     @GetMapping("/api/branches")
-    fun branches(): List<BranchDto> = branchListing.branches(workingDir)
+    fun branches(): List<BranchDto> = branchListing.branches(repo)
 
     @GetMapping("/api/builds/history")
     fun history(): List<BuildResultDto> = repository.history().map { BuildResultDto.from(it, it.isLatestGreen()) }
@@ -122,6 +124,7 @@ class BuildsApiController(
         // a restarted build re-runs its recorded build definition (settings from the current config)
         val running =
             buildExecutor.startBuild(
+                repo = repo,
                 branch = branchName,
                 commit = commit,
                 build = latest?.build ?: BuildDefinition.DEFAULT,

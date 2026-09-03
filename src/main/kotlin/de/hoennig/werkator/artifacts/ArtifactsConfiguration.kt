@@ -1,17 +1,13 @@
 package de.hoennig.werkator.artifacts
 
 import de.hoennig.werkator.build.ArtifactStore
-import de.hoennig.werkator.config.ConfigLoader
+import de.hoennig.werkator.repo.RepoContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 @Configuration
 class ArtifactsConfiguration {
-    /**
-     * Store relative to the working directory, matching how `ConfigLoader` and the
-     * `BuildResultRepository` bean resolve their files. Nothing is touched until the
-     * first build persists, so the bean is safe outside a git repository.
-     */
+    /** The current repository's artifact store, for the code paths that still take the store bean. */
     @Bean
-    fun artifactStore(configLoader: ConfigLoader): ArtifactStore = FileArtifactStore(configLoader)
+    fun artifactStore(repo: RepoContext): ArtifactStore = repo.artifactStore
 }

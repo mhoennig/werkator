@@ -36,3 +36,14 @@ builds:
       - build/reports
     stdoutLog: build.stdout.log   # filename for captured stdout
     stderrLog: build.stderr.log   # filename for captured stderr
+
+  # Werkdock builds itself: the Go module in werkdock/ (plan step 21).
+  # The first gofmt call prints any unformatted files, the second fails
+  # the build on them. Needs the go toolchain in the build environment.
+  werkdock:
+    trigger:
+      onPush: true
+    cleanCommand: rm -rf werkdock/dist
+    buildCommand: cd werkdock && gofmt -l . && test -z "$(gofmt -l .)" && go vet ./... && go test ./... && CGO_ENABLED=0 go build -o dist/werkdock .
+    artifactDirs:
+      - werkdock/dist

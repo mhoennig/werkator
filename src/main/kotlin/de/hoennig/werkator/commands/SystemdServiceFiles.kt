@@ -11,6 +11,8 @@ object SystemdServiceFiles {
     const val ENV_FILE_NAME = "werkator.env"
 
     /** Host-global unit names of the nightly Docker cleanup — shared by all Werkator repositories on the host. */
+    const val HTACCESS_NAME = "werkator.htaccess"
+
     const val PRUNE_SERVICE_NAME = "werkator-docker-prune.service"
     const val PRUNE_TIMER_NAME = "werkator-docker-prune.timer"
 
@@ -87,6 +89,20 @@ object SystemdServiceFiles {
         # Werkator itself is configured via .werkator.yml and .git/werkator/.werkator.yml,
         # not via environment variables; this file only tunes the JVM process.
         #JAVA_OPTS=-Xmx256m
+        """.trimIndent() + "\n"
+
+    /**
+     * Apache reverse proxy for a Hostsharing managed webspace: the platform's
+     * Apache terminates TLS for the domain and forwards everything to the
+     * localhost port of the "eigener Serverdienst". Generated host integration
+     * like the units — the wrapper copies it into the domain's docroot.
+     */
+    fun htaccessContent(port: Int): String =
+        """
+        DirectoryIndex disabled
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule .* http://127.0.0.1:$port%{REQUEST_URI} [proxy]
         """.trimIndent() + "\n"
 
     private fun sanitize(name: String): String = name.replace(Regex("[^A-Za-z0-9_.-]"), "-")

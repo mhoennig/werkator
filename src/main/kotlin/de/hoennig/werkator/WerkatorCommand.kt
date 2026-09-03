@@ -2,6 +2,7 @@ package de.hoennig.werkator
 
 import de.hoennig.werkator.commands.BuildCommand
 import de.hoennig.werkator.commands.ConfigPrintCommand
+import de.hoennig.werkator.commands.ControlTokenCommand
 import de.hoennig.werkator.commands.InitCommand
 import de.hoennig.werkator.commands.RetryCommand
 import de.hoennig.werkator.commands.ServerCommand
@@ -22,6 +23,7 @@ import picocli.CommandLine.Command
         BuildCommand::class,
         RetryCommand::class,
         ConfigPrintCommand::class,
+        ControlTokenCommand::class,
     ],
     mixinStandardHelpOptions = true,
     versionProvider = BuildPropertiesVersionProvider::class,

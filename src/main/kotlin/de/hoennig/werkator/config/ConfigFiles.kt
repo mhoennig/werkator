@@ -19,6 +19,15 @@ object ConfigFiles {
     /** The machine-specific configuration inside `.git`; secrets live here. */
     const val REPO_INSTALL = ".git/werkator/$COMMITTED"
 
+    /**
+     * The applied instance fragment (`init --apply`, step 23): a config-schema YAML
+     * fragment installed verbatim as its own layer — above the committed project
+     * config, below the hand-edited machine config. Kept separate so applying never
+     * rewrites the machine config (its comments and secrets stay untouched) and
+     * re-applying is a plain file replacement, never a merge that can duplicate.
+     */
+    const val APPLIED = ".git/werkator/.werkator.applied.yml"
+
     /** The name the committed configuration had before the rename. */
     const val LEGACY_COMMITTED = ".gittally.yml"
 
