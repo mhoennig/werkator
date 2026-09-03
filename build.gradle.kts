@@ -11,7 +11,8 @@ plugins {
 group = "de.hoennig"
 // bump at least the patch version for every deployment — and only then, not per commit —
 // so the UI footer (BuildProperties), --version and the release notes identify what is
-// actually running; a deployment bundles whatever was committed since the last one
+// actually running; a deployment bundles whatever was committed since the last one.
+// ReleaseVersionConsistencyTest fails the build if this and the top releases.html entry disagree.
 version = "1.1.0"
 
 java {
