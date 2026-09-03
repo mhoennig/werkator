@@ -310,8 +310,13 @@ repo_add() {
         ssh "$HOST" "git clone '$url' '$TARGET_DIR/$name'"
     fi
 
-    echo "==> Running werkator init in $name"
-    ssh "$HOST" "cd '$TARGET_DIR/$name' && '$WERKATOR_BIN' init"
+    # The instance fragment carries the sandbox policy (bwrap rootfs and werkdock
+    # binary). Without it a watched repository builds on the bare host, where the
+    # toolchains are not installed — the same --apply repo-init does.
+    echo "==> Running werkator init in $name${WERKATOR_INIT_CONFIG:+ --apply $(basename "${WERKATOR_INIT_CONFIG}")}"
+    local fragment_remote
+    fragment_remote="$(upload_fragment)"
+    ssh "$HOST" "cd '$TARGET_DIR/$name' && '$WERKATOR_BIN' init ${fragment_remote:+--apply '$fragment_remote'}"
 
     echo "==> Checking the registry"
     if ssh "$HOST" "grep -q -- '$TARGET_DIR/$name' ~/.werkator.yml 2>/dev/null"; then
