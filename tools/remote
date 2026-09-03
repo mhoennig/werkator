@@ -45,6 +45,9 @@
 #   WERKATOR_INIT_CONFIG   the init fragment to apply (repo-init, instance-start)
 #   WERKATOR_REPO_URL      https clone URL of the watched repository
 #                          (default: https://github.com/mhoennig/werkator.git)
+#   WERKDOCK_REPO          checkout of the werkdock repository, whose binary the
+#                          instance runs (default: <repo>/../werkdock)
+#   WERKDOCK_BINARY        the built werkdock binary (default: $WERKDOCK_REPO/dist/werkdock)
 #   WERKATOR_ROOTFS        rootfs archive path for repo-init
 #                          (default: <repo>/build/werkator-buildenv-trixie-java-go-node.tar.zst)
 #
@@ -70,7 +73,11 @@ COMMAND="${2:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNTIME_BUNDLE="$REPO_ROOT/build/distributions/werkator-runtime-linux-x64.tar.gz"
-WERKDOCK_BINARY="$REPO_ROOT/werkdock/dist/werkdock"
+# Werkdock lives in its own repository since step 21 session E. Its binary is
+# built there, not here: WERKDOCK_REPO names the checkout (default: a sibling
+# of this repository), WERKDOCK_BINARY the built binary within it.
+WERKDOCK_REPO="${WERKDOCK_REPO:-$REPO_ROOT/../werkdock}"
+WERKDOCK_BINARY="${WERKDOCK_BINARY:-$WERKDOCK_REPO/dist/werkdock}"
 PID_FILE="/tmp/werkator-port-forward-$(id -u).pid"
 LOG_FILE="/tmp/werkator-port-forward-$(id -u).log"
 
@@ -92,8 +99,10 @@ require_env() {
 
 [ -n "$REPO" ] && [ -n "$COMMAND" ] || usage
 
-# Load the transport values; explicit environment wins, the selected env file
-# (default: the .env in the repository root) fills the rest.
+# Load the transport values. The selected env file (default: the .env in the
+# repository root) wins over the environment — `set -a; source` assigns
+# unconditionally; pick the target with --env-file rather than by exporting
+# single values.
 ENV_FILE="${ENV_FILE:-$REPO_ROOT/.env}"
 set -a
 [ -f "$ENV_FILE" ] && source "$ENV_FILE"
@@ -137,8 +146,11 @@ check_prerequisites() {
 
 ensure_werkdock_binary() {
     if [ ! -f "$WERKDOCK_BINARY" ]; then
-        echo "==> werkdock binary not found; building it locally (go build)"
-        (cd "$REPO_ROOT/werkdock" && CGO_ENABLED=0 go build -o dist/werkdock .)
+        [ -f "$WERKDOCK_REPO/go.mod" ] || die \
+            "werkdock binary missing: $WERKDOCK_BINARY — clone https://git.javagil.de/mi/werkdock.git \
+next to this repository, or point WERKDOCK_REPO/WERKDOCK_BINARY at your checkout"
+        echo "==> werkdock binary not found; building it in $WERKDOCK_REPO (go build)"
+        (cd "$WERKDOCK_REPO" && CGO_ENABLED=0 go build -o dist/werkdock .)
     fi
     [ -f "$WERKDOCK_BINARY" ] || die "werkdock binary missing: $WERKDOCK_BINARY"
 }
@@ -300,11 +312,19 @@ repo_add() {
         ssh "$HOST" "git clone '$url' '$TARGET_DIR/$name'"
     fi
 
-    echo "==> Running werkator init in $name"
-    ssh "$HOST" "cd '$TARGET_DIR/$name' && '$WERKATOR_BIN' init"
+    # The instance fragment carries the sandbox policy (bwrap rootfs and werkdock
+    # binary). Without it a watched repository builds on the bare host, where the
+    # toolchains are not installed — the same --apply repo-init does.
+    echo "==> Running werkator init in $name${WERKATOR_INIT_CONFIG:+ --apply $(basename "${WERKATOR_INIT_CONFIG}")}"
+    local fragment_remote
+    fragment_remote="$(upload_fragment)"
+    ssh "$HOST" "cd '$TARGET_DIR/$name' && '$WERKATOR_BIN' init ${fragment_remote:+--apply '$fragment_remote'}"
 
     echo "==> Checking the registry"
-    if ssh "$HOST" "grep -q -- '$TARGET_DIR/$name' ~/.werkator.yml 2>/dev/null"; then
+    # Grepped locally: the entry may name the path absolute or as ~/<name>, and
+    # matching both is easier without a second layer of remote shell quoting.
+    if ssh "$HOST" "cat ~/.werkator.yml 2>/dev/null" |
+        grep -qE "path: *(~|$TARGET_DIR)/$name[[:space:]]*$"; then
         echo "    (~/.werkator.yml already names this path)"
     else
         echo "    not registered yet — add this entry to ~/.werkator.yml on $HOST:"

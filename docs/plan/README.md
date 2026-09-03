@@ -93,7 +93,7 @@ Added for running Werkator on Hostsharing Managed Webspaces (2026-08-10):
 
 Added to correct the bwrap prototype's drift toward self-building on the webspace (2026-09-01):
 
-- [ ] `21-werkdock-extraction-and-webspace-install.md` — roadmap in four sessions: close step 17's open ends, grow the sandbox tooling into **Werkdock** (a docker-like filesystem-only sandbox CLI, developed in the `werkdock/` subdirectory, later its own repository), let Werkator consume it, and replace the webspace self-build with the local-build-plus-install path of ADR 0006
+- [ ] `21-werkdock-extraction-and-webspace-install.md` — roadmap in four sessions: close step 17's open ends, grow the sandbox tooling into **Werkdock** (a docker-like filesystem-only sandbox CLI, developed in the `werkdock/` subdirectory, extracted into [its own repository](https://git.javagil.de/mi/werkdock) in session E), let Werkator consume it, and replace the webspace self-build with the local-build-plus-install path of ADR 0006
 
 Added after step 21 session D exposed that `tools/remote` re-implements configuration Werkator owns (2026-09-01):
 
@@ -113,5 +113,5 @@ Step 17 depends on 11, 15, and 16, and starts with a hard precondition check on 
 Step 18 depends on nothing in code but on the watched repository having migrated — its precondition check is a hard gate, not a formality.
 Step 19 depends on nothing; `WatcherState` and `/api/watcher` already carry everything it needs to render.
 Step 20 depends on nothing; the duration is already recorded, and the trend is derived read-only from `repository.history()`.
-Step 21 depends on 17; its sessions B and C grow Werkdock in the `werkdock/` subdirectory (later its own repository), and session D supersedes the self-build prototype in `tools/remote`.
+Step 21 depends on 17; its sessions B and C grow Werkdock in the `werkdock/` subdirectory, session D supersedes the self-build prototype in `tools/remote`, and session E moves Werkdock into its own repository.
 Step 23 depends on 21 session D; its per-instance file convention (transport env + init fragment) also feeds step 22's instance setup and should land before Werkbaum rolls out.
