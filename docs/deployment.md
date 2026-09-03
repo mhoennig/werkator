@@ -319,7 +319,7 @@ See [configuration.md](configuration.md) for all `server.nginx.*` keys.
 ## Hostsharing Managed Webspace
 
 The third deployment variant (plan step 21, verified live on a real webspace): no root, no Docker daemon, no own reverse proxy.
-Werkator runs as a systemd *user* service on the assigned localhost port ("eigener Serverdienst"), the platform's managed Apache terminates TLS and proxies via `.htaccess`, and builds run in the bubblewrap sandbox executed by the [werkdock](../werkdock/README.md) CLI (ADR 0008, step 21 session C).
+Werkator runs as a systemd *user* service on the assigned localhost port ("eigener Serverdienst"), the platform's managed Apache terminates TLS and proxies via `.htaccess`, and builds run in the bubblewrap sandbox executed by the [werkdock](https://git.javagil.de/mi/werkdock) CLI (ADR 0008, step 21 session C).
 
 Werkator is never built on the webspace: the runtime bundle and the werkdock binary are built locally and uploaded (ADR 0006).
 All steps are driven by `tools/remote`; commands name their role — `instance-*` manages the installed Werkator, `repo-*` the repository it watches.

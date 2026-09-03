@@ -85,6 +85,17 @@ Bring intent 1 to the webspace: build locally, install the bundle — Werkator n
   Session D's replacement must name the role in every command and in the script's vocabulary (e.g. `instance install`/`instance update` vs `repo build`), and prefer delegating built-side operations to the `werkator` CLI instead of reimplementing them.
 - `docs/deployment.md` gains "Hostsharing Managed Webspace" as the third deployment variant — step 17 required this to be written from a verified setup, and the branch's live run provides exactly that.
 
+### E — Werkdock moves to its own repository (2026-09-03)
+
+Sessions B–D left Werkdock self-contained by design ("no imports from Werkator code, no Gradle coupling"), and session C reduced the coupling to a binary on the `PATH`.
+What remained was the directory move the plan promised from the start.
+
+- The nine commits below `werkdock/` are lifted with `git subtree split -P werkdock`, so the history survives the move; the paths lose the prefix.
+- The build definition `werkdock` leaves this repository's `.werkator.yml` and becomes the `default` build of the new repository's own `.werkator.yml` — the same commands, minus the `cd werkdock` prefix.
+- `tools/remote` no longer builds the binary from a subdirectory: `WERKDOCK_REPO` names the checkout (default: a sibling of this repository), `WERKDOCK_BINARY` the built binary within it, and a missing checkout fails loudly with the clone URL instead of a bare "file not found".
+- Werkator's own configuration is untouched: `bwrap.werkdock` still names the executing binary and is still pinned — a branch must not substitute it (AGENTS.md).
+- The instance registers the new repository like any other (`tools/remote werkator repo-add`), so Werkdock is built and tested by the same Werkator that runs on its binary.
+
 ## Session Notes
 
 - 2026-09-01: The fat build image exists and is live on mih34: `tools/build-bwrap-rootfs.sh` gained `--pkgs-extra`, the archive `werkator-buildenv-trixie-java-go-node.tar.zst` (515 MB, JDK 21 + Go + Node/npm) was built locally, uploaded checksum-verified, and the machine config switched to it (deduplicating nine identical bwrap blocks the install prototype had appended).
@@ -103,3 +114,4 @@ Bring intent 1 to the webspace: build locally, install the bundle — Werkator n
 - Session B: the `werkdock/` subdirectory holds a self-contained tool in which `werkdock doctor`, an image build, and `werkdock run` work on a Managed Webspace without any Werkator involvement.
 - Session C: `./gradlew build` green with `BwrapBuildRunner` delegating to `werkdock`; the pinned-key tests and the metadata-masking tests unchanged and green.
 - Session D: a fresh Managed Webspace reaches a running, HTTPS-reachable Werkator via `tools/remote werkator install` + `start` without ever compiling on the target; `docs/deployment.md` documents it.
+- Session E: `werkdock/` is gone from this repository, the new repository builds and tests green on its own, `tools/remote` installs the binary from the sibling checkout, and the instance watches both repositories.
