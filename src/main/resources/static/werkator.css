@@ -57,6 +57,11 @@ main { width: min(1180px, calc(100% - 32px)); margin: 32px auto; }
 h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font-size: 28px; font-weight: 700; }
 h1 img { width: 32px; height: 32px; flex: none; }
 h1 .repo-name { color: var(--muted); font-size: 18px; font-weight: 400; align-self: flex-end; }
+/* the switcher takes the repository name's place and dresses like it: no box until hovered */
+h1 .repo-select { align-self: flex-end; margin-bottom: 3px; padding: 2px 4px; border: 1px solid transparent; border-radius: 6px;
+    background: transparent; color: var(--muted); font: inherit; font-size: 18px; font-weight: 400; cursor: pointer; }
+h1 .repo-select:hover, h1 .repo-select:focus { border-color: var(--border); background: var(--panel); }
+h1 .repo-select option { color: var(--text); background: var(--panel); }
 h2 { margin: 20px 0 10px; font-size: 18px; }
 .title-home { display: inline-flex; flex: none; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
@@ -163,6 +168,7 @@ th.num { font-family: inherit; font-size: 12px; }
     h1 .title-home { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
     h1 .title-text { grid-column: 2; grid-row: 1; align-self: end; }
     h1 .repo-name { grid-column: 2; grid-row: 2; align-self: start; font-size: 15px; overflow-wrap: anywhere; }
+    h1 .repo-select { grid-column: 2; grid-row: 2; align-self: start; justify-self: start; margin: 0; padding: 0 4px; font-size: 15px; }
     .view-row { flex-wrap: wrap; }
     .view-toggle a, .view-toggle span { min-width: 0; padding: 6px 9px; font-size: 13px; }
     /* the live indicator collapses to a colored state dot so it cannot squeeze the menu;

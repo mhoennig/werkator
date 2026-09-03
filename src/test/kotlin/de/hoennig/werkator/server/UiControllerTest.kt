@@ -169,7 +169,8 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("""href="/branches"""")))
                 // Thymeleaf drops an attribute whose value is empty, and werkator.js falls back to ""
                 .andExpect(content().string(containsString("""<meta name="werkator-repo-base">""")))
-                .andExpect(content().string(not(containsString("""class="repo-switch""""))))
+                .andExpect(content().string(not(containsString("""class="repo-select""""))))
+                .andExpect(content().string(containsString("""class="repo-name"""")))
         }
 
         test("with several served repositories every link names its repository and the switcher appears") {
@@ -184,8 +185,10 @@ class UiControllerTest : FunSpec() {
                 .andExpect(content().string(containsString("""href="/repos/test/branches"""")))
                 .andExpect(content().string(containsString("""data-api="/api/repos/test/builds/latest"""")))
                 .andExpect(content().string(containsString("""<meta name="werkator-repo-base" content="/repos/test">""")))
-                .andExpect(content().string(containsString("""class="repo-switch"""")))
-                .andExpect(content().string(containsString("""href="/repos/other"""")))
+                .andExpect(content().string(containsString("""class="repo-select"""")))
+                .andExpect(content().string(containsString("""<option value="/repos/test" selected="selected">test</option>""")))
+                .andExpect(content().string(containsString("""<option value="/repos/other">other</option>""")))
+                .andExpect(content().string(not(containsString("""class="repo-name""""))))
         }
 
         test("a page of a repository this instance does not serve answers 404") {

@@ -736,12 +736,34 @@ function initReloadButton() {
     });
 }
 
+// ---- repository switcher -------------------------------------------------------
+
+/**
+ * Switching the repository keeps the view: an option's value is the repository root
+ * (`/repos/<name>`), and the view this page shows is appended to it. A page that only
+ * exists for one repository's build — an artifact index — falls back to that
+ * repository's latest builds.
+ */
+function initRepoSelect() {
+    const select = document.getElementById("repo-select");
+    if (!select) {
+        return;
+    }
+    const path = window.location.pathname;
+    const view = repoBase && path.startsWith(repoBase) ? path.slice(repoBase.length) : path;
+    const keptView = ["/branches", "/history", "/current"].includes(view) ? view : "";
+    select.addEventListener("change", () => {
+        window.location.href = select.value + keptView;
+    });
+}
+
 // ---- page wiring ---------------------------------------------------------------
 
 initBuildsTable();
 initCurrentBuilds();
 initSystemTable();
 initReloadButton();
+initRepoSelect();
 // pages with a poller update the banner from their own tick; the static ones ask once
 if (!refreshNow) {
     refreshWatcherBanner();
