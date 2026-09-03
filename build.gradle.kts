@@ -13,7 +13,7 @@ group = "de.hoennig"
 // so the UI footer (BuildProperties), --version and the release notes identify what is
 // actually running; a deployment bundles whatever was committed since the last one.
 // ReleaseVersionConsistencyTest fails the build if this and the top releases.html entry disagree.
-version = "1.1.1"
+version = "1.1.2"
 
 java {
     toolchain {

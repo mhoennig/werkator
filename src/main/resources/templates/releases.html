@@ -7,6 +7,16 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v1.1.2 <span class="muted">— 2026-09-03</span></h2>
+        <ul>
+            <li>On a Hostsharing Managed Webspace, an <code>instance-update</code> restart no longer looks
+                dead while nothing is listening on the port for a moment: the generated
+                <code>.htaccess</code> (PR#17) now maps a refused connection to a static
+                "Werkator is restarting — please retry in a few minutes" page instead of Apache's default
+                error page. Generated only where a <code>server.publicBaseUrl</code> is configured, next to
+                the existing <code>.htaccess</code>; nothing changes for a Docker-host deployment.</li>
+        </ul>
+
         <h2>v1.1.1 <span class="muted">— 2026-09-03</span></h2>
         <ul>
             <li>The system page's disk metric is now quota-aware (PR#16): it shows the tightest of the
