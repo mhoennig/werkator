@@ -345,5 +345,6 @@ tools/remote --env-file .env.mih34 werkator instance-update
 ```
 
 The previous runtime stays as `.werkator/werkator.prev` for one deployment as the rollback asset.
+For the few seconds `instance-update` restarts the service, nothing listens on its port; the generated `.htaccess` maps that refused connection (`ErrorDocument 502/503/504`) to a static `werkator-maintenance.html` placed next to it by `instance-start`, so the page reads "Werkator is restarting" instead of Apache's default error page or a hung request.
 
 The `/system` page's disk metric is quota-aware (PR#16): on a Managed Webspace the binding limit is usually the package's group quota, not the free space of the shared host volume, so `diskTotalGib` there is the quota's soft limit — the info line names it (`group quota <package>, hard limit … GiB`) instead of showing the host's full disk size.

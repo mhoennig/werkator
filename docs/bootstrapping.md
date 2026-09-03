@@ -90,7 +90,7 @@ Then, you have to configure *Werkator* by amending this config file according to
 
 `init --apply FILE` installs a YAML fragment in the configuration schema as the applied instance layer — see [configuration.md](configuration.md#the-applied-instance-fragment-init---apply).
 Deployment tooling hands its parameters over this way instead of patching config files; the fragment is validated strictly and replaced wholesale on re-apply.
-It runs before `--systemd`, so an applied `server.port` reaches the generated unit and the Apache `.htaccess` (written beside the units when a `publicBaseUrl` is configured).
+It runs before `--systemd`, so an applied `server.port` reaches the generated unit and the Apache `.htaccess` (written beside the units when a `publicBaseUrl` is configured, together with the static `werkator-maintenance.html` its `ErrorDocument`s fall back to while the service restarts).
 
 ## Output
 

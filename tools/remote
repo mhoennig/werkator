@@ -357,9 +357,11 @@ instance_start() {
 
     local htaccess_src="$TARGET_DIR/werkator/.git/werkator/werkator.htaccess"
     local htaccess="$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www/.htaccess"
+    local maintenance_src="$TARGET_DIR/werkator/.git/werkator/werkator-maintenance.html"
+    local maintenance="$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www/werkator-maintenance.html"
     if ssh "$HOST" "test -f '$htaccess_src'"; then
         echo "==> Placing the generated Apache reverse proxy at $htaccess"
-        ssh "$HOST" "mkdir -p '$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www' && cp '$htaccess_src' '$htaccess'"
+        ssh "$HOST" "mkdir -p '$TARGET_DIR/doms/$WERKATOR_DOMAIN/subs/www' && cp '$htaccess_src' '$htaccess' && cp '$maintenance_src' '$maintenance'"
     else
         echo "==> No werkator.htaccess generated (no server.publicBaseUrl configured) — skipping the Apache proxy"
     fi

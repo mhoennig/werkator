@@ -97,5 +97,26 @@ class SystemdServiceFilesTest : FunSpec() {
             content shouldContain "DirectoryIndex disabled"
             content shouldContain "RewriteRule .* http://127.0.0.1:18088%{REQUEST_URI} [proxy]"
         }
+
+        test("the htaccess maps a refused connection to the static maintenance page") {
+            val content = SystemdServiceFiles.htaccessContent(18088)
+
+            content shouldContain "ErrorDocument 502 /werkator-maintenance.html"
+            content shouldContain "ErrorDocument 503 /werkator-maintenance.html"
+            content shouldContain "ErrorDocument 504 /werkator-maintenance.html"
+            // the maintenance page itself must not be proxied, or ErrorDocument's sub-request loops
+            content shouldContain "RewriteCond %{REQUEST_URI} !^/werkator-maintenance.html$"
+        }
+
+        test("the maintenance page is a self-contained, static page naming a retry") {
+            val content = SystemdServiceFiles.maintenancePageContent()
+
+            content shouldContain "<html"
+            content shouldContain "restarting"
+            content shouldContain "retry"
+            content shouldNotContain "http://"
+            content shouldNotContain "https://"
+            content shouldNotContain "src="
+        }
     }
 }

@@ -359,6 +359,13 @@ class InitCommand(
                     normalizedWorkingDir.toFile(),
                 )} (Apache reverse proxy; copy it into the domain docroot on a managed webspace)",
             )
+            val maintenancePageFile = werkatorDir.resolve(SystemdServiceFiles.MAINTENANCE_PAGE_NAME)
+            maintenancePageFile.toFile().writeText(SystemdServiceFiles.maintenancePageContent())
+            println(
+                "created ${maintenancePageFile.toFile().relativeTo(
+                    normalizedWorkingDir.toFile(),
+                )} (shown by Apache while the service restarts; copy it next to the .htaccess)",
+            )
         }
 
         println("install and start the service and the nightly Docker cleanup with:")
