@@ -99,8 +99,10 @@ require_env() {
 
 [ -n "$REPO" ] && [ -n "$COMMAND" ] || usage
 
-# Load the transport values; explicit environment wins, the selected env file
-# (default: the .env in the repository root) fills the rest.
+# Load the transport values. The selected env file (default: the .env in the
+# repository root) wins over the environment — `set -a; source` assigns
+# unconditionally; pick the target with --env-file rather than by exporting
+# single values.
 ENV_FILE="${ENV_FILE:-$REPO_ROOT/.env}"
 set -a
 [ -f "$ENV_FILE" ] && source "$ENV_FILE"
@@ -319,7 +321,10 @@ repo_add() {
     ssh "$HOST" "cd '$TARGET_DIR/$name' && '$WERKATOR_BIN' init ${fragment_remote:+--apply '$fragment_remote'}"
 
     echo "==> Checking the registry"
-    if ssh "$HOST" "grep -q -- '$TARGET_DIR/$name' ~/.werkator.yml 2>/dev/null"; then
+    # Grepped locally: the entry may name the path absolute or as ~/<name>, and
+    # matching both is easier without a second layer of remote shell quoting.
+    if ssh "$HOST" "cat ~/.werkator.yml 2>/dev/null" |
+        grep -qE "path: *(~|$TARGET_DIR)/$name[[:space:]]*$"; then
         echo "    (~/.werkator.yml already names this path)"
     else
         echo "    not registered yet — add this entry to ~/.werkator.yml on $HOST:"
