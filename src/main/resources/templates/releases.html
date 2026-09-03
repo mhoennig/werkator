@@ -7,6 +7,27 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v1.1.0 <span class="muted">— 2026-09-03</span></h2>
+        <ul>
+            <li>One instance can now serve several repositories (ADR 0009): a <code>~/.werkator.yml</code>
+                lists them, and each is worked on through its own <code>RepoContext</code> — checkout,
+                results, artifact store, and worktrees never share state across repositories. The watcher
+                polls every registered repository in its own guard, and the executor's
+                <code>maxConcurrent</code> still applies per <code>(repository, branch)</code>, not just
+                per branch.</li>
+            <li>Server routes carry the repository as <code>/repos/&lt;name&gt;/…</code> and
+                <code>/api/repos/&lt;name&gt;/…</code>; the unscoped routes keep meaning the served
+                repository, so a single-repository installation notices nothing. <code>build</code>,
+                <code>retry</code>, and <code>status</code> take a <code>--repo</code> option to pick a
+                registered repository instead of always acting on the current directory.</li>
+            <li>The system page's resource metrics are sampled and reported per repository instead of
+                once for the whole instance.</li>
+            <li>The page title carries a drop-down next to the heading in place of the plain repository
+                name once more than one repository is registered — picking a different one switches
+                straight to the same view (<em>Branches</em>, <em>History</em>, …) on it. A single-repository
+                installation still shows the plain name, unchanged.</li>
+        </ul>
+
         <h2>v1.0.1 <span class="muted">— 2026-08-31</span></h2>
         <ul>
             <li>The restart button on the <em>Branches</em> view builds the branch's current head
