@@ -7,6 +7,16 @@
     <div th:replace="~{fragments :: nav(${view})}"></div>
     <div class="panel release-notes">
 
+        <h2>v1.1.1 <span class="muted">— 2026-09-03</span></h2>
+        <ul>
+            <li>The system page's disk metric is now quota-aware (PR#16): it shows the tightest of the
+                user quota, the group quota, and the volume itself, instead of always the volume. On a
+                Hostsharing Managed Webspace that is usually a group quota, far tighter than the shared
+                host disk — the info line names the binding source and its hard limit, and the
+                warn/critical highlighting now fires against the real budget. A host without a binding
+                quota renders exactly as before.</li>
+        </ul>
+
         <h2>v1.1.0 <span class="muted">— 2026-09-03</span></h2>
         <ul>
             <li>One instance can now serve several repositories (ADR 0009): a <code>~/.werkator.yml</code>
