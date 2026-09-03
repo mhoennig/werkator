@@ -23,7 +23,7 @@ Step 22 session C is that: the registry, N contexts, the multiplexed watcher, an
 - The file lives in the home directory of the user running Werkator — one instance per OS user; `WERKATOR_HOME` overrides the directory.
 - It carries the registry (`repositories`), the instance-level keys (`server`, `executor.maxConcurrent`, `watcher.pollInterval`), and an optional `defaults` block in the repository config schema.
 
-#### Scenario#000.01: The defaults block sits below every repository's own layers
+#### Scenario#12.01: The defaults block sits below every repository's own layers
 
 So that one `git.account`/`git.token` or one `gitea.baseUrl` can be written once for every repository of the same forge, while a repository's own value always wins.
 
@@ -35,7 +35,7 @@ So that one `git.account`/`git.token` or one `gitea.baseUrl` can be written once
 
 - [the home config carries the registry, and its defaults sit below every repository layer](../../src/test/kotlin/de/hoennig/werkator/config/ConfigLoaderTest.kt)
 
-#### Scenario#000.02: Instance-level keys come from the home file alone
+#### Scenario#12.02: Instance-level keys come from the home file alone
 
 So that a `server.port` left in a repository's machine config can never silently compete with the instance's.
 
@@ -52,7 +52,7 @@ So that a `server.port` left in a repository's machine config can never silently
 
 ### Feature: the registry
 
-#### Scenario#000.03: Every entry becomes a context, the start fails loudly on what cannot be served
+#### Scenario#12.03: Every entry becomes a context, the start fails loudly on what cannot be served
 
 So that an instance serving the wrong set never comes up looking healthy.
 
@@ -69,7 +69,7 @@ So that an instance serving the wrong set never comes up looking healthy.
 
 ### Feature: the watcher over N repositories
 
-#### Scenario#000.04: One repository's failure neither stops nor silences the others
+#### Scenario#12.04: One repository's failure neither stops nor silences the others
 
 So that a wrong token in one repository cannot stall the builds of every other one.
 
@@ -87,7 +87,7 @@ So that a wrong token in one repository cannot stall the builds of every other o
 
 ### Feature: the CLI selects a repository
 
-#### Scenario#000.05: `--repo <name>` selects a registered repository; without it a command means the current directory
+#### Scenario#12.05: `--repo <name>` selects a registered repository; without it a command means the current directory
 
 So that `werkator status` inside a repository behaves as it always did, and a registered repository can be addressed from anywhere.
 
