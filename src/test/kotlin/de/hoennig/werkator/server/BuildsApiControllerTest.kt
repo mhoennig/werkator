@@ -9,6 +9,7 @@ import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.build.RunningBuild
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
 import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
@@ -17,6 +18,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.context.annotation.Import
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -29,6 +31,7 @@ import java.time.Duration
 import java.time.Instant
 
 @WebMvcTest(BuildsApiController::class, properties = ["spring.main.web-application-type=servlet"])
+@Import(RepoLinks::class)
 class BuildsApiControllerTest : FunSpec() {
     private val tempDir: Path = Files.createTempDirectory("werkator-server-test")
 

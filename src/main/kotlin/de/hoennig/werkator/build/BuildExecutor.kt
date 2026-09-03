@@ -5,6 +5,7 @@ import de.hoennig.werkator.config.BuildDefinition
 import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.gitea.GiteaClient
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.ContextClosedEvent
@@ -36,6 +37,7 @@ import kotlin.concurrent.thread
 @Service
 class BuildExecutor(
     private val configLoader: ConfigLoader,
+    private val repoLinks: RepoLinks,
     private val giteaClient: GiteaClient,
     private val buildRunner: BuildRunner,
     private val workspaces: BranchWorkspaces,
@@ -397,7 +399,7 @@ class BuildExecutor(
                 sha = build.runningBuild.commit,
                 status = status,
                 description = description(status, duration),
-                targetUrl = null,
+                targetUrl = targetUrlOf(build),
                 workingDir = build.repo.workingDir,
                 // from the primary config, not the worktree: statusContext is pinned, so a
                 // branch cannot report under a check name it was not given
@@ -407,6 +409,25 @@ class BuildExecutor(
             log.warn("could not publish Gitea status {} for {}: {}", status, build.runningBuild.commit, e.message)
         }
     }
+
+    /**
+     * The artifact page of this build, so a commit status in the forge leads to the
+     * logs it is about — that is what `server.publicBaseUrl` is documented for, and
+     * until now nothing posted a link at all. Repository-scoped (ADR 0009): with
+     * several served repositories the unscoped path would resolve against whichever
+     * one the instance serves by default, which is the wrong build's page.
+     */
+    private fun targetUrlOf(build: ActiveBuild): String? =
+        try {
+            repoLinks.buildUrl(
+                repo = build.repo,
+                publicBaseUrl = configLoader.load(build.repo.workingDir).server.publicBaseUrl,
+                artifactKey = build.runningBuild.artifactKey,
+            )
+        } catch (e: Exception) {
+            log.warn("could not build the status target URL of {}: {}", build.runningBuild.branch, e.message)
+            null
+        }
 
     /** The build's own Gitea status context, empty when it uses the repository-wide one. */
     private fun statusContextOf(build: ActiveBuild): String =

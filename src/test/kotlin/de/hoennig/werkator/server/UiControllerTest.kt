@@ -18,6 +18,7 @@ import de.hoennig.werkator.metrics.MetricAggregate
 import de.hoennig.werkator.metrics.SystemMetrics
 import de.hoennig.werkator.metrics.SystemMetricsCollector
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
 import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -30,6 +31,7 @@ import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.not
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.context.annotation.Import
 import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -44,6 +46,7 @@ import java.time.Duration
 import java.time.Instant
 
 @WebMvcTest(UiController::class, properties = ["spring.main.web-application-type=servlet"])
+@Import(RepoLinks::class)
 class UiControllerTest : FunSpec() {
     private val tempDir: Path = Files.createTempDirectory("werkator-ui-test")
 

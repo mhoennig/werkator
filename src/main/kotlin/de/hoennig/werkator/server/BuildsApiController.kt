@@ -6,6 +6,7 @@ import de.hoennig.werkator.build.BuildStatus
 import de.hoennig.werkator.config.BuildDefinition
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
 import de.hoennig.werkator.repo.RepoRegistry
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -37,6 +38,7 @@ class BuildsApiController(
     private val gitService: GitService,
     private val branchListing: BranchListing,
     private val registry: RepoRegistry,
+    private val repoLinks: RepoLinks,
 ) {
     /**
      * Every route exists twice: repository-scoped (`/api/repos/<name>/…`) and unscoped.
@@ -52,7 +54,7 @@ class BuildsApiController(
         results.latestGreenFor(result.name)?.artifactKey == result.artifactKey
 
     /** The prefix the permanent links in the answers carry; empty with one served repository. */
-    private fun uiBase(repo: RepoContext): String = if (registry.all().size > 1) "/repos/${repo.name}" else ""
+    private fun uiBase(repo: RepoContext): String = repoLinks.base(repo)
 
     /** An unknown repository name answers like every other miss of this API: 404 with `error`. */
     @ExceptionHandler(UnknownRepositoryException::class)

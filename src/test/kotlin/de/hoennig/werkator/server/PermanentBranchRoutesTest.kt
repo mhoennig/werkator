@@ -11,6 +11,7 @@ import de.hoennig.werkator.config.WerkatorConfig
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.metrics.SystemMetricsCollector
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
 import de.hoennig.werkator.repo.RepoRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.clearMocks
@@ -18,6 +19,7 @@ import io.mockk.every
 import org.hamcrest.Matchers.containsString
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.context.annotation.Import
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
@@ -37,6 +39,7 @@ import java.time.Instant
     controllers = [UiController::class, ArtifactFileController::class],
     properties = ["spring.main.web-application-type=servlet"],
 )
+@Import(RepoLinks::class)
 class PermanentBranchRoutesTest : FunSpec() {
     @Autowired
     lateinit var mockMvc: MockMvc

@@ -8,6 +8,7 @@ import de.hoennig.werkator.config.ConfigLoader
 import de.hoennig.werkator.git.GitService
 import de.hoennig.werkator.metrics.SystemMetricsCollector
 import de.hoennig.werkator.repo.RepoContext
+import de.hoennig.werkator.repo.RepoLinks
 import de.hoennig.werkator.repo.RepoRegistry
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
@@ -43,6 +44,7 @@ class UiController(
     private val branchPermalinks: BranchPermalinks,
     private val buildProperties: ObjectProvider<BuildProperties>,
     private val registry: RepoRegistry,
+    private val repoLinks: RepoLinks,
 ) {
     /**
      * Every page exists twice, like the API (ADR 0009): repository-scoped under
@@ -272,9 +274,9 @@ class UiController(
      * repository the installation keeps its existing URLs (the session-D acceptance
      * criterion), with several every link names its repository.
      */
-    private fun uiBase(repo: RepoContext): String = if (registry.all().size > 1) "/repos/${repo.name}" else ""
+    private fun uiBase(repo: RepoContext): String = repoLinks.base(repo)
 
-    private fun apiBase(repo: RepoContext): String = if (registry.all().size > 1) "/api/repos/${repo.name}" else "/api"
+    private fun apiBase(repo: RepoContext): String = repoLinks.apiBase(repo)
 
     /** Adds the attributes every page needs and returns the Gitea link helper for row building. */
     private fun baseModel(
