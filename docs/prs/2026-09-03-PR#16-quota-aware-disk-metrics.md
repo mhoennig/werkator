@@ -23,7 +23,6 @@ The system page should show the same truth, continuously.
 
 ## Non-Goals
 
-- Deploying to `mih09` and verifying it live — the code lands in this PR, the rollout is a separate, later step (see "Where it is verified live" below).
 - Inode (file-count) quotas: `quota(1)` reports them, but the Gradle caches on `mih09` use 14 226 of 16.7 M files; a follow-up if it ever matters.
 - Alerting or refusing to start a build on a full quota — the page only shows; `werkdock doctor` keeps the one-off pre-build check.
 - A configuration switch: the quota is detected, never declared (see Open Questions).
@@ -176,19 +175,18 @@ The quota is read every sample: it is one syscall behind a small process, cheape
 `UiFormats.diskTotal(metrics)` formats `8.00 GiB (group quota mih09, hard limit 12.00 GiB)`, `… (user quota …)`, `70.99 GiB (volume, tighter than the quotas)` or the plain total when no quota exists; `werkator.js` gets the identical function for the poll — the UI invariant that server-rendered and polled output match.
 Rows, labels and the highlighting stay as they are: `utilizationClass(used, total)` simply receives the quota as the total.
 
-**Where it is verified live — pending.**
-After the deployment on `mih09` the page must read `Disk total: 8.00 GiB (group quota mih09, hard limit 12.00 GiB)`, `Disk used` about 1.04 GiB and `Disk free` about 6.96 GiB, with the `Repo size` row unchanged at about 0.73 GiB — the used value is the whole package's usage (every user of group `mih09`), which is what counts against the budget, while the repo size stays Werkator's own share.
-On `vm4006` (Docker host, no quota) the page must render exactly as before.
-The first sample after the update restarts the disk min/max/avg, visible as `Max` dropping from 37.13 GiB to the current value.
-Not yet done as of this PR — step 5 below is still open.
+**Where it is verified live — done, 2026-09-03.**
+Deployed to `mih09` (v1.1.1); `GET /api/system` and the `/system` page read `Disk total: 8.00 GiB (group quota mih09, hard limit 12.00 GiB)`, matching `diskSource: {kind: "group", subject: "mih09", ..., hardLimitGib: 12.0}`.
+`Disk used`/`Disk free` came back with `min == max == current` (3.65/4.35 GiB) on the very first sample after the update — the series reset, not the volume's pre-update history — and kept aggregating normally afterward; usage is higher than the PR's original 1.04 GiB measurement because time and builds moved on, not because the quota changed (still 8.00/12.00 GiB).
+The `Repo size` row and the journal were unaffected; no error or warning was logged (the quota binary is present and working on `mih09`, so the one-time "cannot read quota" log line only shows on hosts without it — confirmed separately by a local smoke test with `quota` absent).
 
-**Order of work for the implementing PR:**
+**Order of work:**
 
 1. ✅ `DiskQuota` parser and selection with the table test and the `mih09` fixture.
 2. ✅ `SystemMetricsCollector`: the quota source, the fallback, `diskSource` in the state, the series reset.
 3. ✅ `SystemMetrics.diskSource`, `UiFormats.diskTotal`, `SystemMetricsView`, `werkator.js`, `UiViewsTest`.
 4. ✅ Docs: the metrics paragraph of the architecture skill, one sentence in `docs/deployment.md` (Hostsharing section) and in `docs/plan/09-system-metrics.md` (implementation note), and this PR-doc's "Verified by" links turned from planned into real.
-5. ⬜ Deploy to `mih09` via `tools/remote --env-file .env.mih09 werkator instance-update`, check the page and the journal for the one-time source log line.
+5. ✅ Deployed to `mih09` via `tools/remote --env-file .env.mih09 werkator instance-update` (v1.1.1) and verified live as above.
 
 ## Open Questions
 
